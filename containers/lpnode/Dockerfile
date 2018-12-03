@@ -1,4 +1,4 @@
-FROM ubuntu:16.04
+#FROM ubuntu:16.04
 FROM jrottenberg/ffmpeg:4.0-ubuntu
 
 WORKDIR /

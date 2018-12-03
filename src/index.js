@@ -58,15 +58,45 @@ function generateDockerService (config) {
   for (let i = 0; i < config.nodes.transcoders.instances; i++) {
     // generate separate services with the forwarded ports.
     // append it to output as output.<node_generate_id> = props
-    console.log('transcoders: ', i)
-    output['lp_transcoder_' + i] = {
+    output['lp_t_' + i] = {
       image: 'lpnode:latest',
       ports: [
         `${getRandomPort(8935)}:8935`,
-        `127.0.0.1:${getRandomPort(7935)}:7935`,
+        `${getRandomPort(7935)}:7935`,
         `${getRandomPort(1935)}:1935`,
       ],
-      command: '-rinkeby -datadir /lpData',
+      // TODO fix the serviceAddr issue
+      command: '-transcoder -rinkeby -datadir /lpData --rtmpAddr 0.0.0.0:1935 --cliAddr 0.0.0.0:7935 --httpAddr 0.0.0.0:8935',
+      // networks: [ 'outside']
+    }
+  }
+
+  for (let i = 0; i < config.nodes.orchestrators.instances; i++) {
+    // generate separate services with the forwarded ports.
+    // append it to output as output.<node_generate_id> = props
+    output['lp_o_' + i] = {
+      image: 'lpnode:latest',
+      ports: [
+        `${getRandomPort(8935)}:8935`,
+        `${getRandomPort(7935)}:7935`,
+        `${getRandomPort(1935)}:1935`,
+      ],
+      command: '-rinkeby -datadir /lpData --rtmpAddr 0.0.0.0:1935 --cliAddr 0.0.0.0:7935 --httpAddr 0.0.0.0:8935',
+      // networks: [ 'outside']
+    }
+  }
+
+  for (let i = 0; i < config.nodes.broadcasters.instances; i++) {
+    // generate separate services with the forwarded ports.
+    // append it to output as output.<node_generate_id> = props
+    output['lp_b_' + i] = {
+      image: 'lpnode:latest',
+      ports: [
+        `${getRandomPort(8935)}:8935`,
+        `${getRandomPort(7935)}:7935`,
+        `${getRandomPort(1935)}:1935`,
+      ],
+      command: '-rinkeby -datadir /lpData --rtmpAddr 0.0.0.0:1935 --cliAddr 0.0.0.0:7935 --httpAddr 0.0.0.0:8935',
       // networks: [ 'outside']
     }
   }
