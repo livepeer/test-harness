@@ -1,0 +1,5 @@
+---
+- hosts: lpdevenv
+  become: true
+  roles:
+    - basic

@@ -1,0 +1,8 @@
+version: '3'
+services:
+  geth:
+    image: geth-dev:latest
+    deploy:
+      replicas: 3
+    ports:
+     - "8545:8545"

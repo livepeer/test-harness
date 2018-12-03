@@ -1,0 +1,19 @@
+# This is a default TOML config for the test harness.
+# WIP
+
+title = "LP test harness"
+local = true
+
+[blockchain]
+  networkId = 777
+  controllerAddress = ""
+
+[nodes.transcoders]
+  instances = 3
+  flags = "--v 4"
+[nodes.orchestrators]
+  instances = 3
+  flags = "--v 4"
+[nodes.broadcasters]
+  instances = 3
+  flags = "--v 4"

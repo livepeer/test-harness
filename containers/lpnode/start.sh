@@ -1,0 +1,1 @@
+livepeer -rinkeby -datadir /lpData
