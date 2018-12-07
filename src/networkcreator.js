@@ -42,9 +42,9 @@ class NetworkCreator extends EventEmitter {
 
   generateServices () {
     let output = {}
-    if (this.config.blockchain && this.config.blockchain.controllerAddress === '') {
-      // output.geth = this.generateGethService()
-    }
+    // if (this.config.blockchain && this.config.blockchain.controllerAddress === '') {
+    // }
+    output.geth = this.generateGethService()
 
     // transcoders
     for (let i = 0; i < this.config.nodes.transcoders.instances; i++) {
@@ -58,7 +58,8 @@ class NetworkCreator extends EventEmitter {
           `${getRandomPort(1935)}:1935`,
         ],
         // TODO fix the serviceAddr issue
-        command: '-transcoder -rinkeby -datadir /lpData --rtmpAddr 0.0.0.0:1935 --cliAddr 0.0.0.0:7935 --httpAddr 0.0.0.0:8935',
+        command: '-transcoder -devenv -ethUrl http://geth:8545 -controllerAddr 0x93ad00a63b14492386df9f1cc123d785705bdf99 -datadir /lpData --rtmpAddr 0.0.0.0:1935 --cliAddr 0.0.0.0:7935 --httpAddr 0.0.0.0:8935',
+        depends_on: ['geth']
         // networks: [ 'outside']
       }
     }
@@ -72,7 +73,8 @@ class NetworkCreator extends EventEmitter {
           `${getRandomPort(7935)}:7935`,
           `${getRandomPort(1935)}:1935`,
         ],
-        command: '-rinkeby -datadir /lpData --rtmpAddr 0.0.0.0:1935 --cliAddr 0.0.0.0:7935 --httpAddr 0.0.0.0:8935',
+        command: '-devenv -ethUrl http://geth:8545 -controllerAddr 0x93ad00a63b14492386df9f1cc123d785705bdf99 -datadir /lpData --rtmpAddr 0.0.0.0:1935 --cliAddr 0.0.0.0:7935 --httpAddr 0.0.0.0:8935',
+        depends_on: ['geth']
         // networks: [ 'outside']
       }
     }
@@ -87,7 +89,8 @@ class NetworkCreator extends EventEmitter {
           `${getRandomPort(7935)}:7935`,
           `${getRandomPort(1935)}:1935`,
         ],
-        command: '-rinkeby -datadir /lpData --rtmpAddr 0.0.0.0:1935 --cliAddr 0.0.0.0:7935 --httpAddr 0.0.0.0:8935',
+        command: '-devenv -ethUrl http://geth:8545 -controllerAddr 0x93ad00a63b14492386df9f1cc123d785705bdf99 -datadir /lpData --rtmpAddr 0.0.0.0:1935 --cliAddr 0.0.0.0:7935 --httpAddr 0.0.0.0:8935',
+        depends_on: ['geth']
         // networks: [ 'outside']
       }
     }
@@ -97,10 +100,13 @@ class NetworkCreator extends EventEmitter {
 
   generateGethService () {
     return {
-      image: 'geth-dev:latest',
+      // image: 'geth-dev:latest',
+      image: 'darkdragon/geth-with-livepeer-protocol:latest',
       ports: [
-        '8545:8545'
-      ],
+        '8545:8545',
+        '8546:8546',
+        '30303:30303'
+      ]
       // networks: ['outside']
     }
   }
@@ -119,3 +125,6 @@ function getRandomPort (origin) {
 }
 
 module.exports = NetworkCreator
+
+// side note: Get controller address
+// docker run -it --entrypoint="" darkdragon/geth-with-livepeer-protocol cat /root/.ethereum/controllerAddress

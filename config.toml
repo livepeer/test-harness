@@ -3,17 +3,18 @@
 
 title = "LP test harness"
 local = true
+livepeerBinaryPath = "./livepeer"
 
 [blockchain]
-  networkId = 777
-  controllerAddress = ""
+  networkId = 54321
+  controllerAddress = "0x93ad00a63b14492386df9f1cc123d785705bdf99"
 
 [nodes.transcoders]
-  instances = 3
+  instances = 1
   flags = "--v 4"
 [nodes.orchestrators]
-  instances = 3
+  instances = 1
   flags = "--v 4"
 [nodes.broadcasters]
-  instances = 3
+  instances = 1
   flags = "--v 4"
