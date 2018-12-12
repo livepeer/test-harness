@@ -16,17 +16,18 @@ function parseOutput (val) {
 
 program
   .version('0.1.0')
-  .option('-c, --config [file]', 'path for specified LP TOML config', parsePath)
   .option('-o, --output [file]', 'path for docker-compose.yml file', parseOutput)
   .parse(process.argv)
 
-console.log('---------------------')
-console.log('Livepeer test-harness')
-console.log('---------------------')
-console.log(program.config.toString())
-console.log('---------------------')
+let configFile = program.args
+if (!configFile) {
+  console.error('TOML config file required')
+  process.exit(1)
+} else {
+  configFile = configFile[0]
+}
 
-const nc = new NetworkCreator(program.config)
+const nc = new NetworkCreator(parsePath(configFile))
 nc.generateComposeFile(program.output, (err) => {
   if (err) throw err
   console.log('all good...')

@@ -6,12 +6,13 @@ local = true
 livepeerBinaryPath = "./livepeer"
 
 [blockchain]
+  name = "lpTestNet"
   networkId = 54321
   controllerAddress = "0x93ad00a63b14492386df9f1cc123d785705bdf99"
 
 [nodes.transcoders]
   instances = 1
-  flags = "--v 4"
+  flags = "--v 4 -transcoder -initializeRound"
 [nodes.orchestrators]
   instances = 1
   flags = "--v 4"
