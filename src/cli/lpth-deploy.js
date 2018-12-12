@@ -21,6 +21,10 @@ dockercompose.upAll({
   cwd: path.join(configFile),
   log: true
 }).then(
-  (logs) => { console.log('done', logs) },
+  (logs) => {
+    console.log('done', logs)
+    // TODO : ping testing SDK to indicate that the network is up and running.
+    // or start another command here.
+  },
   err => { console.log('something went wrong:', err.message)}
 )

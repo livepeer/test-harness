@@ -57,7 +57,7 @@ class NetworkCreator extends EventEmitter {
       delete output.geth
       this.hasGeth = false
     } else {
-      this.hashGeth = true
+      this.hasGeth = true
     }
     // transcoders
     for (let i = 0; i < this.config.nodes.transcoders.instances; i++) {
@@ -152,12 +152,12 @@ class NetworkCreator extends EventEmitter {
         output.push('-rinkeby')
         break
       case 'lpTestNet':
-        output.push('-devenv')
+        // output.push('-devenv')
         output.push(`-ethUrl http://geth:8545`)
         output.push(`-controllerAddr ${this.config.blockchain.controllerAddress}`)
         break
       default:
-        output.push('-devenv')
+        // output.push('-devenv')
     }
 
     output.push(userFlags)
@@ -181,10 +181,3 @@ function getRandomPort (origin) {
 }
 
 module.exports = NetworkCreator
-
-// side note: Get controller address
-// docker run -it --entrypoint="" darkdragon/geth-with-livepeer-protocol cat /root/.ethereum/controllerAddress
-
-
-// ffmpeg
-// ffmpeg -re -i Heat.1995.mp4 -vcodec libx264 -profile:v main -tune zerolatency -preset superfast -r 30 -g 4 -keyint_min 4 -sc_threshold 0 -b:v 2500k -maxrate 2500k -bufsize 2500k -acodec aac -strict -2 -b:a 96k -ar 48000 -ac 2 -f flv rtmp://localhost:1935
