@@ -1,6 +1,8 @@
 'use strict'
 
 const { EventEmitter } = require('events')
+const { exec } = require('child_process')
+const path = require('path')
 const toml = require('toml')
 const composefile = require('composefile')
 
@@ -24,6 +26,28 @@ class NetworkCreator extends EventEmitter {
     }
 
     return true
+  }
+
+  loadBinaries (cb) {
+    // copy livepeer binaries to lpnode image folder
+    console.log(`copying LP binary from ${this.config.livepeerBinaryPath}`)
+    exec(`cp ${this.config.livepeerBinaryPath} ./containers/lpnode/binaries`,
+    (err, stdout, stderr) => {
+      if (err) throw err
+      console.log('stdout: ', stdout)
+      console.log('stderr: ', stderr)
+      cb(null, stdout)
+    })
+  }
+
+  buildLpImage (cb) {
+    console.log('building lpnode...')
+    exec(`docker build -t lpnode ./containers/lpnode/`, (err, stdout, stderr) => {
+      if (err) throw err
+      console.log('stdout: ', stdout)
+      console.log('stderr: ', stderr)
+      cb(null, stdout)
+    })
   }
 
   generateComposeFile (outputPath, cb) {
@@ -153,7 +177,7 @@ class NetworkCreator extends EventEmitter {
         break
       case 'lpTestNet':
         // output.push('-devenv')
-        output.push(`-ethUrl http://geth:8545`)
+        output.push(`-ethUrl ws://geth:8546`)
         output.push(`-controllerAddr ${this.config.blockchain.controllerAddress}`)
         break
       default:

@@ -2,7 +2,7 @@
 FROM jrottenberg/ffmpeg:4.0-ubuntu
 
 WORKDIR /
-ARG LIVEPEER_BINARY=./livepeer_linux
+ARG LIVEPEER_BINARY=./binaries
 
 RUN mkdir /lpGeth && mkdir /lpData
 

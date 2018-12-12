@@ -30,6 +30,13 @@ if (!configFile) {
 const nc = new NetworkCreator(parsePath(configFile))
 nc.generateComposeFile(program.output, (err) => {
   if (err) throw err
-  console.log('all good...')
-  process.exit()
+  console.log('all good...building LPNODE image')
+  nc.loadBinaries((err, stdout) =>{
+    if (err) throw err
+    nc.buildLpImage((err, stdout) =>{
+      if (err) throw err
+      console.log('image built')
+      process.exit()
+    })
+  })
 })
