@@ -1,4 +1,4 @@
-#!/home/op/.nvm/versions/node/v10.14.1/bin/node
+#!/usr/bin/env node
 
 const program = require('commander')
 const path = require('path')
