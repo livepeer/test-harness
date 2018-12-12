@@ -18,5 +18,6 @@ program
   .version('0.1.0')
   .command('build <config>', 'generate a docker-compose file based on TOML config', parsePath)
   .command('deploy <file>', 'deploy generated docker compose')
+  .command('utils [options]', 'various utils for quick debugging')
 
 program.parse(process.argv)
