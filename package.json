@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "./src/cli/lpth.js build"
+    "build": "./src/cli/lpth.js build",
+    "stream": "./src/cli/lpth.js stream"
   },
   "keywords": [
     "Livepeer"
@@ -19,6 +20,6 @@
     "ethereumjs-abi": "^0.6.5",
     "ethereumjs-util": "^6.0.0",
     "toml": "^2.3.3",
-    "yaml": "^1.0.3"
+    "yaml": "^1.1.0"
   }
 }

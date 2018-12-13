@@ -51,7 +51,8 @@ class Streamer extends EventEmitter {
     } catch (e) {
       throw e
     }
-    if (parsedOutput.protocol && parsedOutput.protocol !== 'rtmp') {
+    if (parsedOutput.protocol && parsedOutput.protocol !== 'rtmp:') {
+      console.log(parsedOutput)
       console.error(`streamer can only output to rtmp endpoints, ${parsedOutput.protocol} is not supported`)
       // TODO throw error here.
       return
