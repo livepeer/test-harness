@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "./src/cli/lpth.js build",
-    "stream": "./src/cli/lpth.js stream"
+    "stream": "./src/cli/lpth.js stream",
+    "postinstall": "./postinstall"
   },
   "keywords": [
     "Livepeer"

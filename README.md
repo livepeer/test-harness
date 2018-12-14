@@ -8,6 +8,7 @@ This is a work in progress, so code is :lava:
 
 - Docker
 - Docker-compose
+- Nodejs LTS (I tested it on v8.11.3 and v10.14.1)
 
 ## installation
 
@@ -17,10 +18,7 @@ This is a work in progress, so code is :lava:
 $ git clone https://github.com/livepeer/test-harness.git
 $ cd test-harness
 $ npm install
-
-# NOTE: this is pending PR https://github.com/livepeer/docker-livepeer/pull/2 and
-# https://github.com/livepeer/docker-livepeer/pull/1
-$ docker pull darkdragon/geth-with-livepeer-protocol:latest
+# you can also use yarn if npm install fails.
 ```
 
 2. edit `livepeerBinaryPath`  in `config.toml` to point to the LP binary you would like to use in the harness. **make sure you use the binaries built for linux, not darwin**
@@ -31,7 +29,7 @@ $ docker pull darkdragon/geth-with-livepeer-protocol:latest
 #if you need sudo to run docker,
 #add sudo to this.
 # note, if you are using nvm checkout the script in sudonode.sh
-$ npm run build config.toml -- -o .
+$ npm run build
 ```
 
 4. now you have generated the `docker-compose.yml` file, which is like a network game plan, lets run it.

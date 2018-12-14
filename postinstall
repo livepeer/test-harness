@@ -1,0 +1,3 @@
+#!/bin/bash
+
+docker pull darkdragon/geth-with-livepeer-protocol:latest

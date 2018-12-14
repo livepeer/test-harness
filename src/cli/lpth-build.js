@@ -6,6 +6,10 @@ const path = require('path')
 const NetworkCreator = require('../networkcreator')
 
 function parsePath (val) {
+  console.log('VAL: ', val)
+  if (!val) {
+    val = path.resolve(__dirname, '../../config.toml')
+  }
   console.log(`parsing ${path.resolve(val)} config:`)
   return fs.readFileSync(path.resolve(val))
 }
@@ -21,10 +25,14 @@ program
 
 let configFile = program.args
 if (!configFile) {
-  console.error('TOML config file required')
-  process.exit(1)
+  console.error('TOML config file required, using default config.toml....')
+  configFile = path.relative(__dirname, '../../config.toml')
 } else {
   configFile = configFile[0]
+}
+
+if (!program.output || program.output === '') {
+  program.output = '.'
 }
 
 const nc = new NetworkCreator(parsePath(configFile))
