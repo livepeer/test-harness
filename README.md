@@ -21,6 +21,8 @@ $ npm install
 # you can also use yarn if npm install fails.
 ```
 
+At this point, the test-harness used the default livepeer binary included in `lpnode` , the rest of these steps are when you change `config.toml` and wanna rebuild
+
 2. edit `livepeerBinaryPath`  in `config.toml` to point to the LP binary you would like to use in the harness. **make sure you use the binaries built for linux, not darwin**
 
 3. in the project root directory run
