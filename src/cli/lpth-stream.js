@@ -7,6 +7,8 @@ const YAML = require('yaml')
 const Streamer = require('../streamer')
 
 program
+  .option('-d --dir [DIR]', 'asset dir, must be absolute dir')
+  .option('-f --file [FILE]', 'test mp4 file in the asset dir')
   .description('starts stream simulator to deployed broadcasters. [WIP]')
 
 program.parse(process.argv)
@@ -37,10 +39,15 @@ let broadcasters = servicesNames.filter((service) => {
 
 const st = new Streamer({})
 
+if (!program.dir) {
+  program.dir = '/home/op/Videos'
+  program.file = 'Heat.1995.mp4'
+}
+
 broadcasters.forEach((broadcaster) => {
   let rtmpPort = getForwardedPort(broadcaster, '1935')
   if (rtmpPort) {
-    st.stream('/media/op/w3/videos/Heat.1995.mp4', `rtmp://localhost:${rtmpPort}`)
+    st.stream(program.dir, program.file, `rtmp://localhost:${rtmpPort}`)
   }
 })
 

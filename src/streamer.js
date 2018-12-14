@@ -35,11 +35,17 @@ class Streamer extends EventEmitter {
   //   })
   // }
 
-  stream (input, output) {
+  stream (dir, input, output) {
     let args = [
+      'run',
+      '-v',
+      `${dir}:/temp/`,
+      '--net=host',
+      'jrottenberg/ffmpeg:4.0-ubuntu',
       '-re',
       '-i',
-      path.resolve(input)
+      // path.resolve(input)
+      `/temp/${input}`
     ]
 
     args = args.concat(DEFAULT_ARGS.split(' '))
@@ -59,7 +65,7 @@ class Streamer extends EventEmitter {
     }
 
     args.push(output)
-    this.streams[output] = spawn('ffmpeg', args)
+    this.streams[output] = spawn('docker', args)
 
     this.streams[output].stdout.on('data', (data) => {
       console.log(`stdout: ${data}`)
