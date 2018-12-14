@@ -23,7 +23,7 @@ $ npm install
 $ docker pull darkdragon/geth-with-livepeer-protocol:latest
 ```
 
-2. edit `livepeerBinaryPath`  in `config.toml` to point to the LP binary you would like to use in the harness.
+2. edit `livepeerBinaryPath`  in `config.toml` to point to the LP binary you would like to use in the harness. **make sure you use the binaries built for linux, not darwin**
 
 3. in the project root directory run
 
