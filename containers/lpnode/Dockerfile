@@ -10,6 +10,7 @@ COPY --from=jrottenberg/ffmpeg:4.0-ubuntu /usr/local /usr/local
 
 COPY ${LIVEPEER_BINARY} /usr/bin
 
+RUN apt-get update && apt-get -y install libgnutls-dev
 COPY ./keystore /lpData/keystore
 #COPY ./start.sh .
 
