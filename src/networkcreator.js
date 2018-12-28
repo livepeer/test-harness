@@ -5,6 +5,7 @@ const { exec } = require('child_process')
 const path = require('path')
 const toml = require('toml')
 const composefile = require('composefile')
+const ethers = require('ethers')
 
 class NetworkCreator extends EventEmitter {
   constructor (config) {
@@ -42,7 +43,7 @@ class NetworkCreator extends EventEmitter {
 
   buildLpImage (cb) {
     console.log('building lpnode...')
-    exec(`docker build -t lpnode ./containers/lpnode/`, (err, stdout, stderr) => {
+    exec(`docker build -t lpnode:latest ./containers/lpnode/`, (err, stdout, stderr) => {
       if (err) throw err
       console.log('stdout: ', stdout)
       console.log('stderr: ', stderr)
@@ -189,6 +190,13 @@ class NetworkCreator extends EventEmitter {
     let outputStr = output.join(' ')
     console.log('outputStr: ', outputStr)
     return outputStr
+  }
+
+  createJSONKeys (num, outputFolder, cb) {
+    let randomKey = ethers.Wallet.createRandom()
+    randomKey.encrypt('').then((json) => {
+      console.log('encrypted json: ', json)
+    })
   }
 }
 
