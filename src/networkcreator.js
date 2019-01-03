@@ -198,6 +198,20 @@ class NetworkCreator extends EventEmitter {
       console.log('encrypted json: ', json)
     })
   }
+
+  // TODO, fix the docker-compose added prefix so it won't default to basename
+  fundAccount (address, valueInEth, cb) {
+    // NOTE: this requires the geth container to be running and account[0] to be unlocked.
+    exec(`docker exec -it test-harness_geth_1
+      geth --exec
+      'eth.sendTransaction({from: eth.accounts[0], to: ${address}, value: web3.toHex(web3.toWei(${valueInEth}, "ether"))})' attach`,
+    (err, stdout, stderr) => {
+      if (err) throw err
+      console.log('stdout: ', stdout)
+      console.log('stderr: ', stderr)
+      cb(null, stdout)
+    })
+  }
 }
 
 let usedPorts = []
