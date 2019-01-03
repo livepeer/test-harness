@@ -13,7 +13,7 @@ livepeerBinaryPath = "./containers/lpnode/livepeer_linux/livepeer"
 
 [nodes.transcoders]
   instances = 1
-  flags = "--v 4 -transcoder -initializeRound"
+  flags = "--v 99 -transcoder -initializeRound"
 [nodes.orchestrators]
   instances = 1
   flags = "--v 4"

@@ -11,9 +11,11 @@ COPY --from=jrottenberg/ffmpeg:4.0-ubuntu /usr/local /usr/local
 
 COPY ${LIVEPEER_BINARY} /usr/bin
 
-RUN apt-get update && apt-get -y install libgnutls-dev
+RUN apt-get update && apt-get -y install libgnutls-dev jq
 ENV JSON_KEY=$JSON_KEY
 COPY store_key.sh .
+COPY start.sh .
+RUN chmod +x start.sh
 RUN chmod +x store_key.sh
 RUN ./store_key.sh
 
@@ -23,7 +25,7 @@ EXPOSE 7935/tcp
 EXPOSE 8935/tcp
 EXPOSE 1935/tcp
 
-ENTRYPOINT ["./store_key.sh"]
+ENTRYPOINT ["./start.sh"]
 #CMD ["/usr/bin/livepeer"]
 CMD ["--help"]
 

@@ -237,6 +237,7 @@ class NetworkCreator extends EventEmitter {
         // output.push('-devenv')
     }
 
+    output.push(`-ethPassword ""`)
     output.push(userFlags)
 
     let outputStr = output.join(' ')
