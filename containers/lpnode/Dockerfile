@@ -24,7 +24,8 @@ EXPOSE 8935/tcp
 EXPOSE 1935/tcp
 
 ENTRYPOINT ["./store_key.sh"]
-CMD ["/usr/bin/livepeer"]
+#CMD ["/usr/bin/livepeer"]
+CMD ["--help"]
 
 #ENTRYPOINT ["/usr/bin/livepeer"]
 #CMD ["--help"]

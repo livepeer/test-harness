@@ -15,6 +15,7 @@
   "author": "M Yahya <yahya@livepeer.org>",
   "license": "MIT",
   "dependencies": {
+    "async": "^2.6.1",
     "commander": "^2.19.0",
     "composefile": "^0.3.0",
     "docker-compose": "^0.9.2",
