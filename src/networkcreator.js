@@ -7,6 +7,7 @@ const toml = require('toml')
 const composefile = require('composefile')
 const ethers = require('ethers')
 const { times, each } = require('async')
+const log = require('debug')('livepeer:test-harness:network')
 
 class NetworkCreator extends EventEmitter {
   constructor (config) {
@@ -133,59 +134,9 @@ class NetworkCreator extends EventEmitter {
     }, (err) => {
       if (err) throw err
       console.log('all nodes have been generated')
-      console.log('output:', output)
+      log('output:', output)
       cb(null, output)
     })
-    // // transcoders
-    // for (let i = 0; i < this.config.nodes.transcoders.instances; i++) {
-    //   // generate separate services with the forwarded ports.
-    //   // append it to output as output.<node_generate_id> = props
-    //   output['lp_t_' + i] = {
-    //     image: 'lpnode:latest',
-    //     ports: [
-    //       `${getRandomPort(8935)}:8935`,
-    //       `${getRandomPort(7935)}:7935`,
-    //       `${getRandomPort(1935)}:1935`,
-    //     ],
-    //     // TODO fix the serviceAddr issue
-    //     command: this.getNodeOptions('transcoder', this.config.nodes.transcoders.flags),
-    //     depends_on: this.getDependencies()
-    //     // networks: [ 'outside']
-    //   }
-    // }
-    //
-    // // orchestrators
-    // for (let i = 0; i < this.config.nodes.orchestrators.instances; i++) {
-    //   output['lp_o_' + i] = {
-    //     image: 'lpnode:latest',
-    //     ports: [
-    //       `${getRandomPort(8935)}:8935`,
-    //       `${getRandomPort(7935)}:7935`,
-    //       `${getRandomPort(1935)}:1935`,
-    //     ],
-    //     command: this.getNodeOptions('orchestrator', this.config.nodes.orchestrators.flags),
-    //     depends_on: this.getDependencies()
-    //     // networks: [ 'outside']
-    //   }
-    // }
-    //
-    // // broadcasters
-    // for (let i = 0; i < this.config.nodes.broadcasters.instances; i++) {
-    //
-    //   output['lp_b_' + i] = {
-    //     image: 'lpnode:latest',
-    //     ports: [
-    //       `${getRandomPort(8935)}:8935`,
-    //       `${getRandomPort(7935)}:7935`,
-    //       `${getRandomPort(1935)}:1935`,
-    //     ],
-    //     command: this.getNodeOptions('broadcaster', this.config.nodes.broadcasters.flags),
-    //     depends_on: this.getDependencies()
-    //     // networks: [ 'outside']
-    //   }
-    // }
-    //
-    // return output
   }
 
   generateGethService () {
@@ -248,9 +199,9 @@ class NetworkCreator extends EventEmitter {
   getEnvVars (cb) {
     let randomKey = ethers.Wallet.createRandom()
     randomKey.encrypt('').then((json) => {
-      console.log('encrypted json: ', json)
+      log('encrypted json: ', json)
       cb(null, {
-        JSON_KEY: JSON.stringify(json)
+        JSON_KEY: json
       })
     })
   }
@@ -258,7 +209,7 @@ class NetworkCreator extends EventEmitter {
   createJSONKeys (num, outputFolder, cb) {
     let randomKey = ethers.Wallet.createRandom()
     randomKey.encrypt('').then((json) => {
-      console.log('encrypted json: ', json)
+      log('encrypted json: ', json)
       cb(null, json)
     })
   }
