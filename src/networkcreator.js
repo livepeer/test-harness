@@ -5,6 +5,9 @@ const { exec } = require('child_process')
 const path = require('path')
 const toml = require('toml')
 const composefile = require('composefile')
+const ethers = require('ethers')
+const { times, each } = require('async')
+const log = require('debug')('livepeer:test-harness:network')
 
 class NetworkCreator extends EventEmitter {
   constructor (config) {
@@ -42,7 +45,7 @@ class NetworkCreator extends EventEmitter {
 
   buildLpImage (cb) {
     console.log('building lpnode...')
-    exec(`docker build -t lpnode ./containers/lpnode/`, (err, stdout, stderr) => {
+    exec(`docker build -t lpnode:latest ./containers/lpnode/`, (err, stdout, stderr) => {
       if (err) throw err
       console.log('stdout: ', stdout)
       console.log('stderr: ', stderr)
@@ -59,9 +62,12 @@ class NetworkCreator extends EventEmitter {
       // network_mode: 'host',
     }
 
-    output.services = this.generateServices()
-    this.nodes = output.services
-    composefile(output, cb)
+    this.generateServices((err, services) => {
+      if (err) throw err
+      output.services = services
+      this.nodes = output.services
+      composefile(output, cb)
+    })
   }
 
   getDependencies () {
@@ -72,7 +78,29 @@ class NetworkCreator extends EventEmitter {
     }
   }
 
-  generateServices () {
+  _generateService (type, cb) {
+    let generated = {
+    // generated['lp_t_' + i] = {
+      image: 'lpnode:latest',
+      ports: [
+        `${getRandomPort(8935)}:8935`,
+        `${getRandomPort(7935)}:7935`,
+        `${getRandomPort(1935)}:1935`
+      ],
+      // TODO fix the serviceAddr issue
+      command: this.getNodeOptions(type, this.config.nodes[`${type}s`].flags),
+      depends_on: this.getDependencies()
+      // networks: [ 'outside']
+    }
+
+    this.getEnvVars((err, envObj) => {
+      if (err) throw err
+      generated.environment = envObj
+      cb(null, generated)
+    })
+  }
+
+  generateServices (cb) {
     let output = {}
     // if (this.config.blockchain && this.config.blockchain.controllerAddress === '') {
     // }
@@ -83,56 +111,32 @@ class NetworkCreator extends EventEmitter {
     } else {
       this.hasGeth = true
     }
-    // transcoders
-    for (let i = 0; i < this.config.nodes.transcoders.instances; i++) {
-      // generate separate services with the forwarded ports.
-      // append it to output as output.<node_generate_id> = props
-      output['lp_t_' + i] = {
-        image: 'lpnode:latest',
-        ports: [
-          `${getRandomPort(8935)}:8935`,
-          `${getRandomPort(7935)}:7935`,
-          `${getRandomPort(1935)}:1935`,
-        ],
-        // TODO fix the serviceAddr issue
-        command: this.getNodeOptions('transcoder', this.config.nodes.transcoders.flags),
-        depends_on: this.getDependencies()
-        // networks: [ 'outside']
-      }
-    }
 
-    // orchestrators
-    for (let i = 0; i < this.config.nodes.orchestrators.instances; i++) {
-      output['lp_o_' + i] = {
-        image: 'lpnode:latest',
-        ports: [
-          `${getRandomPort(8935)}:8935`,
-          `${getRandomPort(7935)}:7935`,
-          `${getRandomPort(1935)}:1935`,
-        ],
-        command: this.getNodeOptions('orchestrator', this.config.nodes.orchestrators.flags),
-        depends_on: this.getDependencies()
-        // networks: [ 'outside']
-      }
-    }
-
-    // broadcasters
-    for (let i = 0; i < this.config.nodes.broadcasters.instances; i++) {
-
-      output['lp_b_' + i] = {
-        image: 'lpnode:latest',
-        ports: [
-          `${getRandomPort(8935)}:8935`,
-          `${getRandomPort(7935)}:7935`,
-          `${getRandomPort(1935)}:1935`,
-        ],
-        command: this.getNodeOptions('broadcaster', this.config.nodes.broadcasters.flags),
-        depends_on: this.getDependencies()
-        // networks: [ 'outside']
-      }
-    }
-
-    return output
+    each(['transcoder', 'orchestrator', 'broadcaster'], (type, callback) => {
+      console.log(`generating ${type} nodes ${this.config.nodes[`${type}s`].instances}`)
+      times(
+        this.config.nodes[`${type}s`].instances,
+        (i, next) => {
+          // generate separate services with the forwarded ports.
+          // append it to output as output.<node_generate_id> = props
+          this._generateService(type, next)
+        },
+        (err, nodes) => {
+          if (err) throw err
+          console.log(`finished ${type}, ${JSON.stringify(nodes)}`)
+          nodes.forEach((node, i) => {
+            output[`lp_${type}_${i}`] = node
+          })
+          // console.log('output', output)
+          callback(null)
+        }
+      )
+    }, (err) => {
+      if (err) throw err
+      console.log('all nodes have been generated')
+      log('output:', output)
+      cb(null, output)
+    })
   }
 
   generateGethService () {
@@ -184,11 +188,48 @@ class NetworkCreator extends EventEmitter {
         // output.push('-devenv')
     }
 
+    output.push(`-ethPassword ""`)
     output.push(userFlags)
 
     let outputStr = output.join(' ')
-    console.log('outputStr: ', outputStr)
+    // console.log('outputStr: ', outputStr)
     return outputStr
+  }
+
+  getEnvVars (cb) {
+    let randomKey = ethers.Wallet.createRandom()
+    randomKey.encrypt('').then((json) => {
+      log('encrypted json: ', json)
+      cb(null, {
+        JSON_KEY: json
+      })
+    })
+  }
+
+  createJSONKeys (num, outputFolder, cb) {
+    let randomKey = ethers.Wallet.createRandom()
+    randomKey.encrypt('').then((json) => {
+      log('encrypted json: ', json)
+      cb(null, json)
+    })
+  }
+
+  // TODO, fix the docker-compose added prefix so it won't default to basename
+  fundAccount (address, valueInEth, cb) {
+    // NOTE: this requires the geth container to be running and account[0] to be unlocked.
+    exec(`docker exec -it test-harness_geth_1
+      geth --exec
+      'eth.sendTransaction({
+        from: eth.accounts[0],
+        to: ${address},
+        value: web3.toHex(web3.toWei(${valueInEth}, "ether"))
+      })' attach`,
+    (err, stdout, stderr) => {
+      if (err) throw err
+      console.log('stdout: ', stdout)
+      console.log('stderr: ', stderr)
+      cb(null, stdout)
+    })
   }
 }
 
