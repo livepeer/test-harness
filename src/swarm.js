@@ -18,7 +18,7 @@ class Swarm {
     exec(`docker-machine create ${opts.name} \
       --driver ${driver} \
       --${driver}-zone ${opts.zone || this._defaults.zone} \
-      --${driver}-machine-type ${opts.machineType || this.defaults.machineType} \
+      --${driver}-machine-type ${opts.machineType || this._defaults.machineType} \
       --${driver}-tags ${opts.tags || this._defaults.tags} \
       --${driver}-project ${this._defaults.projectId}`, cb)
   }
@@ -29,6 +29,13 @@ class Swarm {
 
   getPubIP (machineName, cb) {
     exec(`docker-machine ip ${machineName}`, cb)
+  }
+
+  getInternalIP (machineName, cb) {
+    // Reference https://stackoverflow.com/a/38950953/2159869
+    // gcloud Resource keys https://cloud.google.com/sdk/gcloud/reference/topic/resource-keys
+    exec(`gcloud --format="value(networkInterfaces[0].networkIP)" \
+      compute instances list --filter="name:(${machineName})"`, cb)
   }
 
   setEnv (machineName, cb) {
@@ -62,7 +69,7 @@ class Swarm {
 
   stopStack (prefix, cb) {
     this.setEnv(managerName, (err) => {
-      exec(`docker stack rm ${prefix}`, cb)
+      exec(`docker stack rm -y ${prefix}`, cb)
     })
   }
 
