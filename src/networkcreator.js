@@ -1,7 +1,7 @@
 'use strict'
 
 const { EventEmitter } = require('events')
-const { exec } = require('child_process')
+const { exec, spawn } = require('child_process')
 const path = require('path')
 const toml = require('toml')
 const composefile = require('composefile')
@@ -45,12 +45,31 @@ class NetworkCreator extends EventEmitter {
 
   buildLpImage (cb) {
     console.log('building lpnode...')
-    exec(`docker build -t lpnode:latest ./containers/lpnode/`, (err, stdout, stderr) => {
-      if (err) throw err
-      console.log('stdout: ', stdout)
-      console.log('stderr: ', stderr)
+    let builder = spawn('docker', [
+      'build',
+      '-t',
+      'lpnode:latest',
+      './containers/lpnode'
+    ])
+
+    builder.stdout.on('data', (data) => {
+      console.log(`stdout: ${data}`)
+    })
+
+    builder.stderr.on('data', (data) => {
+      console.log(`stderr: ${data}`)
+    })
+
+    builder.on('close', (code) => {
+      console.log(`${output} child process exited with code ${code}`)
       cb(null, stdout)
     })
+    //
+    // exec(`docker build -t lpnode:latest ./containers/lpnode/`, (err, stdout, stderr) => {
+    //   if (err) throw err
+    //   console.log('stdout: ', stdout)
+    //   console.log('stderr: ', stderr)
+    // })
   }
 
   generateComposeFile (outputPath, cb) {
