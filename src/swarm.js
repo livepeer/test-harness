@@ -1,5 +1,5 @@
 'use strict'
-const { exec } = require('child_process')
+const { exec, spawn } = require('child_process')
 
 class Swarm {
   constructor (opts) {
@@ -38,45 +38,85 @@ class Swarm {
       compute instances list --filter="name:(${machineName})"`, cb)
   }
 
+  getMachineStatus (machineName, cb) {
+    // TODO check if the machineName is on the list first or not.
+    exec(`docker-machine status ${machineName}`, cb)
+  }
+
   setEnv (machineName, cb) {
-    exec(`docker-machine env ${machineName}`, cb)
-  }
-
-  unsetEnv (cb) {
-    exec(`docker-machine env --unset`, cb)
-  }
-
-  init (managerName, cb) {
-    this.setEnv(managerName, (err) => {
+    exec(`docker-machine env ${machineName}`, (err, stdout) => {
       if (err) throw err
-      exec(`docker swarm init`, cb)
+      // get all the values in the double quotes
+      // example env output
+      // export DOCKER_TLS_VERIFY="1"
+      // export DOCKER_HOST="tcp://12.345.678.90:2376"
+      // export DOCKER_CERT_PATH="/machine/machines/swarm-manager"
+      // export DOCKER_MACHINE_NAME="swarm-manager"
+      // # Run this command to configure your shell:
+      // # eval $(docker-machine env swarm-manager)
+
+      let parsed = stdout.match(/(["'])(?:(?=(\\?))\2.)*?\1/g)
+      if (parsed.length !== 4) {
+        throw new Error('env parsing mismatch!')
+      }
+      let env = {
+        DOCKER_TLS_VERIFY: parsed[0],
+        DOCKER_HOST: parsed[1],
+        DOCKER_CERT_PATH: parsed[2],
+        DOCKER_MACHINE_NAME: parsed[3]
+      }
+
+      cb(null, env)
     })
   }
 
-  join (machineName, managerIP, cb) {
-    this.setEnv(machineName, (err) => {
+  unsetEnv (cb) {
+    exec(`. $(docker-machine env --unset)`, cb)
+  }
+
+  init (managerName, cb) {
+    this.setEnv(managerName, (err, env) => {
+      if (err) throw err
+      exec(`docker swarm init`, {
+        env: env
+      }, cb)
+    })
+  }
+
+  getSwarmToken (managerName, cb) {
+    this.setEnv(managerName, (err, env) => {
+      if (err) throw err
+      // type can be either manager or worker
+      // right now this defaults to worker
+      exec(`docker swarm join-token -q worker`, {env: env}, cb)
+    })
+  }
+
+  join (machineName, token, managerIP, cb) {
+    this.setEnv(machineName, (err, env) => {
       if (err) throw err
       // TODO get the managers internal IP automatically.
-      exec(`docker swarm join ${managerIP}:2377`)
+      exec(`docker swarm join --token ${token} ${managerIP}:2377`, {env: env}, cb)
     })
   }
 
   deployComposeFile (filePath, prefix, managerName, cb) {
-    this.setEnv(managerName, (err) => {
-      exec(`docker stack deploy --composefile ${filePath} ${prefix}`, cb)
+    this.setEnv(managerName, (err, env) => {
+      if (err) throw err
+      exec(`docker stack deploy --composefile ${filePath} ${prefix}`, {env: env}, cb)
     })
   }
 
-  stopStack (prefix, cb) {
-    this.setEnv(managerName, (err) => {
-      exec(`docker stack rm -y ${prefix}`, cb)
+  stopStack (stackName, managerName, cb) {
+    this.setEnv(managerName, (err, env) => {
+      if (err) throw err
+      exec(`docker stack rm -y ${stackName}`, {env: env}, cb)
     })
   }
 
   tearDown (machineName, cb) {
     exec(`docker-machine rm ${machineName}`, cb)
   }
-
 }
 
 module.exports = Swarm
