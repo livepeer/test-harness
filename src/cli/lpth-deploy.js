@@ -49,6 +49,8 @@ if (program.swarm) {
       if (err) throw err
       console.log('results: ', results)
       // get geth containerId
+      // by service name docker service ps -q -f name={program.swarm} program.swarm
+      // using docker ps -q -f name=${program.swarm}
       exec(`docker ps -q -f name=${program.swarm}`, (err, containerId) => {
         if (err) throw err
         console.log('geth containerId: ', containerId)

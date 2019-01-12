@@ -130,7 +130,7 @@ class NetworkCreator extends EventEmitter {
         },
         (err, nodes) => {
           if (err) throw err
-          console.log(`finished ${type}, ${JSON.stringify(nodes)}`)
+          // console.log(`finished ${type}, ${JSON.stringify(nodes)}`)
           nodes.forEach((node, i) => {
             output[`lp_${type}_${i}`] = node
           })
@@ -165,6 +165,11 @@ class NetworkCreator extends EventEmitter {
           networks: {
             testnet: {
               aliases: [`geth`]
+            }
+          },
+          deploy: {
+            placement: {
+              constraints: ['node.role == manager']
             }
           }
           // networks: ['outside']
