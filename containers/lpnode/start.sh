@@ -5,6 +5,6 @@ echo "storing keys.... $json_key"
 
 echo $json_key | jq -r '.' > /lpData/keystore/key.json
 
-sleep 1
+sleep 3
 
-exec /usr/bin/livepeer "$@"
+./wait-for-it.sh -t 30 geth:8546 -- exec /usr/bin/livepeer "$@"

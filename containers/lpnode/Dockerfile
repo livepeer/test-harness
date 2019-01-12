@@ -14,12 +14,13 @@ COPY ${LIVEPEER_BINARY} /usr/bin
 RUN apt-get update && apt-get -y install libgnutls-dev jq
 ENV JSON_KEY=$JSON_KEY
 COPY store_key.sh .
+COPY wait-for-it.sh .
 COPY start.sh .
 RUN chmod +x start.sh
 RUN chmod +x store_key.sh
-RUN ./store_key.sh
-
-#COPY ./keystore /lpData/keystore
+RUN chmod +x wait-for-it.sh
+#RUN ./store_key.sh
+RUN ./start.sh
 
 EXPOSE 7935/tcp
 EXPOSE 8935/tcp
