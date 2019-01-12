@@ -6,7 +6,7 @@ const path = require('path')
 const toml = require('toml')
 const composefile = require('composefile')
 const ethers = require('ethers')
-const { times, each } = require('async')
+const { timesLimit, each } = require('async')
 const log = require('debug')('livepeer:test-harness:network')
 
 class NetworkCreator extends EventEmitter {
@@ -121,8 +121,9 @@ class NetworkCreator extends EventEmitter {
 
     each(['transcoder', 'orchestrator', 'broadcaster'], (type, callback) => {
       console.log(`generating ${type} nodes ${this.config.nodes[`${type}s`].instances}`)
-      times(
+      timesLimit(
         this.config.nodes[`${type}s`].instances,
+        1,
         (i, next) => {
           // generate separate services with the forwarded ports.
           // append it to output as output.<node_generate_id> = props
