@@ -53,7 +53,8 @@ if (program.swarm) {
         if (err) throw err
         console.log('geth containerId: ', containerId)
         each(results, (address, cb) => {
-          fundAccount(address, '1', containerId, cb)
+          // NOTE, the slice is to get rid of the \n in the end.
+          fundAccount(address, '1', containerId.slice(0, containerId.length - 1), cb)
         }, (err) => {
           if (err) throw err
           console.log('accounts funded!!')
