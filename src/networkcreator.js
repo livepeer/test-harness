@@ -59,6 +59,9 @@ class NetworkCreator extends EventEmitter {
       outputFolder: outputPath,
       filename: 'docker-compose.yml',
       services: {},
+      networks: {
+        testnet: {}
+      }
       // network_mode: 'host',
     }
 
@@ -78,7 +81,7 @@ class NetworkCreator extends EventEmitter {
     }
   }
 
-  _generateService (type, cb) {
+  _generateService (type, i, cb) {
     let generated = {
     // generated['lp_t_' + i] = {
       image: 'lpnode:latest',
@@ -89,8 +92,12 @@ class NetworkCreator extends EventEmitter {
       ],
       // TODO fix the serviceAddr issue
       command: this.getNodeOptions(type, this.config.nodes[`${type}s`].flags),
-      depends_on: this.getDependencies()
-      // networks: [ 'outside']
+      depends_on: this.getDependencies(),
+      networks: {
+        testnet: {
+          aliases: [`${type}_${i}`]
+        }
+      }
     }
 
     this.getEnvVars((err, envObj) => {
@@ -119,7 +126,7 @@ class NetworkCreator extends EventEmitter {
         (i, next) => {
           // generate separate services with the forwarded ports.
           // append it to output as output.<node_generate_id> = props
-          this._generateService(type, next)
+          this._generateService(type, i, next)
         },
         (err, nodes) => {
           if (err) throw err
@@ -154,7 +161,12 @@ class NetworkCreator extends EventEmitter {
             '8545:8545',
             '8546:8546',
             '30303:30303'
-          ]
+          ],
+          networks: {
+            testnet: {
+              aliases: [`geth`]
+            }
+          }
           // networks: ['outside']
         }
     }
@@ -180,7 +192,7 @@ class NetworkCreator extends EventEmitter {
         output.push('-rinkeby')
         break
       case 'lpTestNet':
-        // output.push('-devenv')
+        output.push('-devenv')
         output.push(`-ethUrl ws://geth:8546`)
         output.push(`-controllerAddr ${this.config.blockchain.controllerAddress}`)
         break
@@ -188,7 +200,7 @@ class NetworkCreator extends EventEmitter {
         // output.push('-devenv')
     }
 
-    output.push(`-ethPassword ""`)
+    // output.push(`-ethPassword ""`)
     output.push(userFlags)
 
     let outputStr = output.join(' ')
