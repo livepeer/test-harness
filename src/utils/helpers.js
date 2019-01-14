@@ -1,6 +1,6 @@
 // import ethUtil from 'ethereumjs-util'
 // import ethAbi from 'ethereumjs-abi'
-
+const { spawn } = require('child_process')
 const ethUtil = require('ethereumjs-util')
 const ethAbi = require('ethereumjs-abi')
 
@@ -16,4 +16,34 @@ function functionEncodedABI (name, params, values) {
   return ethUtil.bufferToHex(Buffer.concat([ethUtil.sha3(name).slice(0, 4), ethAbi.rawEncode(params, values)]))
 }
 
-module.exports = {contractId, functionSig, functionEncodedABI}
+function remotelyExec (machineName, command, cb) {
+  let args = [
+    'compute',
+    'ssh',
+    machineName,
+    '--zone',
+    'us-east1-b',
+    '--',
+  ]
+
+  args.push(command)
+
+  let builder = spawn('gcloud', args)
+  let output
+
+  builder.stdout.on('data', (data) => {
+    console.log(`stdout: ${data}`)
+    output = data
+  })
+
+  builder.stderr.on('data', (data) => {
+    console.log(`stderr: ${data}`)
+  })
+
+  builder.on('close', (code) => {
+    console.log(`child process exited with code ${code}`)
+    setTimeout(() => { cb(null, output)}, 1)
+  })
+}
+
+module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec}
