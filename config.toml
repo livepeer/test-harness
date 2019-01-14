@@ -5,6 +5,7 @@ title = "LP test harness"
 local = true
 # change livepeerBinaryPath to point to where the lp binary is, REQUIRED
 livepeerBinaryPath = "./containers/lpnode/livepeer_linux/livepeer"
+name = "testharness"
 
 [blockchain]
   name = "lpTestNet"

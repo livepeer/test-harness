@@ -6,17 +6,20 @@ const path = require('path')
 const toml = require('toml')
 const composefile = require('composefile')
 const ethers = require('ethers')
-const { timesLimit, each } = require('async')
+const { timesLimit, each, eachLimit } = require('async')
 const log = require('debug')('livepeer:test-harness:network')
 
 class NetworkCreator extends EventEmitter {
-  constructor (config) {
+  constructor (config, isToml) {
     super()
-
-    try {
-      this.config = toml.parse(config)
-    } catch (e) {
-      throw e
+    if (isToml) {
+      try {
+        this.config = toml.parse(config)
+      } catch (e) {
+        throw e
+      }
+    } else {
+      this.config = config
     }
 
     this.ports = {}
@@ -31,10 +34,10 @@ class NetworkCreator extends EventEmitter {
     return true
   }
 
-  loadBinaries (cb) {
+  loadBinaries (dist, cb) {
     // copy livepeer binaries to lpnode image folder
     console.log(`copying LP binary from ${this.config.livepeerBinaryPath}`)
-    exec(`cp ${this.config.livepeerBinaryPath} ./containers/lpnode/binaries`,
+    exec(`cp ${this.config.livepeerBinaryPath} ${dist}`,
     (err, stdout, stderr) => {
       if (err) throw err
       console.log('stdout: ', stdout)
@@ -61,8 +64,8 @@ class NetworkCreator extends EventEmitter {
     })
 
     builder.on('close', (code) => {
-      console.log(`${output} child process exited with code ${code}`)
-      cb(null, stdout)
+      console.log(`child process exited with code ${code}`)
+      cb(null)
     })
     //
     // exec(`docker build -t lpnode:latest ./containers/lpnode/`, (err, stdout, stderr) => {
@@ -138,7 +141,7 @@ class NetworkCreator extends EventEmitter {
       this.hasGeth = true
     }
 
-    each(['transcoder', 'orchestrator', 'broadcaster'], (type, callback) => {
+    eachLimit(['transcoder', 'orchestrator', 'broadcaster'], 1, (type, callback) => {
       console.log(`generating ${type} nodes ${this.config.nodes[`${type}s`].instances}`)
       timesLimit(
         this.config.nodes[`${type}s`].instances,

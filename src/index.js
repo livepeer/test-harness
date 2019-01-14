@@ -1,135 +1,101 @@
 'use strict'
 
-const fs = require('fs')
-const toml = require('toml')
-const composefile = require('composefile')
-let usedPorts = []
+const NetworkCreator = require('./networkcreator')
+const Streamer = require('./streamer')
+const Swarm = require('./swarm')
+const utils = require('./utils/helpers')
 
+const DIST_DIR = './dist'
 
-const DEFAULT_CONFIG_PATH = './config.toml'
-
-// fs.readFile('./config.toml', (err, config) => {
-//   if (err) throw err
-//
-//   let parsed = toml.parse(config)
-//   console.dir(parsed)
-// })
-
-
-function generateDockerCompose (configPath, cb) {
-  const defaults = {
-    version: 3,
-    outputFolder: __dirname,
-    filename: 'docker-compose.yml',
-    services: {},
-    network_mode: 'host',
-    // networks: {
-    //   outside: {
-    //     external: true,
-    //   }
-    // }
+class TestHarness {
+  constructor () {
+    this.swarm = new Swarm()
   }
 
-  let config, configStr
-  if (!config) {
-    configStr = fs.readFileSync(DEFAULT_CONFIG_PATH)
-  }
+  run (config, cb) {
+    // 1. [ ] validate the configurations
+    // 2. [x] provision GCP machines
+    // 3. scp docker-compose.yml, livepeer binary and git test-harness
+    // 4. create throwaway docker registry
+    // 5. initiate swarm, add workers
+    // 6. build lpnode with lp binary, push it to registry
+    // 7. deploy geth-with-protocol, fund accounts.
+    // 8. deploy lpnodes
+    // 9. setup transcoders/orchestrators
+    // 10. setup broadcasters.
+    // 11. initializeRound.
+    // 12. start streams.
+    // 13. pipe logs to bucket or download them.
+    // 14. teardown the cluster.
+    // 15. callback.
+    config.name = config.name || 'testharness'
+    this.swarm._managerName = `${config.name}-manager`
 
-  try {
-    config = toml.parse(configStr)
-  } catch (e) {
-    console.error("Parsing error on line " + e.line + ", column " + e.column +
-    ": " + e.message)
-  }
+    this.networkCreator = new NetworkCreator(config)
+    this.networkCreator.generateComposeFile(`${DIST_DIR}/${config.name}`, (err) => {
+      if (err) return handleError(err)
 
-  console.dir(config)
-  defaults.services = generateDockerService(config)
-  console.log('defaults: ', defaults)
+      if (config.local) {
 
-  composefile(defaults,cb)
-}
+      } else {
+        this.networkCreator.loadBinaries(`${DIST_DIR}/${config.name}`, (err) => {
+          if (err) throw err
+        })
 
-function generateDockerService (config) {
-  let output = {}
-  if (config.blockchain && config.blockchain.controllerAddress === "") {
-    // output.geth = generateGethService()
-  }
+        // provision GCP machines
+        this.swarm.createMachines({
+          machines: 2,
+          name: config.name || 'testharness'
+        }, (err) => {
+          if (err) throw err
 
-  for (let i = 0; i < config.nodes.transcoders.instances; i++) {
-    // generate separate services with the forwarded ports.
-    // append it to output as output.<node_generate_id> = props
-    output['lp_t_' + i] = {
-      image: 'lpnode:latest',
-      ports: [
-        `${getRandomPort(8935)}:8935`,
-        `${getRandomPort(7935)}:7935`,
-        `${getRandomPort(1935)}:1935`,
-      ],
-      // TODO fix the serviceAddr issue
-      command: '-transcoder -rinkeby -datadir /lpData --rtmpAddr 0.0.0.0:1935 --cliAddr 0.0.0.0:7935 --httpAddr 0.0.0.0:8935',
-      // networks: [ 'outside']
-    }
-  }
+          // machines are ready.
+          this.swarm.scp(
+            `${DIST_DIR}/${config.name}`,
+            `${config.name}-manager:/tmp/config`,
+            `-r`,
+            (err, stdout) => {
+              if (err) throw err
+              // dist folder should be available to the manager now.
 
-  for (let i = 0; i < config.nodes.orchestrators.instances; i++) {
-    // generate separate services with the forwarded ports.
-    // append it to output as output.<node_generate_id> = props
-    output['lp_o_' + i] = {
-      image: 'lpnode:latest',
-      ports: [
-        `${getRandomPort(8935)}:8935`,
-        `${getRandomPort(7935)}:7935`,
-        `${getRandomPort(1935)}:1935`,
-      ],
-      command: '-rinkeby -datadir /lpData --rtmpAddr 0.0.0.0:1935 --cliAddr 0.0.0.0:7935 --httpAddr 0.0.0.0:8935',
-      // networks: [ 'outside']
-    }
-  }
+              // init Swarm
+              this.swarm.init(`${config.name}-manager`, (err, stdout) => {
+                if (err) throw err
 
-  for (let i = 0; i < config.nodes.broadcasters.instances; i++) {
-    // generate separate services with the forwarded ports.
-    // append it to output as output.<node_generate_id> = props
-    output['lp_b_' + i] = {
-      image: 'lpnode:latest',
-      ports: [
-        `${getRandomPort(8935)}:8935`,
-        `${getRandomPort(7935)}:7935`,
-        `${getRandomPort(1935)}:1935`,
-      ],
-      command: '-rinkeby -datadir /lpData --rtmpAddr 0.0.0.0:1935 --cliAddr 0.0.0.0:7935 --httpAddr 0.0.0.0:8935',
-      // networks: [ 'outside']
-    }
-  }
+                console.log('swarm initiated. ', stdout)
 
-  return output
-}
+                // create network
+                this.swarm.createNetwork('testnet', (err, stdout) => {
+                  if (err) throw err
+                  console.log('networkid: ', stdout)
 
-function generateGethService () {
-  return {
-    image: 'geth-dev:latest',
-    ports: [
-      '8545:8545'
-    ],
-    // networks: ['outside']
+                  // create throwaway registry
+                  this.swarm.createRegistry((err, stdout) => {
+                    if (err) throw err
+                    console.log('registry stdout: ', stdout)
+                    // now we should be able to build the image on manager and
+                    // push it to the registry
+
+                    // git clone test-harness. remotely.
+                    // then build it.
+
+                    
+                  })
+                })
+
+              })
+            }
+          )
+          cb()
+        })
+      }
+    })
   }
 }
 
-function getRandomPort(origin) {
-  // TODO, ugh, fix this terrible recursive logic, use an incrementer like a gentleman
-  let port = origin + Math.floor(Math.random() * 999)
-  if (usedPorts.indexOf(port) === -1) {
-    usedPorts.push(port)
-    return port
-  } else {
-    return getRandomPort(origin)
-  }
+function handleError (err) {
+  // TODO handle errors gracefully
+  throw err
 }
 
-function generateStreamSimulatorService () {
-
-}
-
-generateDockerCompose({}, (err) => {
-  if (err) throw err
-  console.log('done')
-})
+module.exports = TestHarness

@@ -1,8 +1,10 @@
 'use strict'
 const { exec, spawn } = require('child_process')
+const { timesLimit } = require('async')
+const shortid = require('shortid')
 
 class Swarm {
-  constructor (opts) {
+  constructor () {
     this._defaults = {
       driver: 'google',
       zone: 'us-east1-b',
@@ -12,19 +14,82 @@ class Swarm {
     }
   }
 
+  createMachines (opts, cb) {
+    let machinesCount = opts.machines || 3
+    let name = opts.name || 'testharness-' + shortid.generate()
+
+    timesLimit(machinesCount - 1, 3, (i, next) => {
+      // create workers
+      this.createMachine({
+        name: `${name}-worker-${i+1}`,
+        zone: opts.zone,
+        machineType: opts.machineType,
+        tags: opts.tags
+      }, next)
+    }, (err) => {
+      if (err) throw err
+      // create Manager
+      this.createMachine({
+        name: `${name}-manager`,
+        zone: opts.zone,
+        machineType: opts.machineType,
+        tags: opts.tags
+      }, (err) => {
+        if (err) throw err
+        cb(null)
+      })
+    })
+  }
+
   createMachine (opts, cb) {
     let driver = opts.driver || this._defaults.driver
     // TODO sanitize user opts here
-    exec(`docker-machine create ${opts.name} \
-      --driver ${driver} \
-      --${driver}-zone ${opts.zone || this._defaults.zone} \
-      --${driver}-machine-type ${opts.machineType || this._defaults.machineType} \
-      --${driver}-tags ${opts.tags || this._defaults.tags} \
-      --${driver}-project ${this._defaults.projectId}`, cb)
+    // exec(`docker-machine create ${opts.name} \
+    //   --driver ${driver} \
+    //   --${driver}-zone ${opts.zone || this._defaults.zone} \
+    //   --${driver}-machine-type ${opts.machineType || this._defaults.machineType} \
+    //   --${driver}-tags ${opts.tags || this._defaults.tags} \
+    //   --${driver}-project ${this._defaults.projectId}`, cb)
+
+    let builder = spawn('docker-machine', [
+      'create',
+      opts.name,
+      '--driver',
+      driver,
+      `--${driver}-zone`,
+      opts.zone || this._defaults.zone,
+      `--${driver}-machine-type`,
+      opts.machineType || this._defaults.machineType,
+      `--${driver}-tags`,
+      opts.tags || this._defaults.tags,
+      `--${driver}-project`,
+      this._defaults.projectId
+    ])
+
+    builder.stdout.on('data', (data) => {
+      console.log(`stdout: ${data}`)
+    })
+
+    builder.stderr.on('data', (data) => {
+      console.log(`stderr: ${data}`)
+    })
+
+    builder.on('close', (code) => {
+      console.log(`child process exited with code ${code}`)
+      if (code !== 0) {
+         return cb(`child process exited with code ${code}`)
+      }
+
+      cb(null)
+    })
+  }
+
+  createNetwork (name, cb) {
+    `docker network create -d overlay ${name}`
   }
 
   scp (origin, destination, opts, cb) {
-    exec(`docker-machine scp ${origin} ${destination}`, cb)
+    exec(`docker-machine scp ${opts} ${origin} ${destination}`, cb)
   }
 
   getPubIP (machineName, cb) {
@@ -41,6 +106,7 @@ class Swarm {
   getMachineStatus (machineName, cb) {
     // TODO check if the machineName is on the list first or not.
     exec(`docker-machine status ${machineName}`, cb)
+    // sudo docker service ps -q -f name=th_lp_broadcaster_0 -f desired-state=running th_lp_broadcaster_0
   }
 
   setEnv (machineName, cb) {
@@ -121,6 +187,14 @@ class Swarm {
     })
   }
 
+  createRegistry (cb) {
+    this.setEnv(this._managerName, (err, env) => {
+      if (err) throw err
+      exec(`docker service create --name registry --network testnet --publish published=5000,target=5000 registry:2`, {env: env}, cb)
+    })
+  }
+
+  
   tearDown (machineName, cb) {
     exec(`docker-machine rm ${machineName}`, cb)
   }

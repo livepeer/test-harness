@@ -17,6 +17,7 @@ function functionEncodedABI (name, params, values) {
 }
 
 function remotelyExec (machineName, command, cb) {
+  // reference : https://stackoverflow.com/a/39104844
   let args = [
     'compute',
     'ssh',

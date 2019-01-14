@@ -35,11 +35,11 @@ if (!program.output || program.output === '') {
   program.output = '.'
 }
 
-const nc = new NetworkCreator(parsePath(configFile))
+const nc = new NetworkCreator(parsePath(configFile), true) // true for toml
 nc.generateComposeFile(program.output, (err) => {
   if (err) throw err
   console.log('all good...building LPNODE image')
-  nc.loadBinaries((err, stdout) =>{
+  nc.loadBinaries('./containers/lpnode/binaries', (err, stdout) =>{
     if (err) throw err
     nc.buildLpImage((err, stdout) =>{
       if (err) throw err

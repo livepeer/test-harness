@@ -23,6 +23,7 @@
     "ethereumjs-abi": "^0.6.5",
     "ethereumjs-util": "^6.0.0",
     "ethers": "^4.0.20",
+    "shortid": "^2.2.14",
     "toml": "^2.3.3",
     "yaml": "^1.1.0"
   }
