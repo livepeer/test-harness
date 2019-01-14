@@ -65,6 +65,7 @@ class Swarm {
       `--${driver}-project`,
       this._defaults.projectId
     ])
+    let stderr = ''
 
     builder.stdout.on('data', (data) => {
       console.log(`stdout: ${data}`)
@@ -72,11 +73,12 @@ class Swarm {
 
     builder.stderr.on('data', (data) => {
       console.log(`stderr: ${data}`)
+      stderr = data.toString()
     })
 
     builder.on('close', (code) => {
       console.log(`child process exited with code ${code}`)
-      if (code !== 0) {
+      if (code !== 0 && !stderr.match(/already exists/g) ) {
          return cb(`child process exited with code ${code}`)
       }
 
@@ -85,7 +87,13 @@ class Swarm {
   }
 
   createNetwork (name, cb) {
-    `docker network create -d overlay ${name}`
+    this.setEnv(this._managerName, (err, env) => {
+      console.log('env before network: ', env)
+      if (err) return cb(err)
+      exec(`docker network create -d overlay ${name}`,{
+        env: env
+      }, cb)
+    })
   }
 
   scp (origin, destination, opts, cb) {
@@ -126,10 +134,10 @@ class Swarm {
         throw new Error('env parsing mismatch!')
       }
       let env = {
-        DOCKER_TLS_VERIFY: parsed[0],
-        DOCKER_HOST: parsed[1],
-        DOCKER_CERT_PATH: parsed[2],
-        DOCKER_MACHINE_NAME: parsed[3]
+        DOCKER_TLS_VERIFY: parsed[0].substr(1,parsed[0].length -2),
+        DOCKER_HOST: parsed[1].substr(1, parsed[1].length-2),
+        DOCKER_CERT_PATH: parsed[2].substr(1, parsed[2].length-2),
+        DOCKER_MACHINE_NAME: parsed[3].substr(1, parsed[3].length-2)
       }
 
       cb(null, env)
@@ -143,9 +151,15 @@ class Swarm {
   init (managerName, cb) {
     this.setEnv(managerName, (err, env) => {
       if (err) throw err
+      console.log('env before init: ', env)
       exec(`docker swarm init`, {
         env: env
-      }, cb)
+      }, (err, stdout) => {
+        if (err) return cb(err)
+        setTimeout(() => {
+          cb(null, stdout)
+        }, 1)
+      })
     })
   }
 
@@ -194,7 +208,7 @@ class Swarm {
     })
   }
 
-  
+
   tearDown (machineName, cb) {
     exec(`docker-machine rm ${machineName}`, cb)
   }

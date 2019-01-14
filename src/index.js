@@ -1,10 +1,10 @@
 'use strict'
 
+const { exec } = require('child_process')
 const NetworkCreator = require('./networkcreator')
 const Streamer = require('./streamer')
 const Swarm = require('./swarm')
 const utils = require('./utils/helpers')
-
 const DIST_DIR = './dist'
 
 class TestHarness {
@@ -38,17 +38,25 @@ class TestHarness {
       if (config.local) {
 
       } else {
-        this.networkCreator.loadBinaries(`${DIST_DIR}/${config.name}`, (err) => {
+        // copy binaries to the manager instance.
+        // I have a slow connection . so i'm not uploading the binary for testing.
+        //
+        // this.networkCreator.loadBinaries(`${DIST_DIR}/${config.name}`, (err) => {
+        //   if (err) throw err
+        // })
+        exec(`cp ./scripts/manager_setup.sh ${DIST_DIR}/${config.name}`, (err, stdout) => {
           if (err) throw err
+          console.log('manager_setup.sh copied')
         })
 
         // provision GCP machines
         this.swarm.createMachines({
           machines: 2,
-          name: config.name || 'testharness'
+          name: config.name || 'testharness',
+          tags: `${config.name}-cluster`
         }, (err) => {
           if (err) throw err
-
+          console.log('uploading binaries to the manager node...... this might take a while.')
           // machines are ready.
           this.swarm.scp(
             `${DIST_DIR}/${config.name}`,
@@ -75,18 +83,23 @@ class TestHarness {
                     console.log('registry stdout: ', stdout)
                     // now we should be able to build the image on manager and
                     // push it to the registry
-
                     // git clone test-harness. remotely.
                     // then build it.
+                    utils.remotelyExec(
+                      `${config.name}-manager`,
+                      `cd /tmp/config/${config.name}/ && /bin/sh manager_setup.sh`,
+                      (err, outputBuf) => {
+                        if (err) throw err
+                        console.log('manager-setup done', outputBuf.toString())
+                        cb()
+                      })
 
-                    
+
                   })
                 })
 
               })
-            }
-          )
-          cb()
+            })
         })
       }
     })
