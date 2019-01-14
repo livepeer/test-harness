@@ -114,6 +114,13 @@ class Swarm {
     })
   }
 
+  getLogs (serviceName, managerName, cb) {
+    this.setEnv(managerName, (err, env) => {
+      if (err) throw err
+      exec(`docker service logs ${serviceName}`, {env: env}, cb)
+    })
+  }
+
   tearDown (machineName, cb) {
     exec(`docker-machine rm ${machineName}`, cb)
   }
