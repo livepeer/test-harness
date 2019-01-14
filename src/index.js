@@ -1,11 +1,14 @@
 'use strict'
 
 const { exec } = require('child_process')
+const { timesLimit } = require('async')
+
 const NetworkCreator = require('./networkcreator')
 const Streamer = require('./streamer')
 const Swarm = require('./swarm')
 const utils = require('./utils/helpers')
 const DIST_DIR = './dist'
+const DEFAULT_MACHINES = 2
 
 class TestHarness {
   constructor () {
@@ -51,7 +54,7 @@ class TestHarness {
 
         // provision GCP machines
         this.swarm.createMachines({
-          machines: 2,
+          machines: DEFAULT_MACHINES,
           name: config.name || 'testharness',
           tags: `${config.name}-cluster`
         }, (err) => {
@@ -71,30 +74,48 @@ class TestHarness {
                 if (err) throw err
 
                 console.log('swarm initiated. ', stdout)
-
-                // create network
-                this.swarm.createNetwork('testnet', (err, stdout) => {
+                // add the workers to the swarm
+                this.swarm.getSwarmToken(`${config.name}-manager`, (err, token) => {
                   if (err) throw err
-                  console.log('networkid: ', stdout)
-
-                  // create throwaway registry
-                  this.swarm.createRegistry((err, stdout) => {
+                  this.swarm.getInternalIP(`${config.name}-manager`, (err, ip) => {
                     if (err) throw err
-                    console.log('registry stdout: ', stdout)
-                    // now we should be able to build the image on manager and
-                    // push it to the registry
-                    // git clone test-harness. remotely.
-                    // then build it.
-                    utils.remotelyExec(
-                      `${config.name}-manager`,
-                      `cd /tmp/config/${config.name}/ && /bin/sh manager_setup.sh`,
-                      (err, outputBuf) => {
+                    console.log(`adding ${DEFAULT_MACHINES - 1} workers to the swarm, token ${token}, ip: ${ip}`)
+                    timesLimit(
+                      DEFAULT_MACHINES - 1,
+                      1,
+                      (i, next) => {
+                        this.swarm.join(`${config.name}-worker-${ i+1 }`, token.trim(), ip.trim(), next)
+                      }, (err, results) => {
                         if (err) throw err
-                        console.log('manager-setup done', outputBuf.toString())
-                        cb()
-                      })
+
+                        // create network
+                        this.swarm.createNetwork('testnet', (err, stdout) => {
+                          if (err) throw err
+                          console.log('networkid: ', stdout)
+
+                          // create throwaway registry
+                          this.swarm.createRegistry((err, stdout) => {
+                            if (err) throw err
+                            console.log('registry stdout: ', stdout)
+                            // now we should be able to build the image on manager and
+                            // push it to the registry
+                            // git clone test-harness. remotely.
+                            // then build it.
+                            utils.remotelyExec(
+                              `${config.name}-manager`,
+                              `cd /tmp/config/${config.name}/ && /bin/sh manager_setup.sh`,
+                              (err, outputBuf) => {
+                                if (err) throw err
+                                console.log('manager-setup done', outputBuf.toString())
+                                // push the newly built image to the registry.
+                                cb()
+                              })
 
 
+                            })
+                          })
+
+                        })
                   })
                 })
 

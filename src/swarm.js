@@ -176,6 +176,8 @@ class Swarm {
     this.setEnv(machineName, (err, env) => {
       if (err) throw err
       // TODO get the managers internal IP automatically.
+      console.log(`adding ${machineName}..`, env, managerIP)
+      console.log(`docker swarm join --token ${token} ${managerIP}:2377`)
       exec(`docker swarm join --token ${token} ${managerIP}:2377`, {env: env}, cb)
     })
   }
