@@ -7,4 +7,5 @@ echo $json_key | jq -r '.' > /lpData/keystore/key.json
 
 sleep 3
 
-./wait-for-it.sh -t 30 geth:8546 -- exec /usr/bin/livepeer "$@"
+# ./wait-for-it.sh -t 5 geth:8546 -- exec /usr/bin/livepeer "$@"
+exec /usr/bin/livepeer "$@"

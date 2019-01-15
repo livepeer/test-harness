@@ -1,13 +1,17 @@
 'use strict'
 
+const fs = require('fs')
+const path = require('path')
 const { exec } = require('child_process')
-const { timesLimit } = require('async')
+const { each, timesLimit, filter, map } = require('async')
+const dockercompose = require('docker-compose')
+const YAML = require('yaml')
 
 const NetworkCreator = require('./networkcreator')
 const Streamer = require('./streamer')
 const Swarm = require('./swarm')
 const utils = require('./utils/helpers')
-const DIST_DIR = './dist'
+const DIST_DIR = '../dist'
 const DEFAULT_MACHINES = 2
 
 class TestHarness {
@@ -39,11 +43,68 @@ class TestHarness {
       if (err) return handleError(err)
 
       if (config.local) {
+        // copy binaries
+        // build lpnode:latest
+        // run geth:pm
+        // 420 funding secured
+        // run the lpnodes
+        // profit.
+        this.networkCreator.loadBinaries(`../containers/lpnode/binaries`, (err) => {
+          if (err) throw err
+          this.networkCreator.buildLpImage((err) => {
+            if (err) throw err
+            dockercompose.upOne(`geth`, {
+              cwd: path.resolve(__dirname, `${DIST_DIR}/${config.name}`),
+              log: true
+            }).then((logs) => {
+              console.warn('docker-compose warning: ', logs.err)
+              console.log('geth is up...', logs.out)
+              // fund accounts here.
+              // ----------------[eth funding]--------------------------------------------
+              let parsedCompose = null
+              try {
+                let file = fs.readFileSync(path.resolve(__dirname, `${DIST_DIR}/${config.name}/docker-compose.yml`), 'utf-8')
+                parsedCompose = YAML.parse(file)
+              } catch (e) {
+                throw e
+              }
 
+              map(parsedCompose.services, (service, next) => {
+                console.log('service.environment = ', service.environment)
+                if (service.environment && service.environment.JSON_KEY) {
+                  let addressObj = JSON.parse(service.environment.JSON_KEY)
+                  console.log('address to fund: ', addressObj.address)
+                  next(null, addressObj.address)
+                } else {
+                  next()
+                }
+              }, (err, addressesToFund) => {
+                if (err) throw err
+                // clear out the undefined
+                filter(addressesToFund, (address, cb) => {
+                  cb(null, !!address) // bang bang
+                }, (err, results) => {
+                  if (err) throw err
+                  console.log('results: ', results)
+
+                  each(results, (address, cb) => {
+                    utils.fundAccount(address, '1', `${config.name}_geth_1`, cb)
+                  }, (err) => {
+                    if (err) throw err
+                    console.log('funding secured!!')
+                    // TODO TO BE CONTINUED..
+                    cb()
+                  })
+                })
+              })
+              // -------------------------------------------------------------------------
+            }).catch((e) => { if (e) throw e })
+          })
+        })
       } else {
         // copy binaries to the manager instance.
         // I have a slow connection . so i'm not uploading the binary for testing.
-        //
+        // TODO UNCOMMENT THIS BEFORE MERGE
         // this.networkCreator.loadBinaries(`${DIST_DIR}/${config.name}`, (err) => {
         //   if (err) throw err
         // })

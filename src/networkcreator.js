@@ -36,8 +36,8 @@ class NetworkCreator extends EventEmitter {
 
   loadBinaries (dist, cb) {
     // copy livepeer binaries to lpnode image folder
-    console.log(`copying LP binary from ${this.config.livepeerBinaryPath}`)
-    exec(`cp ${this.config.livepeerBinaryPath} ${dist}`,
+    console.log(`copying LP binary from ${this.config.livepeerBinaryPath}. ${__dirname}`)
+    exec(`cp ${path.resolve(__dirname, this.config.livepeerBinaryPath)} ${path.resolve(__dirname, dist)}`,
     (err, stdout, stderr) => {
       if (err) throw err
       console.log('stdout: ', stdout)
@@ -52,7 +52,7 @@ class NetworkCreator extends EventEmitter {
       'build',
       '-t',
       'lpnode:latest',
-      './containers/lpnode'
+      path.resolve(__dirname, '../containers/lpnode')
     ])
 
     builder.stdout.on('data', (data) => {
@@ -77,8 +77,8 @@ class NetworkCreator extends EventEmitter {
 
   generateComposeFile (outputPath, cb) {
     let output = {
-      version: 3,
-      outputFolder: outputPath,
+      version: '3',
+      outputFolder: path.resolve(__dirname, outputPath),
       filename: 'docker-compose.yml',
       services: {},
       networks: {
@@ -179,7 +179,7 @@ class NetworkCreator extends EventEmitter {
       default:
         return {
           // image: 'geth-dev:latest',
-          image: 'darkdragon/geth-with-livepeer-protocol:latest',
+          image: 'darkdragon/geth-with-livepeer-protocol:pm',
           ports: [
             '8545:8545',
             '8546:8546',

@@ -1,6 +1,6 @@
 // import ethUtil from 'ethereumjs-util'
 // import ethAbi from 'ethereumjs-abi'
-const { spawn } = require('child_process')
+const { spawn, exec } = require('child_process')
 const ethUtil = require('ethereumjs-util')
 const ethAbi = require('ethereumjs-abi')
 
@@ -47,4 +47,16 @@ function remotelyExec (machineName, command, cb) {
   })
 }
 
-module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec}
+
+function fundAccount (address, valueInEth, containerId, cb) {
+  // NOTE: this requires the geth container to be running and account[0] to be unlocked.
+  exec(`docker exec ${containerId} geth --exec 'eth.sendTransaction({from: eth.accounts[0], to: "${address}", value: web3.toHex(web3.toWei("${valueInEth}", "ether"))})' attach`,
+  (err, stdout, stderr) => {
+    if (err) throw err
+    console.log('stdout: ', stdout)
+    console.log('stderr: ', stderr)
+    cb(null, stdout)
+  })
+}
+
+module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount}

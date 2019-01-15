@@ -27,6 +27,21 @@ $ cd test-harness
 
 ```
 
+### Local Mode
+
+1. check [`examples/local.js`](/examples/local.js), note that in the `config`
+object `local` is `true`. note that this will use `docker-compose up` to run
+instead of docker-swarm. this is easier to debug for smallish setups locally.
+
+2. run `node examples/local.js` to fire up the test-harness.
+
+3. thats it. now you got a running setup. note that in the `dist` folder there
+will be a folder for this experiment, which will contain the docker-compose
+generated. this will have the port forwarding for each node and should be
+accessible at your dev machine's `localhost` 
+
+### GCP integrated Test-harness
+
 1. setup `gcloud`, `docker-machine` Google driver uses [Application Default Credentials]() to get authorization credentials for use in calling Google APIs. follow https://cloud.google.com/sdk/docs/#deb to `gcloud init`.
 
 2. run `gcloud auth login`
@@ -34,6 +49,6 @@ $ cd test-harness
 3. now you should have `gcloud` and ready to spin up instances, if you're having issues
 , let me know (open an issue or buzz me at discord @Yahya#0606 )
 
-4. there is a ready made example in [`/examples/index.js`](`/examples/index.js`),
+4. there is a ready made example in [`/examples/index.js`](/examples/index.js),
 **Change the test `name`** and run in `node examples/index.js` which will spin up
 a docker cluster of 2 hosts, with livepeer containers and  `geth with protocol` ready to go
