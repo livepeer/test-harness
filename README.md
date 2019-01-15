@@ -24,6 +24,7 @@ if you're not going to run the test harness locally. so there is that :)
 ```bash
 $ git clone https://github.com/livepeer/test-harness.git
 $ cd test-harness
+$ npm install
 
 ```
 
@@ -38,7 +39,7 @@ instead of docker-swarm. this is easier to debug for smallish setups locally.
 3. thats it. now you got a running setup. note that in the `dist` folder there
 will be a folder for this experiment, which will contain the docker-compose
 generated. this will have the port forwarding for each node and should be
-accessible at your dev machine's `localhost` 
+accessible at your dev machine's `localhost`
 
 ### GCP integrated Test-harness
 
