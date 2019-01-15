@@ -68,7 +68,7 @@ th.run({
   blockchain: {
     name: 'lpTestNet',
     networkId: 54321,
-    controllerAddress: '0x93ad00a63b14492386df9f1cc123d785705bdf99',
+    controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982'
   },
   nodes: {
     transcoders: {

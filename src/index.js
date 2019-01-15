@@ -59,45 +59,53 @@ class TestHarness {
             }).then((logs) => {
               console.warn('docker-compose warning: ', logs.err)
               console.log('geth is up...', logs.out)
-              // fund accounts here.
-              // ----------------[eth funding]--------------------------------------------
-              let parsedCompose = null
-              try {
-                let file = fs.readFileSync(path.resolve(__dirname, `${DIST_DIR}/${config.name}/docker-compose.yml`), 'utf-8')
-                parsedCompose = YAML.parse(file)
-              } catch (e) {
-                throw e
-              }
-
-              map(parsedCompose.services, (service, next) => {
-                console.log('service.environment = ', service.environment)
-                if (service.environment && service.environment.JSON_KEY) {
-                  let addressObj = JSON.parse(service.environment.JSON_KEY)
-                  console.log('address to fund: ', addressObj.address)
-                  next(null, addressObj.address)
-                } else {
-                  next()
+              setTimeout(() => {
+                // fund accounts here.
+                // ----------------[eth funding]--------------------------------------------
+                let parsedCompose = null
+                try {
+                  let file = fs.readFileSync(path.resolve(__dirname, `${DIST_DIR}/${config.name}/docker-compose.yml`), 'utf-8')
+                  parsedCompose = YAML.parse(file)
+                } catch (e) {
+                  throw e
                 }
-              }, (err, addressesToFund) => {
-                if (err) throw err
-                // clear out the undefined
-                filter(addressesToFund, (address, cb) => {
-                  cb(null, !!address) // bang bang
-                }, (err, results) => {
-                  if (err) throw err
-                  console.log('results: ', results)
 
-                  each(results, (address, cb) => {
-                    utils.fundAccount(address, '1', `${config.name}_geth_1`, cb)
-                  }, (err) => {
+                map(parsedCompose.services, (service, next) => {
+                  console.log('service.environment = ', service.environment)
+                  if (service.environment && service.environment.JSON_KEY) {
+                    let addressObj = JSON.parse(service.environment.JSON_KEY)
+                    console.log('address to fund: ', addressObj.address)
+                    next(null, addressObj.address)
+                  } else {
+                    next()
+                  }
+                }, (err, addressesToFund) => {
+                  if (err) throw err
+                  // clear out the undefined
+                  filter(addressesToFund, (address, cb) => {
+                    cb(null, !!address) // bang bang
+                  }, (err, results) => {
                     if (err) throw err
-                    console.log('funding secured!!')
-                    // TODO TO BE CONTINUED..
-                    cb()
+                    console.log('results: ', results)
+
+                    each(results, (address, cb) => {
+                      utils.fundAccount(address, '1', `${config.name}_geth_1`, cb)
+                    }, (err) => {
+                      if (err) throw err
+                      console.log('funding secured!!')
+                      dockercompose.upAll({
+                        cwd: path.resolve(__dirname, `${DIST_DIR}/${config.name}`),
+                        log: true
+                      }).then((logs) => {
+                        console.warn('docker-compose warning: ', logs.err)
+                        console.log('all lpnodes are up: ', logs.out)
+                        cb()
+                      }).catch((e) => { if (e) throw e })
+                    })
                   })
                 })
-              })
-              // -------------------------------------------------------------------------
+                // -------------------------------------------------------------------------
+              }, 3000)
             }).catch((e) => { if (e) throw e })
           })
         })
