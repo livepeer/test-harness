@@ -1,135 +1,204 @@
 'use strict'
 
 const fs = require('fs')
-const toml = require('toml')
-const composefile = require('composefile')
-let usedPorts = []
+const path = require('path')
+const { exec } = require('child_process')
+const { each, timesLimit, filter, map } = require('async')
+const dockercompose = require('docker-compose')
+const YAML = require('yaml')
 
+const NetworkCreator = require('./networkcreator')
+const Streamer = require('./streamer')
+const Swarm = require('./swarm')
+const utils = require('./utils/helpers')
+const DIST_DIR = '../dist'
+const DEFAULT_MACHINES = 2
 
-const DEFAULT_CONFIG_PATH = './config.toml'
-
-// fs.readFile('./config.toml', (err, config) => {
-//   if (err) throw err
-//
-//   let parsed = toml.parse(config)
-//   console.dir(parsed)
-// })
-
-
-function generateDockerCompose (configPath, cb) {
-  const defaults = {
-    version: 3,
-    outputFolder: __dirname,
-    filename: 'docker-compose.yml',
-    services: {},
-    network_mode: 'host',
-    // networks: {
-    //   outside: {
-    //     external: true,
-    //   }
-    // }
+class TestHarness {
+  constructor () {
+    this.swarm = new Swarm()
   }
 
-  let config, configStr
-  if (!config) {
-    configStr = fs.readFileSync(DEFAULT_CONFIG_PATH)
+  run (config, cb) {
+    // 1. [ ] validate the configurations
+    // 2. [x] provision GCP machines
+    // 3. scp docker-compose.yml, livepeer binary and git test-harness
+    // 4. create throwaway docker registry
+    // 5. initiate swarm, add workers
+    // 6. build lpnode with lp binary, push it to registry
+    // 7. deploy geth-with-protocol, fund accounts.
+    // 8. deploy lpnodes
+    // 9. setup transcoders/orchestrators
+    // 10. setup broadcasters.
+    // 11. initializeRound.
+    // 12. start streams.
+    // 13. pipe logs to bucket or download them.
+    // 14. teardown the cluster.
+    // 15. callback.
+    config.name = config.name || 'testharness'
+    this.swarm._managerName = `${config.name}-manager`
+
+    this.networkCreator = new NetworkCreator(config)
+    this.networkCreator.generateComposeFile(`${DIST_DIR}/${config.name}`, (err) => {
+      if (err) return handleError(err)
+
+      if (config.local) {
+        // copy binaries
+        // build lpnode:latest
+        // run geth:pm
+        // 420 funding secured
+        // run the lpnodes
+        // profit.
+        this.networkCreator.loadBinaries(`../containers/lpnode/binaries`, (err) => {
+          if (err) throw err
+          this.networkCreator.buildLpImage((err) => {
+            if (err) throw err
+            dockercompose.upOne(`geth`, {
+              cwd: path.resolve(__dirname, `${DIST_DIR}/${config.name}`),
+              log: true
+            }).then((logs) => {
+              console.warn('docker-compose warning: ', logs.err)
+              console.log('geth is up...', logs.out)
+              setTimeout(() => {
+                // fund accounts here.
+                // ----------------[eth funding]--------------------------------------------
+                let parsedCompose = null
+                try {
+                  let file = fs.readFileSync(path.resolve(__dirname, `${DIST_DIR}/${config.name}/docker-compose.yml`), 'utf-8')
+                  parsedCompose = YAML.parse(file)
+                } catch (e) {
+                  throw e
+                }
+
+                map(parsedCompose.services, (service, next) => {
+                  console.log('service.environment = ', service.environment)
+                  if (service.environment && service.environment.JSON_KEY) {
+                    let addressObj = JSON.parse(service.environment.JSON_KEY)
+                    console.log('address to fund: ', addressObj.address)
+                    next(null, addressObj.address)
+                  } else {
+                    next()
+                  }
+                }, (err, addressesToFund) => {
+                  if (err) throw err
+                  // clear out the undefined
+                  filter(addressesToFund, (address, cb) => {
+                    cb(null, !!address) // bang bang
+                  }, (err, results) => {
+                    if (err) throw err
+                    console.log('results: ', results)
+
+                    each(results, (address, cb) => {
+                      utils.fundAccount(address, '1', `${config.name}_geth_1`, cb)
+                    }, (err) => {
+                      if (err) throw err
+                      console.log('funding secured!!')
+                      dockercompose.upAll({
+                        cwd: path.resolve(__dirname, `${DIST_DIR}/${config.name}`),
+                        log: true
+                      }).then((logs) => {
+                        console.warn('docker-compose warning: ', logs.err)
+                        console.log('all lpnodes are up: ', logs.out)
+                        cb()
+                      }).catch((e) => { if (e) throw e })
+                    })
+                  })
+                })
+                // -------------------------------------------------------------------------
+              }, 3000)
+            }).catch((e) => { if (e) throw e })
+          })
+        })
+      } else {
+        // copy binaries to the manager instance.
+        // I have a slow connection . so i'm not uploading the binary for testing.
+        // TODO UNCOMMENT THIS BEFORE MERGE
+        // this.networkCreator.loadBinaries(`${DIST_DIR}/${config.name}`, (err) => {
+        //   if (err) throw err
+        // })
+        exec(`cp ./scripts/manager_setup.sh ${DIST_DIR}/${config.name}`, (err, stdout) => {
+          if (err) throw err
+          console.log('manager_setup.sh copied')
+        })
+
+        // provision GCP machines
+        this.swarm.createMachines({
+          machines: DEFAULT_MACHINES,
+          name: config.name || 'testharness',
+          tags: `${config.name}-cluster`
+        }, (err) => {
+          if (err) throw err
+          console.log('uploading binaries to the manager node...... this might take a while.')
+          // machines are ready.
+          this.swarm.scp(
+            `${DIST_DIR}/${config.name}`,
+            `${config.name}-manager:/tmp/config`,
+            `-r`,
+            (err, stdout) => {
+              if (err) throw err
+              // dist folder should be available to the manager now.
+
+              // init Swarm
+              this.swarm.init(`${config.name}-manager`, (err, stdout) => {
+                if (err) throw err
+
+                console.log('swarm initiated. ', stdout)
+                // add the workers to the swarm
+                this.swarm.getSwarmToken(`${config.name}-manager`, (err, token) => {
+                  if (err) throw err
+                  this.swarm.getInternalIP(`${config.name}-manager`, (err, ip) => {
+                    if (err) throw err
+                    console.log(`adding ${DEFAULT_MACHINES - 1} workers to the swarm, token ${token}, ip: ${ip}`)
+                    timesLimit(
+                      DEFAULT_MACHINES - 1,
+                      1,
+                      (i, next) => {
+                        this.swarm.join(`${config.name}-worker-${ i+1 }`, token.trim(), ip.trim(), next)
+                      }, (err, results) => {
+                        if (err) throw err
+
+                        // create network
+                        this.swarm.createNetwork('testnet', (err, stdout) => {
+                          if (err) throw err
+                          console.log('networkid: ', stdout)
+
+                          // create throwaway registry
+                          this.swarm.createRegistry((err, stdout) => {
+                            if (err) throw err
+                            console.log('registry stdout: ', stdout)
+                            // now we should be able to build the image on manager and
+                            // push it to the registry
+                            // git clone test-harness. remotely.
+                            // then build it.
+                            utils.remotelyExec(
+                              `${config.name}-manager`,
+                              `cd /tmp/config/${config.name}/ && /bin/sh manager_setup.sh`,
+                              (err, outputBuf) => {
+                                if (err) throw err
+                                console.log('manager-setup done', outputBuf.toString())
+                                // push the newly built image to the registry.
+                                cb()
+                              })
+
+
+                            })
+                          })
+
+                        })
+                  })
+                })
+
+              })
+            })
+        })
+      }
+    })
   }
-
-  try {
-    config = toml.parse(configStr)
-  } catch (e) {
-    console.error("Parsing error on line " + e.line + ", column " + e.column +
-    ": " + e.message)
-  }
-
-  console.dir(config)
-  defaults.services = generateDockerService(config)
-  console.log('defaults: ', defaults)
-
-  composefile(defaults,cb)
 }
 
-function generateDockerService (config) {
-  let output = {}
-  if (config.blockchain && config.blockchain.controllerAddress === "") {
-    // output.geth = generateGethService()
-  }
-
-  for (let i = 0; i < config.nodes.transcoders.instances; i++) {
-    // generate separate services with the forwarded ports.
-    // append it to output as output.<node_generate_id> = props
-    output['lp_t_' + i] = {
-      image: 'lpnode:latest',
-      ports: [
-        `${getRandomPort(8935)}:8935`,
-        `${getRandomPort(7935)}:7935`,
-        `${getRandomPort(1935)}:1935`,
-      ],
-      // TODO fix the serviceAddr issue
-      command: '-transcoder -rinkeby -datadir /lpData --rtmpAddr 0.0.0.0:1935 --cliAddr 0.0.0.0:7935 --httpAddr 0.0.0.0:8935',
-      // networks: [ 'outside']
-    }
-  }
-
-  for (let i = 0; i < config.nodes.orchestrators.instances; i++) {
-    // generate separate services with the forwarded ports.
-    // append it to output as output.<node_generate_id> = props
-    output['lp_o_' + i] = {
-      image: 'lpnode:latest',
-      ports: [
-        `${getRandomPort(8935)}:8935`,
-        `${getRandomPort(7935)}:7935`,
-        `${getRandomPort(1935)}:1935`,
-      ],
-      command: '-rinkeby -datadir /lpData --rtmpAddr 0.0.0.0:1935 --cliAddr 0.0.0.0:7935 --httpAddr 0.0.0.0:8935',
-      // networks: [ 'outside']
-    }
-  }
-
-  for (let i = 0; i < config.nodes.broadcasters.instances; i++) {
-    // generate separate services with the forwarded ports.
-    // append it to output as output.<node_generate_id> = props
-    output['lp_b_' + i] = {
-      image: 'lpnode:latest',
-      ports: [
-        `${getRandomPort(8935)}:8935`,
-        `${getRandomPort(7935)}:7935`,
-        `${getRandomPort(1935)}:1935`,
-      ],
-      command: '-rinkeby -datadir /lpData --rtmpAddr 0.0.0.0:1935 --cliAddr 0.0.0.0:7935 --httpAddr 0.0.0.0:8935',
-      // networks: [ 'outside']
-    }
-  }
-
-  return output
+function handleError (err) {
+  // TODO handle errors gracefully
+  throw err
 }
 
-function generateGethService () {
-  return {
-    image: 'geth-dev:latest',
-    ports: [
-      '8545:8545'
-    ],
-    // networks: ['outside']
-  }
-}
-
-function getRandomPort(origin) {
-  // TODO, ugh, fix this terrible recursive logic, use an incrementer like a gentleman
-  let port = origin + Math.floor(Math.random() * 999)
-  if (usedPorts.indexOf(port) === -1) {
-    usedPorts.push(port)
-    return port
-  } else {
-    return getRandomPort(origin)
-  }
-}
-
-function generateStreamSimulatorService () {
-
-}
-
-generateDockerCompose({}, (err) => {
-  if (err) throw err
-  console.log('done')
-})
+module.exports = TestHarness

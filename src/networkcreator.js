@@ -1,22 +1,25 @@
 'use strict'
 
 const { EventEmitter } = require('events')
-const { exec } = require('child_process')
+const { exec, spawn } = require('child_process')
 const path = require('path')
 const toml = require('toml')
 const composefile = require('composefile')
 const ethers = require('ethers')
-const { times, each } = require('async')
+const { timesLimit, each, eachLimit } = require('async')
 const log = require('debug')('livepeer:test-harness:network')
 
 class NetworkCreator extends EventEmitter {
-  constructor (config) {
+  constructor (config, isToml) {
     super()
-
-    try {
-      this.config = toml.parse(config)
-    } catch (e) {
-      throw e
+    if (isToml) {
+      try {
+        this.config = toml.parse(config)
+      } catch (e) {
+        throw e
+      }
+    } else {
+      this.config = config
     }
 
     this.ports = {}
@@ -31,10 +34,10 @@ class NetworkCreator extends EventEmitter {
     return true
   }
 
-  loadBinaries (cb) {
+  loadBinaries (dist, cb) {
     // copy livepeer binaries to lpnode image folder
-    console.log(`copying LP binary from ${this.config.livepeerBinaryPath}`)
-    exec(`cp ${this.config.livepeerBinaryPath} ./containers/lpnode/binaries`,
+    console.log(`copying LP binary from ${this.config.livepeerBinaryPath}. ${__dirname}`)
+    exec(`cp ${path.resolve(__dirname, this.config.livepeerBinaryPath)} ${path.resolve(__dirname, dist)}`,
     (err, stdout, stderr) => {
       if (err) throw err
       console.log('stdout: ', stdout)
@@ -45,20 +48,42 @@ class NetworkCreator extends EventEmitter {
 
   buildLpImage (cb) {
     console.log('building lpnode...')
-    exec(`docker build -t lpnode:latest ./containers/lpnode/`, (err, stdout, stderr) => {
-      if (err) throw err
-      console.log('stdout: ', stdout)
-      console.log('stderr: ', stderr)
-      cb(null, stdout)
+    let builder = spawn('docker', [
+      'build',
+      '-t',
+      'lpnode:latest',
+      path.resolve(__dirname, '../containers/lpnode')
+    ])
+
+    builder.stdout.on('data', (data) => {
+      console.log(`stdout: ${data}`)
     })
+
+    builder.stderr.on('data', (data) => {
+      console.log(`stderr: ${data}`)
+    })
+
+    builder.on('close', (code) => {
+      console.log(`child process exited with code ${code}`)
+      cb(null)
+    })
+    //
+    // exec(`docker build -t lpnode:latest ./containers/lpnode/`, (err, stdout, stderr) => {
+    //   if (err) throw err
+    //   console.log('stdout: ', stdout)
+    //   console.log('stderr: ', stderr)
+    // })
   }
 
   generateComposeFile (outputPath, cb) {
     let output = {
-      version: 3,
-      outputFolder: outputPath,
+      version: '3',
+      outputFolder: path.resolve(__dirname, outputPath),
       filename: 'docker-compose.yml',
       services: {},
+      networks: {
+        testnet: {}
+      }
       // network_mode: 'host',
     }
 
@@ -78,7 +103,7 @@ class NetworkCreator extends EventEmitter {
     }
   }
 
-  _generateService (type, cb) {
+  _generateService (type, i, cb) {
     let generated = {
     // generated['lp_t_' + i] = {
       image: 'lpnode:latest',
@@ -89,8 +114,12 @@ class NetworkCreator extends EventEmitter {
       ],
       // TODO fix the serviceAddr issue
       command: this.getNodeOptions(type, this.config.nodes[`${type}s`].flags),
-      depends_on: this.getDependencies()
-      // networks: [ 'outside']
+      depends_on: this.getDependencies(),
+      networks: {
+        testnet: {
+          aliases: [`${type}_${i}`]
+        }
+      }
     }
 
     this.getEnvVars((err, envObj) => {
@@ -112,18 +141,19 @@ class NetworkCreator extends EventEmitter {
       this.hasGeth = true
     }
 
-    each(['transcoder', 'orchestrator', 'broadcaster'], (type, callback) => {
+    eachLimit(['transcoder', 'orchestrator', 'broadcaster'], 1, (type, callback) => {
       console.log(`generating ${type} nodes ${this.config.nodes[`${type}s`].instances}`)
-      times(
+      timesLimit(
         this.config.nodes[`${type}s`].instances,
+        1,
         (i, next) => {
           // generate separate services with the forwarded ports.
           // append it to output as output.<node_generate_id> = props
-          this._generateService(type, next)
+          this._generateService(type, i, next)
         },
         (err, nodes) => {
           if (err) throw err
-          console.log(`finished ${type}, ${JSON.stringify(nodes)}`)
+          // console.log(`finished ${type}, ${JSON.stringify(nodes)}`)
           nodes.forEach((node, i) => {
             output[`lp_${type}_${i}`] = node
           })
@@ -149,12 +179,22 @@ class NetworkCreator extends EventEmitter {
       default:
         return {
           // image: 'geth-dev:latest',
-          image: 'darkdragon/geth-with-livepeer-protocol:latest',
+          image: 'darkdragon/geth-with-livepeer-protocol:pm',
           ports: [
             '8545:8545',
             '8546:8546',
             '30303:30303'
-          ]
+          ],
+          networks: {
+            testnet: {
+              aliases: [`geth`]
+            }
+          },
+          deploy: {
+            placement: {
+              constraints: ['node.role == manager']
+            }
+          }
           // networks: ['outside']
         }
     }
@@ -180,7 +220,7 @@ class NetworkCreator extends EventEmitter {
         output.push('-rinkeby')
         break
       case 'lpTestNet':
-        // output.push('-devenv')
+        output.push('-devenv')
         output.push(`-ethUrl ws://geth:8546`)
         output.push(`-controllerAddr ${this.config.blockchain.controllerAddress}`)
         break
@@ -188,7 +228,7 @@ class NetworkCreator extends EventEmitter {
         // output.push('-devenv')
     }
 
-    output.push(`-ethPassword ""`)
+    // output.push(`-ethPassword ""`)
     output.push(userFlags)
 
     let outputStr = output.join(' ')

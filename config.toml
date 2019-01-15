@@ -5,6 +5,7 @@ title = "LP test harness"
 local = true
 # change livepeerBinaryPath to point to where the lp binary is, REQUIRED
 livepeerBinaryPath = "./containers/lpnode/livepeer_linux/livepeer"
+name = "testharness"
 
 [blockchain]
   name = "lpTestNet"
@@ -13,10 +14,10 @@ livepeerBinaryPath = "./containers/lpnode/livepeer_linux/livepeer"
 
 [nodes.transcoders]
   instances = 1
-  flags = "--v 99 -transcoder -initializeRound"
+  flags = "--v 4 -transcoder -initializeRound"
 [nodes.orchestrators]
   instances = 1
   flags = "--v 4"
 [nodes.broadcasters]
-  instances = 1
+  instances = 5
   flags = "--v 4"

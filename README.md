@@ -6,38 +6,49 @@ This is a work in progress, so code is :lava:
 
 ## Dependencies
 
-- Docker
-- Docker-compose
-- Nodejs LTS (I tested it on v8.11.3 and v10.14.1)
+- Docker [Mac](https://docs.docker.com/docker-for-mac/install/) , [Ubuntu](https://docs.docker.com/install/linux/docker-ce/ubuntu/)
+
+- [Docker-compose](https://docs.docker.com/compose/install/)
+
+- [Docker-machine](https://docs.docker.com/machine/install-machine/)
+
+- Nodejs LTS (I tested it on v8.11.3 and v10.14.1) [I recommend nvm](https://github.com/creationix/nvm/blob/master/README.md)
+
+- [Gcloud SDK](https://cloud.google.com/sdk/install)
+
+That's alotta dependencies, I know. technically you don't need `docker-compose` if
+if you're not going to run the test harness locally. so there is that :)
 
 ## installation
-
-1. installing images
 
 ```bash
 $ git clone https://github.com/livepeer/test-harness.git
 $ cd test-harness
-$ npm install
-# you can also use yarn if npm install fails.
+
 ```
 
-At this point, the test-harness used the default livepeer binary included in `lpnode` , the rest of these steps are when you change `config.toml` and wanna rebuild
+### Local Mode
 
-2. edit `livepeerBinaryPath`  in `config.toml` to point to the LP binary you would like to use in the harness. **make sure you use the binaries built for linux, not darwin**
+1. check [`examples/local.js`](/examples/local.js), note that in the `config`
+object `local` is `true`. note that this will use `docker-compose up` to run
+instead of docker-swarm. this is easier to debug for smallish setups locally.
 
-3. in the project root directory run
+2. run `node examples/local.js` to fire up the test-harness.
 
-```bash
-#if you need sudo to run docker,
-#add sudo to this.
-# note, if you are using nvm checkout the script in sudonode.sh
-$ npm run build
-```
+3. thats it. now you got a running setup. note that in the `dist` folder there
+will be a folder for this experiment, which will contain the docker-compose
+generated. this will have the port forwarding for each node and should be
+accessible at your dev machine's `localhost` 
 
-4. now you have generated the `docker-compose.yml` file, which is like a network game plan, lets run it.
+### GCP integrated Test-harness
 
-```bash
-$ docker-compose up
-```
+1. setup `gcloud`, `docker-machine` Google driver uses [Application Default Credentials]() to get authorization credentials for use in calling Google APIs. follow https://cloud.google.com/sdk/docs/#deb to `gcloud init`.
 
-and now you have a network of 3 Livepeer nodes. go ahead and run `docker ps` to see each container.
+2. run `gcloud auth login`
+
+3. now you should have `gcloud` and ready to spin up instances, if you're having issues
+, let me know (open an issue or buzz me at discord @Yahya#0606 )
+
+4. there is a ready made example in [`/examples/index.js`](/examples/index.js),
+**Change the test `name`** and run in `node examples/index.js` which will spin up
+a docker cluster of 2 hosts, with livepeer containers and  `geth with protocol` ready to go
