@@ -10,7 +10,9 @@ const YAML = require('yaml')
 const NetworkCreator = require('./networkcreator')
 const Streamer = require('./streamer')
 const Swarm = require('./swarm')
+const Api = require('./api')
 const utils = require('./utils/helpers')
+
 const DIST_DIR = '../dist'
 const DEFAULT_MACHINES = 2
 
@@ -71,7 +73,7 @@ class TestHarness {
                 }
 
                 map(parsedCompose.services, (service, next) => {
-                  console.log('service.environment = ', service.environment)
+                  // console.log('service.environment = ', service.environment)
                   if (service.environment && service.environment.JSON_KEY) {
                     let addressObj = JSON.parse(service.environment.JSON_KEY)
                     console.log('address to fund: ', addressObj.address)
@@ -99,7 +101,13 @@ class TestHarness {
                       }).then((logs) => {
                         console.warn('docker-compose warning: ', logs.err)
                         console.log('all lpnodes are up: ', logs.out)
-                        cb()
+                        this.api = new Api(parsedCompose)
+                        setTimeout(() => {
+                          this.api.requestTokens(['lp_broadcaster_0', 'transcoders'], (err, output) => {
+                            console.log('we good.', output)
+                            cb()
+                          })
+                        }, 5000)
                       }).catch((e) => { if (e) throw e })
                     })
                   })

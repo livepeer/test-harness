@@ -12,7 +12,7 @@ th.run({
     // keep these to run a private testnet.
     name: 'lpTestNet',
     networkId: 54321,
-    controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982' //pm 
+    controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982' //pm
   },
   nodes: {
     transcoders: {
@@ -24,7 +24,7 @@ th.run({
       flags: '--v 4 -initializeRound'
     },
     broadcasters: {
-      instances: 1,
+      instances: 2,
       flags: '--v 4'
     }
   }
