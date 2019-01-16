@@ -53,3 +53,11 @@ accessible at your dev machine's `localhost`
 4. there is a ready made example in [`/examples/index.js`](/examples/index.js),
 **Change the test `name`** and run in `node examples/index.js` which will spin up
 a docker cluster of 2 hosts, with livepeer containers and  `geth with protocol` ready to go
+
+
+## Automating Livepeer `actions`
+------
+
+this isn't complete yet. but it's functioning .
+checkout [this example](https://github.com/livepeer/test-harness/blob/b1f8b12d849e43c33da31b3349bfbac2a488d3a3/examples/local.js#L50-L67) along with the comments in the code to get an
+idea of how to use it. 
