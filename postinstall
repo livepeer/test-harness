@@ -1,4 +1,14 @@
 #!/bin/bash
 
-docker pull darkdragon/geth-with-livepeer-protocol:latest
-# npm run build
+ASSET_URL=http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4
+
+docker pull darkdragon/geth-with-livepeer-protocol:pm
+
+if [ ! -f ./assets/BigBuckBunny.mp4 ]; then
+  # download http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4
+  # this is used for simulating streams.
+  echo "Downloading ./assets/BigBuckBunny.mp4...."
+  mkdir -p ./assets
+  cd ./assets
+  curl -sOL $ASSET_URL
+fi
