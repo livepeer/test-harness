@@ -104,8 +104,13 @@ class TestHarness {
                         this.api = new Api(parsedCompose)
                         setTimeout(() => {
                           this.api.requestTokens(['lp_broadcaster_0', 'transcoders'], (err, output) => {
-                            console.log('we good.', output)
-                            cb()
+                            if (err) throw err
+                            console.log('requested LPT', output)
+                            this.api.fundDeposit(['lp_broadcaster_0'], '5000000000', (err, output) => {
+                              if (err) throw err
+                              console.log('we good.', output)
+                              cb()
+                            })
                           })
                         }, 5000)
                       }).catch((e) => { if (e) throw e })

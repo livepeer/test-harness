@@ -1,7 +1,7 @@
 'use strict'
 
 const request = require('request')
-const { map, each, filter } = require('async')
+const { map, each, eachLimit, filter } = require('async')
 const NODE_TYPES = ['broadcasters', 'transcoders', 'orchestrators']
 const NODE_REGEX = {
   broadcasters: /_broadcaster_/g,
@@ -26,13 +26,35 @@ class Api {
     }
     this._getUrlArray(nodes, (err, urls) => {
       if (err) throw err
-      each(urls, (url, next) => {
+      eachLimit(urls, 1, (url, next) => {
         this._httpGet(`${url}/${endpoint}`, {}, (err, res, body) => {
           next(err, res)
         })
       }, cb)
     })
-    // get a url array.
+  }
+
+  fundDeposit (nodes, amount, cb) {
+    let endpoint = `fundDeposit`
+    if (!nodes) {
+      return cb(new Error(`nodes array is required`))
+    }
+
+    if (!Array.isArray(nodes)) {
+      nodes = [nodes]
+    }
+    let params = {
+      amount: amount
+    }
+
+    this._getUrlArray(nodes, (err, urls) => {
+      if (err) throw err
+      eachLimit(urls, 1, (url, next) => {
+        this._httpPost(`${url}/${endpoint}`, params, (err, res, body) => {
+          next(err, res)
+        })
+      }, cb)
+    })
   }
 
   _getUrlArray (nodes, cb) {
@@ -94,7 +116,7 @@ class Api {
         'Content-Type': 'application/x-www-form-urlencoded'
       },
       uri: url,
-      body: params,
+      form: params,
       method: 'POST'
     }, cb)
   }
