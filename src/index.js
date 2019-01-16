@@ -103,15 +103,26 @@ class TestHarness {
                         console.log('all lpnodes are up: ', logs.out)
                         this.api = new Api(parsedCompose)
                         setTimeout(() => {
-                          this.api.requestTokens(['lp_broadcaster_0', 'transcoders'], (err, output) => {
+                          this.api.requestTokens(['all'], (err, output) => {
                             if (err) throw err
                             console.log('requested LPT', output)
-                            this.api.fundDeposit(['lp_broadcaster_0'], '5000000000', (err, output) => {
+                            this.api.fundDeposit(['all'], '5000000000', (err, output) => {
                               console.log('funds deposited')
-                              this.api.initializeRound(['lp_broadcaster_0'], (err, output) => {
+                              this.api.initializeRound(['lp_transcoder_0'], (err, output) => {
                                 if (err) throw err
-                                console.log('we good.', output)
-                                cb()
+                                console.log('round initialized!', output)
+                                this.api.activateOrchestrator(['orchestrators', 'transcoders'], {
+                                  // 'blockRewardCut=10&feeShare=5&pricePerSegment=1&amount=500" --data-urlencode "serviceURI=https://$transcoderServiceAddr'
+                                  blockRewardCut: '10',
+                                  feeShare: '5',
+                                  pricePerSegment: '1',
+                                  amount: '500'
+                                  // ServiceURI will be set by the test-harness.
+                                }, (err, output) => {
+                                  if (err) throw err
+                                  console.log('we good.', output)
+                                  cb()
+                                })
                               })
                             })
                           })

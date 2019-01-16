@@ -205,6 +205,7 @@ class NetworkCreator extends EventEmitter {
 
     // default 0.0.0.0 binding
     output.push(`-httpAddr 0.0.0.0:8935`)
+    output.push(`-serviceAddr 127.0.0.1:8935`)
     output.push(`-cliAddr 0.0.0.0:7935`)
     output.push(`-rtmpAddr 0.0.0.0:1935`)
 

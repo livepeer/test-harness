@@ -17,7 +17,7 @@ th.run({
   nodes: {
     transcoders: {
       instances: 1,
-      flags: '--v 4 -transcoder -initializeRound'
+      flags: '--v 4 -transcoder -initializeRound=true'
     },
     orchestrators: {
       instances: 1,

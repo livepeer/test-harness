@@ -24,10 +24,10 @@ class Api {
     if (!Array.isArray(nodes)) {
       nodes = [nodes]
     }
-    this._getUrlArray(nodes, (err, urls) => {
+    this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(urls, 1, (url, next) => {
-        this._httpGet(`${url}/${endpoint}`, {}, (err, res, body) => {
+      eachLimit(ports, 1, (port, next) => {
+        this._httpGet(`http://${BASE_URL}:${port['7935']}/${endpoint}`, {}, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -47,10 +47,10 @@ class Api {
       amount: amount
     }
 
-    this._getUrlArray(nodes, (err, urls) => {
+    this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(urls, 1, (url, next) => {
-        this._httpPostWithParams(`${url}/${endpoint}`, params, (err, res, body) => {
+      eachLimit(ports, 1, (port, next) => {
+        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -67,25 +67,47 @@ class Api {
       nodes = [nodes]
     }
 
-    this._getUrlArray(nodes, (err, urls) => {
+    this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(urls, 1, (url, next) => {
-        this._httpPost(`${url}/${endpoint}`, (err, res, body) => {
+      eachLimit(ports, 1, (port, next) => {
+        this._httpPost(`http://${BASE_URL}:${port['7935']}/${endpoint}`, (err, res, body) => {
           next(err, res)
         })
       }, cb)
     })
   }
 
-  _getUrlArray (nodes, cb) {
+  activateOrchestrator (nodes, params, cb) {
+    let endpoint = `activateOrchestrator`
+    if (!nodes) {
+      return cb(new Error(`nodes array is required`))
+    }
+
+    if (!Array.isArray(nodes)) {
+      nodes = [nodes]
+    }
+
+    this._getPortsArray(nodes, (err, ports) => {
+      if (err) throw err
+      // TODO, get the service URIs too.
+      eachLimit(ports, 1, (port, next) => {
+        params.serviceURI = `http://${BASE_URL}:${port['8935']}`
+        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+          next(err, res)
+        })
+      }, cb)
+    })
+  }
+
+  _getPortsArray (nodes, cb) {
     map(nodes, (node, n) => {
       if (node === 'all') {
         map(this._config.services, (service, next) => {
           if (service.image.startsWith('darkdragon/geth')) {
             return next()
           }
-          let port = this._getPort(service.ports)
-          next(null, `http://${BASE_URL}:${port}`)
+          let ports = this._getPorts(service.ports)
+          next(null, ports)
         }, (err, results) => {
           if (err) throw err
           // concat this to output.
@@ -98,16 +120,16 @@ class Api {
         }, (err, servicesNames) => {
           if (err) throw err
           map(servicesNames, (nodeName, next) => {
-            let port = this._getPort(this._config.services[nodeName].ports)
-            next(null, `http://${BASE_URL}:${port}`)
+            let ports = this._getPorts(this._config.services[nodeName].ports)
+            next(null, ports)
           }, (err, results) => {
             if (err) throw err
             n(null, results)
           })
         })
       } else {
-        let port = this._getPort(this._config.services[node].ports)
-        n(null, [`http://${BASE_URL}:${port}`])
+        let ports = this._getPorts(this._config.services[node].ports)
+        n(null, [ports])
       }
     }, (err, output) => {
       if (err) throw err
@@ -123,9 +145,29 @@ class Api {
     })
   }
 
-  _getPort (portsArray) {
+  _getPorts (portsArray) {
+    return {
+      '7935': this._getCliPort(portsArray),
+      '1935': this._getRtmpPort(portsArray),
+      '8935': this._getServicePort(portsArray)
+    }
+  }
+
+  _getCliPort (portsArray) {
     return portsArray.filter((portMapping) => {
       return (portMapping.match(/:7935/g))
+    })[0].split(':')[0]
+  }
+
+  _getRtmpPort (portsArray) {
+    return portsArray.filter((portMapping) => {
+      return (portMapping.match(/:1935/g))
+    })[0].split(':')[0]
+  }
+
+  _getServicePort (portsArray) {
+    return portsArray.filter((portMapping) => {
+      return (portMapping.match(/:8935/g))
     })[0].split(':')[0]
   }
 
@@ -141,7 +183,7 @@ class Api {
     }, cb)
   }
 
-  _httpPost (url, params, cb) {
+  _httpPost (url, cb) {
     request({
       uri: url,
       method: 'POST'
