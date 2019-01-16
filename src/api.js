@@ -50,7 +50,27 @@ class Api {
     this._getUrlArray(nodes, (err, urls) => {
       if (err) throw err
       eachLimit(urls, 1, (url, next) => {
-        this._httpPost(`${url}/${endpoint}`, params, (err, res, body) => {
+        this._httpPostWithParams(`${url}/${endpoint}`, params, (err, res, body) => {
+          next(err, res)
+        })
+      }, cb)
+    })
+  }
+
+  initializeRound (nodes, cb) {
+    let endpoint = `initializeRound`
+    if (!nodes) {
+      return cb(new Error(`nodes array is required`))
+    }
+
+    if (!Array.isArray(nodes)) {
+      nodes = [nodes]
+    }
+
+    this._getUrlArray(nodes, (err, urls) => {
+      if (err) throw err
+      eachLimit(urls, 1, (url, next) => {
+        this._httpPost(`${url}/${endpoint}`, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -109,7 +129,7 @@ class Api {
     })[0].split(':')[0]
   }
 
-  _httpPost (url, params, cb) {
+  _httpPostWithParams (url, params, cb) {
     request({
       headers: {
         'Content-Length': params.length,
@@ -117,6 +137,13 @@ class Api {
       },
       uri: url,
       form: params,
+      method: 'POST'
+    }, cb)
+  }
+
+  _httpPost (url, params, cb) {
+    request({
+      uri: url,
       method: 'POST'
     }, cb)
   }

@@ -107,9 +107,12 @@ class TestHarness {
                             if (err) throw err
                             console.log('requested LPT', output)
                             this.api.fundDeposit(['lp_broadcaster_0'], '5000000000', (err, output) => {
-                              if (err) throw err
-                              console.log('we good.', output)
-                              cb()
+                              console.log('funds deposited')
+                              this.api.initializeRound(['lp_broadcaster_0'], (err, output) => {
+                                if (err) throw err
+                                console.log('we good.', output)
+                                cb()
+                              })
                             })
                           })
                         }, 5000)
