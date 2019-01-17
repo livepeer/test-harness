@@ -91,12 +91,122 @@ class Api {
       if (err) throw err
       // TODO, get the service URIs too.
       eachLimit(ports, 1, (port, next) => {
-        params.serviceURI = `http://${BASE_URL}:${port['8935']}`
+        params.serviceURI = `http://${port.name}:${port['8935']}`
         this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
       }, cb)
     })
+  }
+
+  bond (nodes, amountInWei, nodeName, cb) {
+    let endpoint = `bond`
+    if (!nodes) {
+      return cb(new Error(`nodes array is required`))
+    }
+
+    if (!Array.isArray(nodes)) {
+      nodes = [nodes]
+    }
+
+    let toAddr = this._getEthAddr(nodeName)
+    if (!toAddr) {
+      return cb(new Error(`couldn't find ${nodeName}'s ETH address'`))
+    }
+
+    console.log('bonding to ', toAddr)
+
+    let params = {
+      amount: amountInWei,
+      toAddr: '0x' + toAddr
+    }
+
+    this._getPortsArray(nodes, (err, ports) => {
+      if (err) throw err
+      eachLimit(ports, 1, (port, next) => {
+        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+          next(err, res)
+        })
+      }, cb)
+    })
+  }
+
+  unbond (nodes, amountInWei, cb) {
+    let endpoint = `unbond`
+    if (!nodes) {
+      return cb(new Error(`nodes array is required`))
+    }
+
+    if (!Array.isArray(nodes)) {
+      nodes = [nodes]
+    }
+
+    let params = {
+      amount: amountInWei
+    }
+
+    this._getPortsArray(nodes, (err, ports) => {
+      if (err) throw err
+      eachLimit(ports, 1, (port, next) => {
+        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+          next(err, res)
+        })
+      }, cb)
+    })
+  }
+
+  withdrawStake (nodes, unbondingLockId, cb) {
+    let endpoint = `withdrawStake`
+    if (!nodes) {
+      return cb(new Error(`nodes array is required`))
+    }
+
+    if (!Array.isArray(nodes)) {
+      nodes = [nodes]
+    }
+
+    let params = {
+      unbondingLockId: unbondingLockId
+    }
+
+    this._getPortsArray(nodes, (err, ports) => {
+      if (err) throw err
+      eachLimit(ports, 1, (port, next) => {
+        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+          next(err, res)
+        })
+      }, cb)
+    })
+  }
+
+  withdrawFees (nodes, cb) {
+    let endpoint = `withdrawFees`
+    if (!nodes) {
+      return cb(new Error(`nodes array is required`))
+    }
+
+    if (!Array.isArray(nodes)) {
+      nodes = [nodes]
+    }
+
+    this._getPortsArray(nodes, (err, ports) => {
+      if (err) throw err
+      eachLimit(ports, 1, (port, next) => {
+        this._httpPost(`http://${BASE_URL}:${port['7935']}/${endpoint}`, (err, res, body) => {
+          next(err, res)
+        })
+      }, cb)
+    })
+  }
+
+  _getEthAddr (serviceName) {
+    let service = this._config.services[serviceName]
+    if (!service) {
+      return null
+    }
+
+    let parsedKey = JSON.parse(service.environment.JSON_KEY)
+    return parsedKey.address
   }
 
   _getPortsArray (nodes, cb) {
@@ -121,6 +231,7 @@ class Api {
           if (err) throw err
           map(servicesNames, (nodeName, next) => {
             let ports = this._getPorts(this._config.services[nodeName].ports)
+            ports.name = nodeName
             next(null, ports)
           }, (err, results) => {
             if (err) throw err
@@ -129,6 +240,7 @@ class Api {
         })
       } else {
         let ports = this._getPorts(this._config.services[node].ports)
+        ports.name = node
         n(null, [ports])
       }
     }, (err, output) => {

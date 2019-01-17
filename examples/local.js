@@ -28,11 +28,13 @@ th.run({
     orchestrators: {
       instances: 1,
       // TODO these are not complete, try adding the right orchestrator flags :)
-      flags: '--v 4 -initializeRound'
+      flags: `--v 4 -initializeRound=true -gasPrice 200 -gasLimit 2000000 \
+      -monitor=false -currentManifest=true`
     },
     broadcasters: {
       instances: 2,
-      flags: '--v 4'
+      flags: `--v 99 -gasPrice 200 -gasLimit 2000000 \
+      -monitor=false -currentManifest=true`
     }
   }
 }, (err, experiment) => {
@@ -57,10 +59,11 @@ th.run({
         blockRewardCut: '10',
         feeShare: '5',
         pricePerSegment: '1',
-        amount: '500'
+        amount: '500000'
         // ServiceURI will be set by the test-harness.
       }, next)
-    }
+    },
+    (next) => { api.bond(['lp_broadcaster_0'], '5000', 'lp_orchestrator_0', next) }
   ], (err, results) => {
     if (err) throw err
     console.log('done!')
