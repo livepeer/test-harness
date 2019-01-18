@@ -4,6 +4,7 @@ const program = require('commander')
 const fs = require('fs')
 const path = require('path')
 const NetworkCreator = require('../networkcreator')
+const dockercompose = require('docker-compose')
 
 function parsePath (val) {
   console.log(`parsing ${path.resolve(val)} config:`)
@@ -21,4 +22,22 @@ program
   .command('stream <file>', 'starts ffmpeg stream to broadcasters specified in <file>')
   .command('utils [options]', 'various utils for quick debugging')
 
+program
+  .command('down [name]')
+  .description('stops and removes docker-compose services.')
+  .action((name) => {
+    fs.access(path.resolve(__dirname, `../../dist/${name}/docker-compose.yml`), (err) => {
+      if (err) {
+        console.log(`experiment ${name} doesn't exist in the ./dist folder`)
+      }
+
+      dockercompose.down({
+        cwd: path.resolve(__dirname, `../../dist/${name}/`),
+        logs: true
+      }).then((logs) => {
+        console.log(logs)
+        console.log(`experiment ${name} services stopped.`)
+      })
+    })
+  })
 program.parse(process.argv)
