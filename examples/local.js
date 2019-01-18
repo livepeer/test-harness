@@ -28,12 +28,12 @@ th.run({
     orchestrators: {
       instances: 1,
       // TODO these are not complete, try adding the right orchestrator flags :)
-      flags: `--v 4 -initializeRound=true -gasPrice 200 -gasLimit 20000000 \
+      flags: `--v 4 -initializeRound=true \
       -monitor=false -currentManifest=true -orchestrator`
     },
     broadcasters: {
       instances: 2,
-      flags: `--v 99 -gasPrice 200 -gasLimit 20000000 \
+      flags: `--v 99 \
       -monitor=false -currentManifest=true`
     }
   }
