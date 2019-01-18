@@ -19,7 +19,7 @@
     "commander": "^2.19.0",
     "composefile": "github:ya7ya/composefile#master",
     "debug": "^4.1.1",
-    "docker-compose": "^0.9.2",
+    "docker-compose": "github:ya7ya/docker-compose#feat-restart",
     "ethereumjs-abi": "^0.6.5",
     "ethereumjs-util": "^6.0.0",
     "ethers": "^4.0.20",

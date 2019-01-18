@@ -21,6 +21,13 @@ class TestHarness {
     this.swarm = new Swarm()
   }
 
+  restartService (serviceName, cb) {
+    dockercompose.restartOne(serviceName, {
+      cwd: path.resolve(__dirname, `${DIST_DIR}/${this._config.name}`),
+      log: true
+    }).then(cb)
+  }
+
   run (config, cb) {
     // 1. [ ] validate the configurations
     // 2. [x] provision GCP machines
@@ -39,6 +46,8 @@ class TestHarness {
     // 15. callback.
     config.name = config.name || 'testharness'
     this.swarm._managerName = `${config.name}-manager`
+
+    this._config = config
 
     this.networkCreator = new NetworkCreator(config)
     this.networkCreator.generateComposeFile(`${DIST_DIR}/${config.name}`, (err) => {

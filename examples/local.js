@@ -29,7 +29,7 @@ th.run({
       instances: 1,
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `--v 4 -initializeRound=true -gasPrice 200 -gasLimit 20000000 \
-      -monitor=false -currentManifest=true`
+      -monitor=false -currentManifest=true -orchestrator`
     },
     broadcasters: {
       instances: 2,
@@ -55,7 +55,7 @@ th.run({
     (next) => { api.initializeRound(['lp_transcoder_0'], next) },
     (next) => {
       console.log('activating transcoders...')
-      api.activateOrchestrator(['orchestrators', 'transcoders'], {
+      api.activateOrchestrator(['orchestrators'], {
         blockRewardCut: '10',
         feeShare: '5',
         pricePerSegment: '1',
@@ -63,7 +63,19 @@ th.run({
         // ServiceURI will be set by the test-harness.
       }, next)
     },
-    (next) => { api.bond(['lp_broadcaster_0'], '5000', 'lp_transcoder_0', next) }
+    (next) => { api.bond(['lp_broadcaster_0'], '5000', 'lp_orchestrator_0', next) },
+    (next) => {
+      th.restartService('lp_orchestrator_0', (logs) => {
+        console.log('restarted orchestrator')
+        next()
+      })
+    },
+    (next) => {
+      th.restartService('lp_broadcaster_0', (logs) => {
+        console.log('restarted broadcaster')
+        next()
+      })
+    }
   ], (err, results) => {
     if (err) throw err
     console.log('done!')
