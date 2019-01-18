@@ -91,7 +91,7 @@ class Api {
       if (err) throw err
       // TODO, get the service URIs too.
       eachLimit(ports, 1, (port, next) => {
-        params.serviceURI = `http://${port.name}:${port['8935']}`
+        params.serviceURI = `http://${port.name}:8935`
         this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })

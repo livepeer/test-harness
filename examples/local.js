@@ -28,12 +28,12 @@ th.run({
     orchestrators: {
       instances: 1,
       // TODO these are not complete, try adding the right orchestrator flags :)
-      flags: `--v 4 -initializeRound=true -gasPrice 200 -gasLimit 2000000 \
+      flags: `--v 4 -initializeRound=true -gasPrice 200 -gasLimit 20000000 \
       -monitor=false -currentManifest=true`
     },
     broadcasters: {
       instances: 2,
-      flags: `--v 99 -gasPrice 200 -gasLimit 2000000 \
+      flags: `--v 99 -gasPrice 200 -gasLimit 20000000 \
       -monitor=false -currentManifest=true`
     }
   }
@@ -51,7 +51,7 @@ th.run({
   // 'lp_broadcaster_0' : a single lp node.
   series([
     (next) => { api.requestTokens(['all'], next) },
-    (next) => { api.fundDeposit(['all'], '5000000000', next) },
+    (next) => { api.fundDeposit(['all'], '5000000000000', next) },
     (next) => { api.initializeRound(['lp_transcoder_0'], next) },
     (next) => {
       console.log('activating transcoders...')
