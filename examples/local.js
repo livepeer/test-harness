@@ -63,7 +63,7 @@ th.run({
         // ServiceURI will be set by the test-harness.
       }, next)
     },
-    (next) => { api.bond(['lp_broadcaster_0'], '5000', 'lp_orchestrator_0', next) }
+    (next) => { api.bond(['lp_broadcaster_0'], '5000', 'lp_transcoder_0', next) }
   ], (err, results) => {
     if (err) throw err
     console.log('done!')

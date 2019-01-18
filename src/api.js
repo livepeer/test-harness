@@ -199,6 +199,234 @@ class Api {
     })
   }
 
+  claimRewardsAndFees (nodes, endRound, cb) {
+    let endpoint = `claimEarnings`
+    if (!nodes) {
+      return cb(new Error(`nodes array is required`))
+    }
+
+    if (!Array.isArray(nodes)) {
+      nodes = [nodes]
+    }
+
+    let params = {
+      endRound: endRound
+    }
+
+    this._getPortsArray(nodes, (err, ports) => {
+      if (err) throw err
+      eachLimit(ports, 1, (port, next) => {
+        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+          next(err, res)
+        })
+      }, cb)
+    })
+  }
+
+  setBroadcastConfig (nodes, maxPricePerSegment, transcodingOptions, cb) {
+    let endpoint = `setBroadcastConfig`
+    if (!nodes) {
+      return cb(new Error(`nodes array is required`))
+    }
+
+    if (!Array.isArray(nodes)) {
+      nodes = [nodes]
+    }
+
+    let params = {
+      maxPricePerSegment: maxPricePerSegment,
+      transcodingOptions: transcodingOptions
+    }
+
+    this._getPortsArray(nodes, (err, ports) => {
+      if (err) throw err
+      eachLimit(ports, 1, (port, next) => {
+        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+          next(err, res)
+        })
+      }, cb)
+    })
+  }
+
+  setGasPrice (nodes, amount, cb) {
+    let endpoint = `setGasPrice`
+    if (!nodes) {
+      return cb(new Error(`nodes array is required`))
+    }
+
+    if (!Array.isArray(nodes)) {
+      nodes = [nodes]
+    }
+
+    let params = {
+      amount: amount
+    }
+
+    this._getPortsArray(nodes, (err, ports) => {
+      if (err) throw err
+      eachLimit(ports, 1, (port, next) => {
+        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+          next(err, res)
+        })
+      }, cb)
+    })
+  }
+
+  // tickerbroker
+  fundAndApproveSigners (nodes, depositAmountInWei, penaltyEscrowAmount, cb) {
+    let endpoint = `fundAndApproveSigners`
+    if (!nodes) {
+      return cb(new Error(`nodes array is required`))
+    }
+
+    if (!Array.isArray(nodes)) {
+      nodes = [nodes]
+    }
+
+    let params = {
+      depositAmount: depositAmountInWei,
+      penaltyEscrowAmount: penaltyEscrowAmount
+    }
+
+    this._getPortsArray(nodes, (err, ports) => {
+      if (err) throw err
+      eachLimit(ports, 1, (port, next) => {
+        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+          next(err, res)
+        })
+      }, cb)
+    })
+  }
+
+  unlock (nodes, cb) {
+    let endpoint = `unlock`
+    if (!nodes) {
+      return cb(new Error(`nodes array is required`))
+    }
+
+    if (!Array.isArray(nodes)) {
+      nodes = [nodes]
+    }
+
+    this._getPortsArray(nodes, (err, ports) => {
+      if (err) throw err
+      eachLimit(ports, 1, (port, next) => {
+        this._httpPost(`http://${BASE_URL}:${port['7935']}/${endpoint}`, (err, res, body) => {
+          next(err, res)
+        })
+      }, cb)
+    })
+  }
+
+  cancelUnlock (nodes, cb) {
+    let endpoint = `cancelUnlock`
+    if (!nodes) {
+      return cb(new Error(`nodes array is required`))
+    }
+
+    if (!Array.isArray(nodes)) {
+      nodes = [nodes]
+    }
+
+    this._getPortsArray(nodes, (err, ports) => {
+      if (err) throw err
+      eachLimit(ports, 1, (port, next) => {
+        this._httpPost(`http://${BASE_URL}:${port['7935']}/${endpoint}`, (err, res, body) => {
+          next(err, res)
+        })
+      }, cb)
+    })
+  }
+
+  withdraw (nodes, cb) {
+    let endpoint = `withdraw`
+    if (!nodes) {
+      return cb(new Error(`nodes array is required`))
+    }
+
+    if (!Array.isArray(nodes)) {
+      nodes = [nodes]
+    }
+
+    this._getPortsArray(nodes, (err, ports) => {
+      if (err) throw err
+      eachLimit(ports, 1, (port, next) => {
+        this._httpPost(`http://${BASE_URL}:${port['7935']}/${endpoint}`, (err, res, body) => {
+          next(err, res)
+        })
+      }, cb)
+    })
+  }
+
+  transferTokens (nodes, to, amount, cb) {
+    let endpoint = `transferTokens`
+    if (!nodes) {
+      return cb(new Error(`nodes array is required`))
+    }
+
+    if (!Array.isArray(nodes)) {
+      nodes = [nodes]
+    }
+
+    let params = {
+      to: to,
+      amount: amount
+    }
+
+    this._getPortsArray(nodes, (err, ports) => {
+      if (err) throw err
+      eachLimit(ports, 1, (port, next) => {
+        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+          next(err, res)
+        })
+      }, cb)
+    })
+  }
+
+  setOrchestratorConfig (nodes, params, cb) {
+    let endpoint = `setOrchestratorConfig`
+    if (!nodes) {
+      return cb(new Error(`nodes array is required`))
+    }
+
+    if (!Array.isArray(nodes)) {
+      nodes = [nodes]
+    }
+
+    // refer to activateOrchestrator params in the livepeer_cli
+
+    this._getPortsArray(nodes, (err, ports) => {
+      if (err) throw err
+      eachLimit(ports, 1, (port, next) => {
+        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+          next(err, res)
+        })
+      }, cb)
+    })
+  }
+
+  callReward (nodes, cb) {
+    let endpoint = `reward`
+    if (!nodes) {
+      return cb(new Error(`nodes array is required`))
+    }
+
+    if (!Array.isArray(nodes)) {
+      nodes = [nodes]
+    }
+
+    // refer to activateOrchestrator params in the livepeer_cli
+
+    this._getPortsArray(nodes, (err, ports) => {
+      if (err) throw err
+      eachLimit(ports, 1, (port, next) => {
+        this._httpGet(`http://${BASE_URL}:${port['7935']}/${endpoint}`, (err, res, body) => {
+          next(err, res)
+        })
+      }, cb)
+    })
+  }
+
   _getEthAddr (serviceName) {
     let service = this._config.services[serviceName]
     if (!service) {

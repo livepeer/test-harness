@@ -82,7 +82,9 @@ class NetworkCreator extends EventEmitter {
       filename: 'docker-compose.yml',
       services: {},
       networks: {
-        testnet: {}
+        testnet: {
+          driver: 'bridge'
+        }
       }
       // network_mode: 'host',
     }
