@@ -40,8 +40,8 @@ let broadcasters = servicesNames.filter((service) => {
 const st = new Streamer({})
 
 if (!program.dir) {
-  program.dir = '/home/op/Videos'
-  program.file = 'Heat.1995.mp4'
+  program.dir = path.resolve('./assets')
+  program.file = 'BigBuckBunny.mp4'
 }
 
 broadcasters.forEach((broadcaster) => {

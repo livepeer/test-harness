@@ -10,13 +10,22 @@ const YAML = require('yaml')
 const NetworkCreator = require('./networkcreator')
 const Streamer = require('./streamer')
 const Swarm = require('./swarm')
+const Api = require('./api')
 const utils = require('./utils/helpers')
+
 const DIST_DIR = '../dist'
 const DEFAULT_MACHINES = 2
 
 class TestHarness {
   constructor () {
     this.swarm = new Swarm()
+  }
+
+  restartService (serviceName, cb) {
+    dockercompose.restartOne(serviceName, {
+      cwd: path.resolve(__dirname, `${DIST_DIR}/${this._config.name}`),
+      log: true
+    }).then(cb)
   }
 
   run (config, cb) {
@@ -37,6 +46,8 @@ class TestHarness {
     // 15. callback.
     config.name = config.name || 'testharness'
     this.swarm._managerName = `${config.name}-manager`
+
+    this._config = config
 
     this.networkCreator = new NetworkCreator(config)
     this.networkCreator.generateComposeFile(`${DIST_DIR}/${config.name}`, (err) => {
@@ -71,7 +82,7 @@ class TestHarness {
                 }
 
                 map(parsedCompose.services, (service, next) => {
-                  console.log('service.environment = ', service.environment)
+                  // console.log('service.environment = ', service.environment)
                   if (service.environment && service.environment.JSON_KEY) {
                     let addressObj = JSON.parse(service.environment.JSON_KEY)
                     console.log('address to fund: ', addressObj.address)
@@ -99,13 +110,16 @@ class TestHarness {
                       }).then((logs) => {
                         console.warn('docker-compose warning: ', logs.err)
                         console.log('all lpnodes are up: ', logs.out)
-                        cb()
+                        this.api = new Api(parsedCompose)
+                        setTimeout(() => {
+                          cb(null, parsedCompose)
+                        }, 5000)
                       }).catch((e) => { if (e) throw e })
                     })
                   })
                 })
                 // -------------------------------------------------------------------------
-              }, 3000)
+              }, 5000)
             }).catch((e) => { if (e) throw e })
           })
         })
