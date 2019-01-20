@@ -130,7 +130,7 @@ class TestHarness {
         // this.networkCreator.loadBinaries(`${DIST_DIR}/${config.name}`, (err) => {
         //   if (err) throw err
         // })
-        exec(`cp ./scripts/manager_setup.sh ${DIST_DIR}/${config.name}`, (err, stdout) => {
+        exec(`cp ./scripts/manager_setup.sh ${path.resolve(__dirname,   `${DIST_DIR}/${config.name}`)}`, (err, stdout) => {
           if (err) throw err
           console.log('manager_setup.sh copied')
         })
@@ -145,8 +145,8 @@ class TestHarness {
           console.log('uploading binaries to the manager node...... this might take a while.')
           // machines are ready.
           this.swarm.scp(
-            `${DIST_DIR}/${config.name}`,
-            `${config.name}-manager:/tmp/config`,
+            path.resolve(__dirname, `${DIST_DIR}/${config.name}/`),
+            `${config.name}-manager:/tmp`,
             `-r`,
             (err, stdout) => {
               if (err) throw err
@@ -154,7 +154,8 @@ class TestHarness {
 
               // init Swarm
               this.swarm.init(`${config.name}-manager`, (err, stdout) => {
-                if (err) throw err
+                // if (err) throw err
+                if (err) console.log('swarm manager error : ', err)
 
                 console.log('swarm initiated. ', stdout)
                 // add the workers to the swarm
@@ -169,16 +170,18 @@ class TestHarness {
                       (i, next) => {
                         this.swarm.join(`${config.name}-worker-${ i+1 }`, token.trim(), ip.trim(), next)
                       }, (err, results) => {
-                        if (err) throw err
-
+                        // if (err) throw err
+                        if (err) console.log('swarm join error', err)
                         // create network
                         this.swarm.createNetwork('testnet', (err, stdout) => {
-                          if (err) throw err
+                          // if (err) throw err
+                          if (err) console.log('create Network error : ', err)
                           console.log('networkid: ', stdout)
 
                           // create throwaway registry
                           this.swarm.createRegistry((err, stdout) => {
-                            if (err) throw err
+                            // if (err) throw err
+                            if (err) console.log('create registry error : ', err)
                             console.log('registry stdout: ', stdout)
                             // now we should be able to build the image on manager and
                             // push it to the registry
@@ -186,10 +189,10 @@ class TestHarness {
                             // then build it.
                             utils.remotelyExec(
                               `${config.name}-manager`,
-                              `cd /tmp/config/${config.name}/ && /bin/sh manager_setup.sh`,
+                              `cd /tmp && sudo rm -r -f config && sudo mv ${config.name} config && cd /tmp/config && /bin/sh manager_setup.sh`,
                               (err, outputBuf) => {
                                 if (err) throw err
-                                console.log('manager-setup done', outputBuf.toString())
+                                console.log('manager-setup done', (outputBuf)? outputBuf.toString() : outputBuf)
                                 // push the newly built image to the registry.
                                 cb()
                               })

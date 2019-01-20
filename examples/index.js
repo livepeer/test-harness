@@ -68,20 +68,27 @@ th.run({
   blockchain: {
     name: 'lpTestNet',
     networkId: 54321,
-    controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982'
+    controllerAddress: '0x93ad00a63b14492386df9f1cc123d785705bdf99',
   },
   nodes: {
     transcoders: {
+      // how many containers to run as transcoders.
       instances: 1,
-      flags: '--v 4 -transcoder -initializeRound'
+      // these are the livepeer binary flags, add them as you wish.
+      // the test-harness overrides flags that has to do with directories or
+      // ip/port bindings, these are automated.
+      flags: '--v 4 -transcoder -initializeRound=true'
     },
     orchestrators: {
       instances: 1,
-      flags: '--v 4 -initializeRound'
+      // TODO these are not complete, try adding the right orchestrator flags :)
+      flags: `--v 4 -initializeRound=true \
+      -monitor=false -currentManifest=true -orchestrator`
     },
     broadcasters: {
-      instances: 1,
-      flags: '--v 4'
+      instances: 25,
+      flags: `--v 99 \
+      -monitor=false -currentManifest=true`
     }
   }
 }, (err) => {
