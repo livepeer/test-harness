@@ -2,6 +2,7 @@
 const { exec, spawn } = require('child_process')
 const { timesLimit } = require('async')
 const shortid = require('shortid')
+const utils = require('./utils/helpers')
 
 class Swarm {
   constructor () {
@@ -208,6 +209,14 @@ class Swarm {
       if (err) throw err
       exec(`docker service create --name registry --network testnet --publish published=5000,target=5000 registry:2`, {env: env}, cb)
     })
+  }
+
+  rsync (machine, bucket, path, cb) {
+    utils.remotelyExec(
+      machine,
+      `gsutil rsync ${bucket} ${path}`,
+      cb
+    )
   }
 
 
