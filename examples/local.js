@@ -32,7 +32,7 @@ th.run({
       -monitor=false -currentManifest=true -orchestrator`
     },
     broadcasters: {
-      instances: 2,
+      instances: 25,
       flags: `--v 99 \
       -monitor=false -currentManifest=true`
     }

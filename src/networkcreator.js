@@ -5,9 +5,29 @@ const { exec, spawn } = require('child_process')
 const path = require('path')
 const toml = require('toml')
 const composefile = require('composefile')
-const ethers = require('ethers')
 const { timesLimit, each, eachLimit } = require('async')
 const log = require('debug')('livepeer:test-harness:network')
+const spawnThread = require('threads').spawn
+const Pool = require('threads').Pool
+
+const pool = new Pool()
+const thread = pool.run(function(input, done) {
+  // Everything we do here will be run in parallel in another execution context.
+  // Remember that this function will be executed in the thread's context,
+  // so you cannot reference any value of the surrounding code.
+  // done({ string : input.string, integer : parseInt(input.string) })
+  const ethers = require('ethers')
+  // const log = require('debug')('livepeer:test-harness:network:worker')
+  let randomKey = ethers.Wallet.createRandom()
+  randomKey.encrypt('').then((json) => {
+    console.log('acc: ', JSON.parse(json).address)
+    done({
+      JSON_KEY: json
+    })
+  })
+}, {
+  ethers: 'ethers',
+})
 
 class NetworkCreator extends EventEmitter {
   constructor (config, isToml) {
@@ -124,6 +144,7 @@ class NetworkCreator extends EventEmitter {
       }
     }
 
+    // cb(null, generated)
     this.getEnvVars((err, envObj) => {
       if (err) throw err
       generated.environment = envObj
@@ -147,7 +168,7 @@ class NetworkCreator extends EventEmitter {
       console.log(`generating ${type} nodes ${this.config.nodes[`${type}s`].instances}`)
       timesLimit(
         this.config.nodes[`${type}s`].instances,
-        1,
+        5,
         (i, next) => {
           // generate separate services with the forwarded ports.
           // append it to output as output.<node_generate_id> = props
@@ -238,13 +259,28 @@ class NetworkCreator extends EventEmitter {
     return outputStr
   }
 
+  // getEnvVars (cb) {
+  //   let randomKey = ethers.Wallet.createRandom()
+  //   randomKey.encrypt('').then((json) => {
+  //     log('encrypted json: ', json)
+  //     cb(null, {
+  //       JSON_KEY: json
+  //     })
+  //   })
+  // }
+
   getEnvVars (cb) {
-    let randomKey = ethers.Wallet.createRandom()
-    randomKey.encrypt('').then((json) => {
-      log('encrypted json: ', json)
-      cb(null, {
-        JSON_KEY: json
-      })
+    thread.send('')
+    .on('done',(env) => {
+      // console.log('got env, ', env)
+      // thread.kill()
+      cb(null, env)
+    })
+    .on('error', function(error) {
+      console.error('Worker errored:', error)
+    })
+    .on('exit', function() {
+      console.log('Worker has been terminated.')
     })
   }
 
