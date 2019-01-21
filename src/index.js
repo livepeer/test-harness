@@ -113,7 +113,7 @@ class TestHarness {
                         this.api = new Api(parsedCompose)
                         setTimeout(() => {
                           cb(null, parsedCompose)
-                        }, 5000)
+                        }, 10000)
                       }).catch((e) => { if (e) throw e })
                     })
                   })

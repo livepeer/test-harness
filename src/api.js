@@ -27,7 +27,8 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       eachLimit(ports, 1, (port, next) => {
-        this._httpGet(`http://${BASE_URL}:${port['7935']}/${endpoint}`, {}, (err, res, body) => {
+        console.log(`http://${BASE_URL}:${port['7935']}/${endpoint}`)
+        this._httpPost(`http://${BASE_URL}:${port['7935']}/${endpoint}`, (err, res, body) => {
           next(err, res)
         })
       }, cb)

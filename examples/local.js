@@ -29,11 +29,13 @@ th.run({
       instances: 1,
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `--v 4 -initializeRound=true \
+      -gasPrice 200 -gasLimit 2000000 \
       -monitor=false -currentManifest=true -orchestrator`
     },
     broadcasters: {
-      instances: 25,
+      instances: 2,
       flags: `--v 99 \
+      -gasPrice 200 -gasLimit 2000000 \
       -monitor=false -currentManifest=true`
     }
   }
@@ -50,8 +52,14 @@ th.run({
   // 'broadcasters', 'transcoders', 'orchestrators' : types of nodes.
   // 'lp_broadcaster_0' : a single lp node.
   series([
-    (next) => { api.requestTokens(['all'], next) },
-    (next) => { api.fundDeposit(['all'], '5000000000000', next) },
+    (next) => {
+      console.log('requesting tokens')
+      api.requestTokens(['all'], next)
+    },
+    (next) => {
+      console.log('Depositing....')
+      api.fundDeposit(['all'], '5000000000000', next)
+    },
     (next) => { api.initializeRound(['lp_transcoder_0'], next) },
     (next) => {
       console.log('activating transcoders...')
@@ -59,7 +67,7 @@ th.run({
         blockRewardCut: '10',
         feeShare: '5',
         pricePerSegment: '1',
-        amount: '500000'
+        amount: '500'
         // ServiceURI will be set by the test-harness.
       }, next)
     },
