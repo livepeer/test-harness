@@ -34,6 +34,9 @@ $ npm install
 object `local` is `true`. note that this will use `docker-compose up` to run
 instead of docker-swarm. this is easier to debug for smallish setups locally.
 
+2. **important** edit the `examples/local.js` file `livepeerBinaryPath` value to
+the livepeer binary you'd like to test. **this has to be built for linux**
+
 2. run `node examples/local.js` to fire up the test-harness.
 
 3. thats it. now you got a running setup. note that in the `dist` folder there
@@ -60,4 +63,4 @@ a docker cluster of 2 hosts, with livepeer containers and  `geth with protocol` 
 
 this isn't complete yet. but it's functioning .
 checkout [this example](https://github.com/livepeer/test-harness/blob/b1f8b12d849e43c33da31b3349bfbac2a488d3a3/examples/local.js#L50-L67) along with the comments in the code to get an
-idea of how to use it. 
+idea of how to use it.
