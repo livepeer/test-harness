@@ -58,11 +58,11 @@ th.run({
     },
     (next) => {
       console.log('Depositing....')
-      api.fundDeposit(['all'], '5000000000000', next)
+      api.fundAndApproveSigners(['all'], '5000000000', '500000000000000000', next)
     },
     (next) => { api.initializeRound(['lp_transcoder_0'], next) },
     (next) => {
-      console.log('activating transcoders...')
+      console.log('activating orchestrators...')
       api.activateOrchestrator(['orchestrators'], {
         blockRewardCut: '10',
         feeShare: '5',

@@ -214,7 +214,7 @@ class Swarm {
   rsync (machine, bucket, path, cb) {
     utils.remotelyExec(
       machine,
-      `gsutil rsync ${bucket} ${path}`,
+      `sudo gsutil rsync ${bucket} ${path}`,
       cb
     )
   }
