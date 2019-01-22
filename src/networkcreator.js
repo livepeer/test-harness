@@ -44,6 +44,8 @@ class NetworkCreator extends EventEmitter {
 
     this.ports = {}
     this.nodes = {}
+    this.hasGeth = false
+    this.hasMetrics = false
   }
 
   isPortUsed (port) {
@@ -55,6 +57,7 @@ class NetworkCreator extends EventEmitter {
   }
 
   loadBinaries (dist, cb) {
+    return cb()
     // copy livepeer binaries to lpnode image folder
     console.log(`copying LP binary from ${this.config.livepeerBinaryPath}. ${__dirname}`)
     exec(`cp ${path.resolve(__dirname, this.config.livepeerBinaryPath)} ${path.resolve(__dirname, dist)}`,
@@ -95,7 +98,7 @@ class NetworkCreator extends EventEmitter {
     // })
   }
 
-  async buildLocalLpImage() {
+  async buildLocalLpImage(cb) {
     console.log('building local lpnode...')
     return new Promise((resolve, reject) => {
       const lpnodeDir = path.resolve(__dirname, '../containers/lpnode')
@@ -120,8 +123,14 @@ class NetworkCreator extends EventEmitter {
         console.log(`child process exited with code ${code}`)
         if (code != 0) {
           reject(code)
+          if (cb) {
+            cb(err)
+          }
         } else {
           resolve()
+          if (cb) {
+            cb(null)
+          }
         }
       })
     })
@@ -157,11 +166,14 @@ class NetworkCreator extends EventEmitter {
   }
 
   getDependencies () {
+    const deps = []
     if (this.hasGeth) {
-      return ['geth']
-    } else {
-      return []
+      deps.push('geth')
     }
+    if (this.hasMetrics) {
+      deps.push('metrics')
+    }
+    return deps
   }
 
   _generateService (type, i, cb) {
@@ -226,6 +238,8 @@ class NetworkCreator extends EventEmitter {
     } else {
       this.hasGeth = true
     }
+    output.metrics = this.generateMetricsService()
+    this.hasMetrics = true
 
     eachLimit(['transcoder', 'orchestrator', 'broadcaster'], 1, (type, callback) => {
       console.log(`generating ${type} nodes ${this.config.nodes[`${type}s`].instances}`)
@@ -254,6 +268,27 @@ class NetworkCreator extends EventEmitter {
       log('output:', output)
       cb(null, output)
     })
+  }
+
+  generateMetricsService () {
+    const mService = {
+        image: 'darkdragon/livepeermetrics:latest',
+        ports: [
+          '3000:3000',
+        ],
+        networks: {
+          testnet: {
+            aliases: [`metrics`]
+          }
+        },
+        deploy: {
+          placement: {
+            constraints: ['node.role == manager']
+          }
+        }
+        // networks: ['outside']
+      }
+      return mService
   }
 
   generateGethService () {
@@ -307,7 +342,7 @@ class NetworkCreator extends EventEmitter {
   }
 
   getNodeOptions (nodeType, userFlags) {
-    let output = []
+    const output = []
 
     // default 0.0.0.0 binding
     output.push(`-httpAddr 0.0.0.0:8935`)
@@ -316,6 +351,11 @@ class NetworkCreator extends EventEmitter {
 
     // default datadir
     output.push(`-datadir /lpData`)
+
+    if (this.hasMetrics) {
+      output.push('-monitor=false')
+      output.push('-monitorhost http://metrics:3000/api/events')
+    }
 
     if (nodeType === 'transcoder' ) { //|| nodeType === 'orchestrator') {
       output.push('-transcoder')

@@ -135,7 +135,7 @@ class TestHarness {
         // profit.
         this.networkCreator.loadBinaries(`../containers/lpnode/binaries`, (err) => {
           if (err) throw err
-          this.networkCreator.buildLpImage((err) => {
+          this.networkCreator.buildLocalLpImage((err) => {
             if (err) throw err
             dockercompose.upOne(`geth`, {
               cwd: path.resolve(__dirname, `${DIST_DIR}/${config.name}`),
