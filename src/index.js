@@ -259,7 +259,8 @@ class TestHarness {
                                                       setTimeout(() => {
                                                         cb(null, {
                                                           parsedCompose,
-                                                          baseUrl: pubIP.trim()
+                                                          baseUrl: pubIP.trim(),
+                                                          config: config
                                                         })
                                                       }, 10000)
                                                     })

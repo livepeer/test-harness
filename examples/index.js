@@ -2,7 +2,7 @@
 
 const { exec, spawn } = require('child_process')
 const Swarm = require('../src/swarm')
-const swarm = new Swarm({})
+
 //
 // swarm.createMachine({
 //   name: 'swarm-worker-3',
@@ -71,7 +71,7 @@ th.run({
     controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982',
   },
   machines: {
-    num: 5,
+    num: 4,
     zone: 'us-east1-b',
     machineType: 'n1-standard-1'
   },
@@ -88,11 +88,13 @@ th.run({
       instances: 1,
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `--v 4 -initializeRound=true \
+      -gasPrice 200 -gasLimit 2000000 \
       -monitor=false -currentManifest=true -orchestrator`
     },
     broadcasters: {
       instances: 35,
       flags: `--v 99 \
+      -gasPrice 200 -gasLimit 2000000 \
       -monitor=false -currentManifest=true`
     }
   }
@@ -100,6 +102,8 @@ th.run({
   if (err) throw err
   console.log('so far so good, manager IP: ', experiment.baseUrl)
   let api = new Api(experiment.parsedCompose, experiment.baseUrl)
+  const swarm = new Swarm(experiment.config.name)
+
   series([
     (next) => {
       console.log('requesting tokens')
@@ -122,13 +126,13 @@ th.run({
     },
     (next) => { api.bond(['lp_broadcaster_0'], '5000', 'lp_orchestrator_0', next) },
     (next) => {
-      th.restartService('lp_orchestrator_0', (logs) => {
+      swarm.restartService('lp_orchestrator_0', (logs) => {
         console.log('restarted orchestrator')
         next()
       })
     },
     (next) => {
-      th.restartService('lp_broadcaster_0', (logs) => {
+      swarm.restartService('lp_broadcaster_0', (logs) => {
         console.log('restarted broadcaster')
         next()
       })

@@ -1,11 +1,11 @@
 'use strict'
 const { exec, spawn } = require('child_process')
-const { timesLimit } = require('async')
+const { timesLimit, parallel } = require('async')
 const shortid = require('shortid')
 const utils = require('./utils/helpers')
 
 class Swarm {
-  constructor () {
+  constructor (name) {
     this._defaults = {
       driver: 'google',
       zone: 'us-east1-b',
@@ -13,32 +13,36 @@ class Swarm {
       tags: 'swarm-cluster',
       projectId: 'test-harness-226018'
     }
+
+    this._managerName = `${name}-manager` || null
   }
 
   createMachines (opts, cb) {
     let machinesCount = opts.machines || 3
     let name = opts.name || 'testharness-' + shortid.generate()
-
-    timesLimit(machinesCount - 1, 3, (i, next) => {
-      // create workers
-      this.createMachine({
-        name: `${name}-worker-${i+1}`,
-        zone: opts.zone,
-        machineType: opts.machineType,
-        tags: opts.tags
-      }, next)
-    }, (err) => {
-      if (err) throw err
-      // create Manager
-      this.createMachine({
-        name: `${name}-manager`,
-        zone: opts.zone,
-        machineType: opts.machineType,
-        tags: opts.tags
-      }, (err) => {
-        if (err) throw err
-        cb(null)
-      })
+    parallel([
+      (done) => {
+        this.createMachine({
+          name: `${name}-manager`,
+          zone: opts.zone,
+          machineType: opts.machineType,
+          tags: opts.tags
+        }, done)
+      },
+      (done) => {
+        timesLimit(machinesCount - 1, 3, (i, next) => {
+          // create workers
+          this.createMachine({
+            name: `${name}-worker-${i + 1}`,
+            zone: opts.zone,
+            machineType: opts.machineType,
+            tags: opts.tags
+          }, next)
+        }, done)
+      }
+    ], (err) => {
+      if (err) return cb(err)
+      cb(null)
     })
   }
 
@@ -227,6 +231,16 @@ class Swarm {
     --allow tcp \
     --description "open tcp ports for the test-harness" \
     --target-tags ${name}-cluster`, cb)
+  }
+
+  restartService (serviceName, cb) {
+    this.setEnv(this._managerName, (err, env) => {
+      if (err) throw err
+      exec(`docker service scale livepeer_${serviceName}=0`, {env}, (err, output) => {
+        if (err) throw err
+        exec(`docker service scale livepeer_${serviceName}=1`, {env}, cb)
+      })
+    })
   }
 
   tearDown (machineName, cb) {
