@@ -443,7 +443,10 @@ class Api {
     map(nodes, (node, n) => {
       if (node === 'all') {
         map(this._config.services, (service, next) => {
-          if (service.image.startsWith('darkdragon/geth')) {
+          if (service.image.startsWith('darkdragon/geth') ||
+              service.image.startsWith('darkdragon/livepeermetrics') ||
+              service.image.startsWith('mongo'))
+          {
             return next()
           }
           let ports = this._getPorts(service.ports)

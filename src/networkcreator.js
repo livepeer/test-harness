@@ -239,6 +239,7 @@ class NetworkCreator extends EventEmitter {
       this.hasGeth = true
     }
     output.metrics = this.generateMetricsService()
+    output.mongodb = this.generateMongoService()
     this.hasMetrics = true
 
     eachLimit(['transcoder', 'orchestrator', 'broadcaster'], 1, (type, callback) => {
@@ -276,9 +277,27 @@ class NetworkCreator extends EventEmitter {
         ports: [
           '3000:3000',
         ],
+        depends_on: ['mongodb'],
         networks: {
           testnet: {
             aliases: [`metrics`]
+          }
+        },
+        deploy: {
+          placement: {
+            constraints: ['node.role == manager']
+          }
+        }
+      }
+      return mService
+  }
+
+  generateMongoService () {
+    const mService = {
+        image: 'mongo:latest',
+        networks: {
+          testnet: {
+            aliases: [`mongodb`]
           }
         },
         deploy: {
