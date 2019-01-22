@@ -203,29 +203,21 @@ class TestHarness {
                                       1,
                                       (i, next) => {
                                         this.swarm.join(`${config.name}-worker-${ i+1 }`, token.trim(), ip.trim(), next)
-                                        // (err, output) => {
-                                        //   if (err) return next(err)
-                                        //   utils.remotelyExec(
-                                        //     `${config.name}-worker-${i + 1}`,
-                                        //     `sudo echo '${ip.trim()} registry' | sudo tee --append /etc/hosts`,
-                                        //     next
-                                        //   )
-                                        // })
                                       }, (err, results) => {
                                         // if (err) throw err
                                         if (err) console.log('swarm join error', err)
                                         console.log('results: ', results)
-                                        cb()
+                                        utils.remotelyExec(
+                                          `${config.name}-manager`,
+                                          `cd /tmp/config && sudo docker stack deploy -c docker-compose.yml livepeer`,
+                                          (err, outputBuf) => {
+                                            if (err) throw err
+                                            console.log('stack deployed ', (outputBuf) ? outputBuf.toString() : outputBuf)
+                                            cb()
+                                          }
+                                        )
                                       })
                                     })
-
-                                // utils.remotelyExec(
-                                //   `${config.name}-manager`,
-                                //   `sudo echo '${ip.trim()} registry' | sudo tee --append /etc/hosts`,
-                                //   (err, outputBuf) => {
-                                //     if (err) throw err
-                                //     console.log('appended /etc/hosts', (outputBuf) ? outputBuf.toString() : outputBuf)
-                                //   })
                                 }
                               )
                             }
