@@ -87,13 +87,16 @@ class Swarm {
     })
   }
 
-  createNetwork (name, cb) {
+  createNetwork (networkName, name, cb) {
     this.setEnv(this._managerName, (err, env) => {
       console.log('env before network: ', env)
       if (err) return cb(err)
-      exec(`docker network create -d overlay ${name}`,{
+      exec(`docker network create -d overlay ${networkName}`, {
         env: env
-      }, cb)
+      }, (err, output) => {
+        if (err) throw err
+        this.openExternalAccess(name, cb)
+      })
     })
   }
 
@@ -219,6 +222,12 @@ class Swarm {
     )
   }
 
+  openExternalAccess (name, cb) {
+    exec(`gcloud compute firewall-rules create ${name}-swarm \
+    --allow tcp \
+    --description "open tcp ports for the test-harness" \
+    --target-tags ${name}-cluster`, cb)
+  }
 
   tearDown (machineName, cb) {
     exec(`docker-machine rm ${machineName}`, cb)

@@ -164,7 +164,7 @@ class TestHarness {
                   this.swarm.getInternalIP(`${config.name}-manager`, (err, ip) => {
                     if (err) throw err
                     // create network
-                    this.swarm.createNetwork('testnet', (err, stdout) => {
+                    this.swarm.createNetwork('testnet', config.name, (err, stdout) => {
                       // if (err) throw err
                       if (err) console.log('create Network error : ', err)
                       console.log('networkid: ', stdout)
