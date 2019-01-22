@@ -372,7 +372,7 @@ class NetworkCreator extends EventEmitter {
     output.push(`-datadir /lpData`)
 
     if (this.hasMetrics) {
-      output.push('-monitor=false')
+      output.push('-monitor=true')
       output.push('-monitorhost http://metrics:3000/api/events')
     }
 

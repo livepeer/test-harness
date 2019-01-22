@@ -36,7 +36,7 @@ th.run({
       instances: 2,
       flags: `--v 4 \
       -gasPrice 200 -gasLimit 2000000 \
-      -monitor=false -currentManifest=true`
+      -currentManifest=true`
     }
   }
 }, (err, experiment) => {
