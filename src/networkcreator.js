@@ -128,7 +128,7 @@ class NetworkCreator extends EventEmitter {
   _generateService (type, i, cb) {
     let generated = {
     // generated['lp_t_' + i] = {
-      image: 'lpnode:latest',
+      image: (this.config.local) ? 'lpnode:latest' : 'localhost:5000/lpnode:latest',
       ports: [
         `${getRandomPort(8935)}:8935`,
         `${getRandomPort(7935)}:7935`,

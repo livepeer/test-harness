@@ -14,7 +14,7 @@ const Api = require('./api')
 const utils = require('./utils/helpers')
 
 const DIST_DIR = '../dist'
-const DEFAULT_MACHINES = 2
+const DEFAULT_MACHINES = 5
 
 class TestHarness {
   constructor () {

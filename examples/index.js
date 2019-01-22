@@ -86,7 +86,7 @@ th.run({
       -monitor=false -currentManifest=true -orchestrator`
     },
     broadcasters: {
-      instances: 3,
+      instances: 35,
       flags: `--v 99 \
       -monitor=false -currentManifest=true`
     }
