@@ -28,6 +28,18 @@ class TestHarness {
     }).then(cb)
   }
 
+  AlreadyExists (name, cb) {
+    exec(`docker-machine ls -q --filter "name=${name}-([a-z]+)"`, (err, output) => {
+      if (err) throw err
+      if (output && output.length > 0) {
+        console.log(`${name} machines already exists`)
+        cb(null, true)
+      } else {
+        cb(null)
+      }
+    })
+  }
+
   run (config, cb) {
     // 1. [ ] validate the configurations
     // 2. [x] provision GCP machines

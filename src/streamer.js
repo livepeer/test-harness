@@ -80,6 +80,56 @@ class Streamer extends EventEmitter {
 
     return this.streams[output]
   }
+
+  rStream (name, env, dir, input, output) {
+    let args = [
+      'service',
+      'create',
+      '--name',
+      `streamer_${name}`,
+      '--network',
+      'testnet',
+      '--mount',
+      `type=bind,source=${dir},destination=/temp/`,
+      'jrottenberg/ffmpeg:4.0-ubuntu',
+      '-re',
+      '-i',
+      // path.resolve(input)
+      `/temp/${input}`
+    ]
+
+    args = args.concat(DEFAULT_ARGS.split(' '))
+
+    let parsedOutput = null
+    // validate output
+    try {
+      parsedOutput = new URL(output)
+    } catch (e) {
+      throw e
+    }
+    if (parsedOutput.protocol && parsedOutput.protocol !== 'rtmp:') {
+      console.log(parsedOutput)
+      console.error(`streamer can only output to rtmp endpoints, ${parsedOutput.protocol} is not supported`)
+      // TODO throw error here.
+      return
+    }
+
+    args.push(output)
+    this.streams[output] = spawn('docker', args, {env: env})
+
+    this.streams[output].stdout.on('data', (data) => {
+      console.log(`stdout: ${data}`)
+    })
+    this.streams[output].stderr.on('data', (data) => {
+      console.log(`stderr: ${data}`)
+    })
+
+    this.streams[output].on('close', (code) => {
+      console.log(`${output} child process exited with code ${code}`)
+    })
+
+    return this.streams[output]
+  }
 }
 
 // const st = new Streamer({})
