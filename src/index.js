@@ -130,7 +130,7 @@ class TestHarness {
         // this.networkCreator.loadBinaries(`${DIST_DIR}/${config.name}`, (err) => {
         //   if (err) throw err
         // })
-        exec(`cp ./scripts/manager_setup.sh ${path.resolve(__dirname,   `${DIST_DIR}/${config.name}`)}`, (err, stdout) => {
+        exec(`cp ./scripts/manager_setup.sh ${path.resolve(__dirname, `${DIST_DIR}/${config.name}`)}`, (err, stdout) => {
           if (err) throw err
           console.log('manager_setup.sh copied')
         })
@@ -187,21 +187,30 @@ class TestHarness {
                             // push it to the registry
                             // git clone test-harness. remotely.
                             // then build it.
-                            this.swarm.rsync(
+                            utils.remotelyExec(
                               `${config.name}-manager`,
-                              `gs://lp_testharness_assets`,
-                              `/tmp/assets`,
-                              (err, output) => {
+                              `mkdir -p /tmp/assets`,
+                              (err, outputBuf) => {
                                 if (err) throw err
-                                utils.remotelyExec(
+                                console.log('created /tmp/assets', (outputBuf) ? outputBuf.toString() : outputBuf)
+                                this.swarm.rsync(
                                   `${config.name}-manager`,
-                                  `cd /tmp && sudo rm -r -f config && sudo mv ${config.name} config && cd /tmp/config && /bin/sh manager_setup.sh`,
-                                  (err, outputBuf) => {
+                                  `gs://lp_testharness_assets`,
+                                  `/tmp/assets`,
+                                  (err, output) => {
                                     if (err) throw err
-                                    console.log('manager-setup done', (outputBuf)? outputBuf.toString() : outputBuf)
-                                    // push the newly built image to the registry.
-                                    cb()
-                                  })
+                                    console.log('rsync done: ', output)
+                                    utils.remotelyExec(
+                                      `${config.name}-manager`,
+                                      `cd /tmp && sudo rm -r -f config && sudo mv ${config.name} config && cd /tmp/config && /bin/sh manager_setup.sh`,
+                                      (err, outputBuf) => {
+                                        if (err) throw err
+                                        console.log('manager-setup done', (outputBuf)? outputBuf.toString() : outputBuf)
+                                        // push the newly built image to the registry.
+                                        cb()
+                                      })
+                                    }
+                                  )
                               }
                             )
 

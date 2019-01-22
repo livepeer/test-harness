@@ -64,11 +64,11 @@ let th = new TestHarness()
 th.run({
   local: false,
   name: 'test321',
-  livepeerBinaryPath: './containers/lpnode/livepeer_linux/livepeer',
+  livepeerBinaryPath: null, // this will use the livepeer binary in the GCP bucket.
   blockchain: {
     name: 'lpTestNet',
     networkId: 54321,
-    controllerAddress: '0x93ad00a63b14492386df9f1cc123d785705bdf99',
+    controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982',
   },
   nodes: {
     transcoders: {
@@ -86,7 +86,7 @@ th.run({
       -monitor=false -currentManifest=true -orchestrator`
     },
     broadcasters: {
-      instances: 25,
+      instances: 3,
       flags: `--v 99 \
       -monitor=false -currentManifest=true`
     }
