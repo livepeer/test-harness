@@ -3,7 +3,7 @@
 const fs = require('fs')
 const path = require('path')
 const { exec } = require('child_process')
-const { each, timesLimit, filter, map } = require('async')
+const { each, eachLimit, timesLimit, filter, map } = require('async')
 const dockercompose = require('docker-compose')
 const YAML = require('yaml')
 
@@ -134,12 +134,19 @@ class TestHarness {
           if (err) throw err
           console.log('manager_setup.sh copied')
         })
-
+        config.machines = config.machines || {
+          num: DEFAULT_MACHINES,
+          zone: 'us-east1-b',
+          machineType: 'n1-standard-1'
+        }
+        config.machines.num = config.machines.num || DEFAULT_MACHINES
         // provision GCP machines
         this.swarm.createMachines({
-          machines: DEFAULT_MACHINES,
+          machines: config.machines.num,
           name: config.name || 'testharness',
-          tags: `${config.name}-cluster`
+          tags: `${config.name}-cluster`,
+          zone: config.machines.zone,
+          machineType: config.machines.machineType
         }, (err) => {
           if (err) throw err
           console.log('uploading binaries to the manager node...... this might take a while.')
@@ -197,9 +204,9 @@ class TestHarness {
                                     if (err) throw err
                                     console.log('manager-setup done', (outputBuf)? outputBuf.toString() : outputBuf)
                                     // push the newly built image to the registry.
-                                    console.log(`adding ${DEFAULT_MACHINES - 1} workers to the swarm, token ${token}, ip: ${ip}`)
+                                    console.log(`adding ${config.machines.num - 1} workers to the swarm, token ${token}, ip: ${ip}`)
                                     timesLimit(
-                                      DEFAULT_MACHINES - 1,
+                                      config.machines.num - 1,
                                       1,
                                       (i, next) => {
                                         this.swarm.join(`${config.name}-worker-${ i+1 }`, token.trim(), ip.trim(), next)
@@ -213,7 +220,54 @@ class TestHarness {
                                           (err, outputBuf) => {
                                             if (err) throw err
                                             console.log('stack deployed ', (outputBuf) ? outputBuf.toString() : outputBuf)
-                                            cb()
+                                            setTimeout(() => {
+                                              // fund accounts here.
+                                              // ----------------[eth funding]--------------------------------------------
+                                              let parsedCompose = null
+                                              try {
+                                                let file = fs.readFileSync(path.resolve(__dirname, `${DIST_DIR}/${config.name}/docker-compose.yml`), 'utf-8')
+                                                parsedCompose = YAML.parse(file)
+                                              } catch (e) {
+                                                throw e
+                                              }
+
+                                              map(parsedCompose.services, (service, next) => {
+                                                // console.log('service.environment = ', service.environment)
+                                                if (service.environment && service.environment.JSON_KEY) {
+                                                  let addressObj = JSON.parse(service.environment.JSON_KEY)
+                                                  console.log('address to fund: ', addressObj.address)
+                                                  next(null, addressObj.address)
+                                                } else {
+                                                  next()
+                                                }
+                                              }, (err, addressesToFund) => {
+                                                if (err) throw err
+                                                // clear out the undefined
+                                                filter(addressesToFund, (address, cb) => {
+                                                  cb(null, !!address) // bang bang
+                                                }, (err, results) => {
+                                                  if (err) throw err
+                                                  console.log('results: ', results)
+
+                                                  eachLimit(results,1, (address, cb) => {
+                                                    utils.fundRemoteAccount(config.name, address, '1', `livepeer_geth`, cb)
+                                                  }, (err) => {
+                                                    if (err) throw err
+                                                    console.log('funding secured!!')
+                                                    this.swarm.getPubIP(`${config.name}-manager`, (err, pubIP) => {
+                                                      if (err) throw err
+                                                      setTimeout(() => {
+                                                        cb(null, {
+                                                          parsedCompose,
+                                                          baseUrl: pubIP.trim()
+                                                        })
+                                                      }, 10000)
+                                                    })
+                                                  })
+                                                })
+                                              })
+                                              // -------------------------------------------------------------------------
+                                            }, 5000)
                                           }
                                         )
                                       })

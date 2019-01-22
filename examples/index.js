@@ -2,7 +2,6 @@
 
 const { exec, spawn } = require('child_process')
 const Swarm = require('../src/swarm')
-
 const swarm = new Swarm({})
 //
 // swarm.createMachine({
@@ -57,7 +56,8 @@ const swarm = new Swarm({})
 //   console.log('got output: ', output.toString())
 //   console.log((output.toString('utf-8').trim() === 'w8ckygsd5sumre51xuqkvlcsc'))
 // })
-
+const { series } = require('async')
+const Api = require('../src/api')
 const TestHarness = require('../src/index')
 let th = new TestHarness()
 
@@ -69,6 +69,11 @@ th.run({
     name: 'lpTestNet',
     networkId: 54321,
     controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982',
+  },
+  machines: {
+    num: 5,
+    zone: 'us-east1-b',
+    machineType: 'n1-standard-1'
   },
   nodes: {
     transcoders: {
@@ -91,7 +96,45 @@ th.run({
       -monitor=false -currentManifest=true`
     }
   }
-}, (err) => {
+}, (err, experiment) => {
   if (err) throw err
-  console.log('so far so good')
+  console.log('so far so good, manager IP: ', experiment.baseUrl)
+  let api = new Api(experiment.parsedCompose, experiment.baseUrl)
+  series([
+    (next) => {
+      console.log('requesting tokens')
+      api.requestTokens(['all'], next)
+    },
+    (next) => {
+      console.log('Depositing....')
+      api.fundAndApproveSigners(['all'], '5000000000', '500000000000000000', next)
+    },
+    (next) => { api.initializeRound(['lp_transcoder_0'], next) },
+    (next) => {
+      console.log('activating orchestrators...')
+      api.activateOrchestrator(['orchestrators'], {
+        blockRewardCut: '10',
+        feeShare: '5',
+        pricePerSegment: '1',
+        amount: '500'
+        // ServiceURI will be set by the test-harness.
+      }, next)
+    },
+    (next) => { api.bond(['lp_broadcaster_0'], '5000', 'lp_orchestrator_0', next) },
+    (next) => {
+      th.restartService('lp_orchestrator_0', (logs) => {
+        console.log('restarted orchestrator')
+        next()
+      })
+    },
+    (next) => {
+      th.restartService('lp_broadcaster_0', (logs) => {
+        console.log('restarted broadcaster')
+        next()
+      })
+    }
+  ], (err, results) => {
+    if (err) throw err
+    console.log('done!')
+  })
 })

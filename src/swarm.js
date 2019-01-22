@@ -94,7 +94,7 @@ class Swarm {
       exec(`docker network create -d overlay ${networkName}`, {
         env: env
       }, (err, output) => {
-        if (err) throw err
+        if (err) console.error('create network err: ', err)
         this.openExternalAccess(name, cb)
       })
     })

@@ -11,8 +11,9 @@ const NODE_REGEX = {
 
 const BASE_URL = 'localhost'
 class Api {
-  constructor (opts) {
+  constructor (opts, baseUrl) {
     this._config = opts || {}
+    this._baseUrl = baseUrl || BASE_URL
   }
 
   requestTokens (nodes, cb) {
@@ -27,8 +28,7 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       eachLimit(ports, 1, (port, next) => {
-        console.log(`http://${BASE_URL}:${port['7935']}/${endpoint}`)
-        this._httpPost(`http://${BASE_URL}:${port['7935']}/${endpoint}`, (err, res, body) => {
+        this._httpGet(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, {}, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -51,7 +51,7 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       eachLimit(ports, 1, (port, next) => {
-        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+        this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -71,7 +71,7 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       eachLimit(ports, 1, (port, next) => {
-        this._httpPost(`http://${BASE_URL}:${port['7935']}/${endpoint}`, (err, res, body) => {
+        this._httpPost(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -93,7 +93,7 @@ class Api {
       // TODO, get the service URIs too.
       eachLimit(ports, 1, (port, next) => {
         params.serviceURI = `https://${port.name}:8935`
-        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+        this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -125,7 +125,7 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       eachLimit(ports, 1, (port, next) => {
-        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+        this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -149,7 +149,7 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       eachLimit(ports, 1, (port, next) => {
-        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+        this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -173,7 +173,7 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       eachLimit(ports, 1, (port, next) => {
-        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+        this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -193,7 +193,7 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       eachLimit(ports, 1, (port, next) => {
-        this._httpPost(`http://${BASE_URL}:${port['7935']}/${endpoint}`, (err, res, body) => {
+        this._httpPost(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -217,7 +217,7 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       eachLimit(ports, 1, (port, next) => {
-        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+        this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -242,7 +242,7 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       eachLimit(ports, 1, (port, next) => {
-        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+        this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -266,7 +266,7 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       eachLimit(ports, 1, (port, next) => {
-        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+        this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -292,7 +292,7 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       eachLimit(ports, 1, (port, next) => {
-        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+        this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -312,7 +312,7 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       eachLimit(ports, 1, (port, next) => {
-        this._httpPost(`http://${BASE_URL}:${port['7935']}/${endpoint}`, (err, res, body) => {
+        this._httpPost(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -332,7 +332,7 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       eachLimit(ports, 1, (port, next) => {
-        this._httpPost(`http://${BASE_URL}:${port['7935']}/${endpoint}`, (err, res, body) => {
+        this._httpPost(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -352,7 +352,7 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       eachLimit(ports, 1, (port, next) => {
-        this._httpPost(`http://${BASE_URL}:${port['7935']}/${endpoint}`, (err, res, body) => {
+        this._httpPost(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -377,7 +377,7 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       eachLimit(ports, 1, (port, next) => {
-        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+        this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -399,7 +399,7 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       eachLimit(ports, 1, (port, next) => {
-        this._httpPostWithParams(`http://${BASE_URL}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+        this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -421,7 +421,7 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       eachLimit(ports, 1, (port, next) => {
-        this._httpGet(`http://${BASE_URL}:${port['7935']}/${endpoint}`, (err, res, body) => {
+        this._httpGet(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -453,7 +453,7 @@ class Api {
           n(null, results)
         })
       } else if (NODE_TYPES.indexOf(node) !== -1) {
-        console.log('filtering ', node)
+        console.log('filtering out ', node)
         filter(Object.keys(this._config.services), (service, next) => {
           next(null, service.match(NODE_REGEX[node]))
         }, (err, servicesNames) => {

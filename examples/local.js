@@ -45,7 +45,7 @@ th.run({
   console.log('so far so good')
   // Now we have a running network.
   // lets get some tokens, do some deposits and activate transcoders
-  var api = new Api(experiment)
+  var api = new Api(experiment.pasedCompose)
   // NOTE: all API methods are based on `livepeer_cli`
   // the first parameter is always an array that can be
   // 'all' , all the livepeer nodes.
