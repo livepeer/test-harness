@@ -163,62 +163,77 @@ class TestHarness {
                   if (err) throw err
                   this.swarm.getInternalIP(`${config.name}-manager`, (err, ip) => {
                     if (err) throw err
-                    console.log(`adding ${DEFAULT_MACHINES - 1} workers to the swarm, token ${token}, ip: ${ip}`)
-                    timesLimit(
-                      DEFAULT_MACHINES - 1,
-                      1,
-                      (i, next) => {
-                        this.swarm.join(`${config.name}-worker-${ i+1 }`, token.trim(), ip.trim(), next)
-                      }, (err, results) => {
+                    // create network
+                    this.swarm.createNetwork('testnet', (err, stdout) => {
+                      // if (err) throw err
+                      if (err) console.log('create Network error : ', err)
+                      console.log('networkid: ', stdout)
+                      // create throwaway registry
+                      this.swarm.createRegistry((err, stdout) => {
                         // if (err) throw err
-                        if (err) console.log('swarm join error', err)
-                        // create network
-                        this.swarm.createNetwork('testnet', (err, stdout) => {
-                          // if (err) throw err
-                          if (err) console.log('create Network error : ', err)
-                          console.log('networkid: ', stdout)
-
-                          // create throwaway registry
-                          this.swarm.createRegistry((err, stdout) => {
-                            // if (err) throw err
-                            if (err) console.log('create registry error : ', err)
-                            console.log('registry stdout: ', stdout)
-                            // now we should be able to build the image on manager and
-                            // push it to the registry
-                            // git clone test-harness. remotely.
-                            // then build it.
-                            utils.remotelyExec(
+                        if (err) console.log('create registry error : ', err)
+                        console.log('registry stdout: ', stdout)
+                        // now we should be able to build the image on manager and
+                        // push it to the registry
+                        // git clone test-harness. remotely.
+                        // then build it.
+                        utils.remotelyExec(
+                          `${config.name}-manager`,
+                          `mkdir -p /tmp/assets`,
+                          (err, outputBuf) => {
+                            if (err) throw err
+                            console.log('created /tmp/assets', (outputBuf) ? outputBuf.toString() : outputBuf)
+                            this.swarm.rsync(
                               `${config.name}-manager`,
-                              `mkdir -p /tmp/assets`,
-                              (err, outputBuf) => {
+                              `gs://lp_testharness_assets`,
+                              `/tmp/assets`,
+                              (err, output) => {
                                 if (err) throw err
-                                console.log('created /tmp/assets', (outputBuf) ? outputBuf.toString() : outputBuf)
-                                this.swarm.rsync(
+                                console.log('rsync done: ', output)
+                                utils.remotelyExec(
                                   `${config.name}-manager`,
-                                  `gs://lp_testharness_assets`,
-                                  `/tmp/assets`,
-                                  (err, output) => {
+                                  `cd /tmp && sudo rm -r -f config && sudo mv ${config.name} config && cd /tmp/config && /bin/sh manager_setup.sh`,
+                                  (err, outputBuf) => {
                                     if (err) throw err
-                                    console.log('rsync done: ', output)
-                                    utils.remotelyExec(
-                                      `${config.name}-manager`,
-                                      `cd /tmp && sudo rm -r -f config && sudo mv ${config.name} config && cd /tmp/config && /bin/sh manager_setup.sh`,
-                                      (err, outputBuf) => {
-                                        if (err) throw err
-                                        console.log('manager-setup done', (outputBuf)? outputBuf.toString() : outputBuf)
-                                        // push the newly built image to the registry.
+                                    console.log('manager-setup done', (outputBuf)? outputBuf.toString() : outputBuf)
+                                    // push the newly built image to the registry.
+                                    console.log(`adding ${DEFAULT_MACHINES - 1} workers to the swarm, token ${token}, ip: ${ip}`)
+                                    timesLimit(
+                                      DEFAULT_MACHINES - 1,
+                                      1,
+                                      (i, next) => {
+                                        this.swarm.join(`${config.name}-worker-${ i+1 }`, token.trim(), ip.trim(), next)
+                                        // (err, output) => {
+                                        //   if (err) return next(err)
+                                        //   utils.remotelyExec(
+                                        //     `${config.name}-worker-${i + 1}`,
+                                        //     `sudo echo '${ip.trim()} registry' | sudo tee --append /etc/hosts`,
+                                        //     next
+                                        //   )
+                                        // })
+                                      }, (err, results) => {
+                                        // if (err) throw err
+                                        if (err) console.log('swarm join error', err)
+                                        console.log('results: ', results)
                                         cb()
                                       })
-                                    }
-                                  )
-                              }
-                            )
+                                    })
 
+                                // utils.remotelyExec(
+                                //   `${config.name}-manager`,
+                                //   `sudo echo '${ip.trim()} registry' | sudo tee --append /etc/hosts`,
+                                //   (err, outputBuf) => {
+                                //     if (err) throw err
+                                //     console.log('appended /etc/hosts', (outputBuf) ? outputBuf.toString() : outputBuf)
+                                //   })
+                                }
+                              )
+                            }
+                          )
 
-                            })
-                          })
 
                         })
+                      })
                   })
                 })
 
