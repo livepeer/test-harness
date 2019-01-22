@@ -225,6 +225,8 @@ class TestHarness {
               if (err) throw err
               //
               // deploy the stack.
+              this.finishSetup(config.name).catch(err => { throw err })
+              return
               utils.remotelyExec(
                 `${config.name}-manager`,
                 `cd /tmp/config && sudo docker stack deploy -c docker-compose.yml livepeer`,
@@ -262,6 +264,41 @@ class TestHarness {
           })
         })
       }
+    })
+  }
+  async finishSetup(configName) {
+    console.log('== finish setup ' + configName)
+    const managerName = `${configName}-manager`
+    await this.networkCreator.buildLocalLpImage()
+    await this.saveLocalDockerImage()
+    const loadToWorkers = [this.loadLocalDockerImageToSwarm(managerName)]
+    for (let i = 0; i < DEFAULT_MACHINES - 1; i++) {
+      const workerName = `${configName}-worker-${ i+1 }`
+      loadToWorkers.push(this.loadLocalDockerImageToSwarm(workerName))
+    }
+    await Promise.all(loadToWorkers)
+    console.log('docker image pushed')
+  }
+  async saveLocalDockerImage() {
+    return new Promise((resolve, reject) => {
+      exec(`docker save -o /tmp/lpnodeimage.tar lpnode:latest`, (err, stdout) => {
+        if (err) return reject(err)
+        console.log('lpnode image saved')
+        resolve()
+      })
+    })
+  }
+  async loadLocalDockerImageToSwarm(managerName) {
+    console.log('Loading lpnode docker image into swarm ' + managerName)
+    return new Promise((resolve, reject) => {
+      this.swarm.setEnv(managerName, (err, env) => {
+        if (err) return reject(err)
+        exec(`docker load -i /tmp/lpnodeimage.tar`, {env}, (err, stdout) => {
+          if (err) return reject(err)
+          console.log('lpnode image loaded into swarm ' + managerName)
+          resolve()
+        })
+      })
     })
   }
 }

@@ -1,3 +1,6 @@
-node_modules
-containers/lpnode/binaries/livepeer
-containers/lpnode/binaries/livepeer_cli
+/node_modules
+/containers/lpnode/binaries/livepeer
+/containers/lpnode/binaries/livepeer_cli
+/.vscode
+/assets
+/dist

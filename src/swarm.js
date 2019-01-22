@@ -57,6 +57,7 @@ class Swarm {
     //   --${driver}-machine-type ${opts.machineType || this._defaults.machineType} \
     //   --${driver}-tags ${opts.tags || this._defaults.tags} \
     //   --${driver}-project ${this._defaults.projectId}`, cb)
+    console.log('running docker-machine create')
 
     let builder = spawn('docker-machine', [
       'create',
@@ -263,7 +264,7 @@ class Swarm {
   deployComposeFile (filePath, prefix, managerName, cb) {
     this.setEnv(managerName, (err, env) => {
       if (err) throw err
-      exec(`docker stack deploy --composefile ${filePath} ${prefix}`, {env: env}, cb)
+      exec(`docker stack deploy --compose-file ${filePath} ${prefix}`, {env: env}, cb)
     })
   }
 

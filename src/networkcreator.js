@@ -95,6 +95,44 @@ class NetworkCreator extends EventEmitter {
     // })
   }
 
+  async buildLocalLpImage() {
+    console.log('building local lpnode...')
+    return new Promise((resolve, reject) => {
+      const lpnodeDir = path.resolve(__dirname, '../containers/lpnode')
+      const builder = spawn('docker', [
+        'build',
+        '-t',
+        'lpnode:latest',
+        '-f',
+        path.join(lpnodeDir, 'Dockerfile.local'),
+        lpnodeDir
+      ])
+
+      builder.stdout.on('data', (data) => {
+        console.log(`stdout: ${data}`)
+      })
+
+      builder.stderr.on('data', (data) => {
+        console.log(`stderr: ${data}`)
+      })
+
+      builder.on('close', (code) => {
+        console.log(`child process exited with code ${code}`)
+        if (code != 0) {
+          reject(code)
+        } else {
+          resolve()
+        }
+      })
+    })
+    //
+    // exec(`docker build -t lpnode:latest ./containers/lpnode/`, (err, stdout, stderr) => {
+    //   if (err) throw err
+    //   console.log('stdout: ', stdout)
+    //   console.log('stderr: ', stderr)
+    // })
+  }
+
   generateComposeFile (outputPath, cb) {
     let output = {
       version: '3',
