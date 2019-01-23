@@ -311,7 +311,7 @@ class NetworkCreator extends EventEmitter {
   }
 }
 
-let usedPorts = []
+let usedPorts = [8545, 8546, 30303]
 function getRandomPort (origin) {
   // TODO, ugh, fix this terrible recursive logic, use an incrementer like a gentleman
   let port = origin + Math.floor(Math.random() * 999)

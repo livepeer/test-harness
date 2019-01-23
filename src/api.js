@@ -453,7 +453,7 @@ class Api {
           n(null, results)
         })
       } else if (NODE_TYPES.indexOf(node) !== -1) {
-        console.log('filtering out ', node)
+        console.log('filtering ', node)
         filter(Object.keys(this._config.services), (service, next) => {
           next(null, service.match(NODE_REGEX[node]))
         }, (err, servicesNames) => {

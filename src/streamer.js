@@ -89,6 +89,8 @@ class Streamer extends EventEmitter {
       `streamer_${name}`,
       '--network',
       'testnet',
+      '--replicas',
+      '1',
       '--mount',
       `type=bind,source=${dir},destination=/temp/`,
       'jrottenberg/ffmpeg:4.0-ubuntu',

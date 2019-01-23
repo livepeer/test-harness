@@ -40,6 +40,23 @@ class TestHarness {
     })
   }
 
+  provision (name, cb) {
+    exec(`docker-machine ls -q --filter "name=${name}-([a-z]+)"`, (err, output) => {
+      if (err) throw err
+      if (!output) return cb(null)
+
+      output = output.split('\n')
+      console.log('machines to reprovision', output)
+      each(output, (machine, next) => {
+        if (!machine) {
+          return next()
+        }
+
+        exec(`docker-machine provision ${machine}`, next)
+      }, cb)
+    })
+  }
+
   run (config, cb) {
     // 1. [ ] validate the configurations
     // 2. [x] provision GCP machines

@@ -197,10 +197,10 @@ class Swarm {
     })
   }
 
-  stopStack (stackName, managerName, cb) {
-    this.setEnv(managerName, (err, env) => {
+  stopStack (stackName, cb) {
+    this.setEnv(this._managerName, (err, env) => {
       if (err) throw err
-      exec(`docker stack rm -y ${stackName}`, {env: env}, cb)
+      exec(`docker stack rm ${stackName}`, {env: env}, cb)
     })
   }
 
