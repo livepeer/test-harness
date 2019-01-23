@@ -266,8 +266,9 @@ class TestHarness {
       }
     })
   }
-  async finishSetup(configName) {
-    console.log('== finish setup ' + configName)
+  async finishSetup(config, internalIP) {
+    const configName = config.name
+    console.log('== finish setup ' + configName, internalIP)
     const managerName = `${configName}-manager`
     await this.networkCreator.buildLocalLpImage()
     await this.saveLocalDockerImage()
@@ -277,7 +278,15 @@ class TestHarness {
       loadToWorkers.push(this.loadLocalDockerImageToSwarm(workerName))
     }
     await Promise.all(loadToWorkers)
+
+    // this.swarm.deployComposeFile
     console.log('docker image pushed')
+  }
+  async joinWorkerIntoSwarm() {
+    // console.log(`adding ${config.machines.num - 1} workers to the swarm, token ${token}, ip: ${ip}`)
+    // config.machines.num - 1,
+    // this.swarm.join(`${config.name}-worker-${ i+1 }`, token.trim(), ip.trim(), next)
+
   }
   async saveLocalDockerImage() {
     return new Promise((resolve, reject) => {
