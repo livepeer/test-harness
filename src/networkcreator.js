@@ -144,6 +144,16 @@ class NetworkCreator extends EventEmitter {
       }
     }
 
+    if (this.config.local) {
+
+    } else {
+      generated.logging = {
+        driver: 'gcplogs',
+        options: {
+          'gcp-project': 'test-harness-226018'
+        }
+      }
+    }
     // cb(null, generated)
     this.getEnvVars((err, envObj) => {
       if (err) throw err

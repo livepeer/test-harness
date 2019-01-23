@@ -56,10 +56,21 @@ const Swarm = require('../src/swarm')
 //   console.log('got output: ', output.toString())
 //   console.log((output.toString('utf-8').trim() === 'w8ckygsd5sumre51xuqkvlcsc'))
 // })
-const { series } = require('async')
+const { series, eachLimit } = require('async')
 const Api = require('../src/api')
 const TestHarness = require('../src/index')
 let th = new TestHarness()
+const swarm = new Swarm('test321')
+
+// swarm.stopStack('streamer', (err, output) => {
+//   swarm.stopStack('livepeer', (err, output) => {
+//     if (err) throw err
+//     th.provision('test321', (err, machinesArray) => {
+//       if (err) throw err
+//       console.log('machines cleared and ready for the next experiment')
+//     })
+//   })
+// })
 
 th.run({
   local: false,
@@ -73,7 +84,7 @@ th.run({
   machines: {
     num: 4,
     zone: 'us-east1-b',
-    machineType: 'n1-standard-1'
+    machineType: 'n1-standard-2'
   },
   nodes: {
     transcoders: {
@@ -92,7 +103,7 @@ th.run({
       -monitor=false -currentManifest=true -orchestrator`
     },
     broadcasters: {
-      instances: 35,
+      instances: 10,
       flags: `--v 99 \
       -gasPrice 200 -gasLimit 2000000 \
       -monitor=false -currentManifest=true`
@@ -124,7 +135,7 @@ th.run({
         // ServiceURI will be set by the test-harness.
       }, next)
     },
-    (next) => { api.bond(['lp_broadcaster_0'], '5000', 'lp_orchestrator_0', next) },
+    (next) => { api.bond(['broadcasters'], '5000', 'lp_orchestrator_0', next) },
     (next) => {
       swarm.restartService('lp_orchestrator_0', (logs) => {
         console.log('restarted orchestrator')
@@ -132,9 +143,14 @@ th.run({
       })
     },
     (next) => {
-      swarm.restartService('lp_broadcaster_0', (logs) => {
-        console.log('restarted broadcaster')
-        next()
+      api._getPortsArray(['broadcasters'], (err, ports) => {
+        if (err) throw err
+        eachLimit(ports, 3, (port, n) => {
+          swarm.restartService(port.name, (logs) => {
+            console.log('restarted broadcaster', port.name)
+            n()
+          })
+        }, next)
       })
     }
   ], (err, results) => {
