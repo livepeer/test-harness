@@ -1,8 +1,12 @@
 #!/bin/bash
 
 cd /tmp
-git clone https://github.com/livepeer/test-harness.git
-mkdir -p go/src/github.com/livepeer
+
+if [ ! -d /tmp/test-harness ]; then
+  git clone https://github.com/livepeer/test-harness.git
+fi
+
+# mkdir -p go/src/github.com/livepeer
 #cd go/src/github.com/livepeer
 #rm -rf go-livepeer && git clone https://github.com/livepeer/go-livepeer.git && \
 

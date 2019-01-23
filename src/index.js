@@ -40,20 +40,37 @@ class TestHarness {
     })
   }
 
-  provision (name, cb) {
-    exec(`docker-machine ls -q --filter "name=${name}-([a-z]+)"`, (err, output) => {
+  parseComposeAndGetAddresses (config, cb) {
+    let parsedCompose = null
+    try {
+      let file = fs.readFileSync(path.resolve(__dirname, `${DIST_DIR}/${config.name}/docker-compose.yml`), 'utf-8')
+      parsedCompose = YAML.parse(file)
+    } catch (e) {
+      throw e
+    }
+
+    map(parsedCompose.services, (service, next) => {
+      // console.log('service.environment = ', service.environment)
+      if (service.environment && service.environment.JSON_KEY) {
+        let addressObj = JSON.parse(service.environment.JSON_KEY)
+        console.log('address to fund: ', addressObj.address)
+        next(null, addressObj.address)
+      } else {
+        next()
+      }
+    }, (err, addressesToFund) => {
       if (err) throw err
-      if (!output) return cb(null)
-
-      output = output.split('\n')
-      console.log('machines to reprovision', output)
-      each(output, (machine, next) => {
-        if (!machine) {
-          return next()
-        }
-
-        exec(`docker-machine provision ${machine}`, next)
-      }, cb)
+      // clear out the undefined
+      filter(addressesToFund, (address, cb) => {
+        cb(null, !!address) // bang bang
+      }, (err, results) => {
+        if (err) throw err
+        console.log('results: ', results)
+        cb(null, {
+          parsedCompose,
+          addresses: results
+        })
+      })
     })
   }
 
@@ -159,162 +176,57 @@ class TestHarness {
         // this.networkCreator.loadBinaries(`${DIST_DIR}/${config.name}`, (err) => {
         //   if (err) throw err
         // })
-        exec(`cp ./scripts/manager_setup.sh ${path.resolve(__dirname, `${DIST_DIR}/${config.name}`)}`, (err, stdout) => {
-          if (err) throw err
-          console.log('manager_setup.sh copied')
-        })
         config.machines = config.machines || {
           num: DEFAULT_MACHINES,
           zone: 'us-east1-b',
           machineType: 'n1-standard-1'
         }
         config.machines.num = config.machines.num || DEFAULT_MACHINES
-        // provision GCP machines
-        this.swarm.createMachines({
-          machines: config.machines.num,
-          name: config.name || 'testharness',
-          tags: `${config.name}-cluster`,
-          zone: config.machines.zone,
-          machineType: config.machines.machineType
-        }, (err) => {
+        this.swarm.createSwarm(config, (err, result) => {
           if (err) throw err
-          console.log('uploading binaries to the manager node...... this might take a while.')
-          // machines are ready.
-          this.swarm.scp(
-            path.resolve(__dirname, `${DIST_DIR}/${config.name}/`),
-            `${config.name}-manager:/tmp`,
-            `-r`,
-            (err, stdout) => {
+          // result = {internalIp, token, networkId}
+          this.swarm.createRegistry((err, stdout) => {
+            // if (err) throw err
+            if (err) console.log('create registry error : ', err)
+            this.swarm.setupManager(config.name, (err, output) => {
               if (err) throw err
-              // dist folder should be available to the manager now.
-
-              // init Swarm
-              this.swarm.init(`${config.name}-manager`, (err, stdout) => {
-                // if (err) throw err
-                if (err) console.log('swarm manager error : ', err)
-
-                console.log('swarm initiated. ', stdout)
-                // add the workers to the swarm
-                this.swarm.getSwarmToken(`${config.name}-manager`, (err, token) => {
+              //
+              // deploy the stack.
+              utils.remotelyExec(
+                `${config.name}-manager`,
+                `cd /tmp/config && sudo docker stack deploy -c docker-compose.yml livepeer`,
+                (err, outputBuf) => {
                   if (err) throw err
-                  this.swarm.getInternalIP(`${config.name}-manager`, (err, ip) => {
-                    if (err) throw err
-                    // create network
-                    this.swarm.createNetwork('testnet', config.name, (err, stdout) => {
-                      // if (err) throw err
-                      if (err) console.log('create Network error : ', err)
-                      console.log('networkid: ', stdout)
-                      // create throwaway registry
-                      this.swarm.createRegistry((err, stdout) => {
-                        // if (err) throw err
-                        if (err) console.log('create registry error : ', err)
-                        console.log('registry stdout: ', stdout)
-                        // now we should be able to build the image on manager and
-                        // push it to the registry
-                        // git clone test-harness. remotely.
-                        // then build it.
-                        utils.remotelyExec(
-                          `${config.name}-manager`,
-                          `mkdir -p /tmp/assets`,
-                          (err, outputBuf) => {
-                            if (err) throw err
-                            console.log('created /tmp/assets', (outputBuf) ? outputBuf.toString() : outputBuf)
-                            this.swarm.rsync(
-                              `${config.name}-manager`,
-                              `gs://lp_testharness_assets`,
-                              `/tmp/assets`,
-                              (err, output) => {
-                                if (err) throw err
-                                console.log('rsync done: ', output)
-                                utils.remotelyExec(
-                                  `${config.name}-manager`,
-                                  `cd /tmp && sudo rm -r -f config && sudo mv ${config.name} config && cd /tmp/config && /bin/sh manager_setup.sh`,
-                                  (err, outputBuf) => {
-                                    if (err) throw err
-                                    console.log('manager-setup done', (outputBuf)? outputBuf.toString() : outputBuf)
-                                    // push the newly built image to the registry.
-                                    console.log(`adding ${config.machines.num - 1} workers to the swarm, token ${token}, ip: ${ip}`)
-                                    timesLimit(
-                                      config.machines.num - 1,
-                                      1,
-                                      (i, next) => {
-                                        this.swarm.join(`${config.name}-worker-${ i+1 }`, token.trim(), ip.trim(), next)
-                                      }, (err, results) => {
-                                        // if (err) throw err
-                                        if (err) console.log('swarm join error', err)
-                                        console.log('results: ', results)
-                                        utils.remotelyExec(
-                                          `${config.name}-manager`,
-                                          `cd /tmp/config && sudo docker stack deploy -c docker-compose.yml livepeer`,
-                                          (err, outputBuf) => {
-                                            if (err) throw err
-                                            console.log('stack deployed ', (outputBuf) ? outputBuf.toString() : outputBuf)
-                                            setTimeout(() => {
-                                              // fund accounts here.
-                                              // ----------------[eth funding]--------------------------------------------
-                                              let parsedCompose = null
-                                              try {
-                                                let file = fs.readFileSync(path.resolve(__dirname, `${DIST_DIR}/${config.name}/docker-compose.yml`), 'utf-8')
-                                                parsedCompose = YAML.parse(file)
-                                              } catch (e) {
-                                                throw e
-                                              }
-
-                                              map(parsedCompose.services, (service, next) => {
-                                                // console.log('service.environment = ', service.environment)
-                                                if (service.environment && service.environment.JSON_KEY) {
-                                                  let addressObj = JSON.parse(service.environment.JSON_KEY)
-                                                  console.log('address to fund: ', addressObj.address)
-                                                  next(null, addressObj.address)
-                                                } else {
-                                                  next()
-                                                }
-                                              }, (err, addressesToFund) => {
-                                                if (err) throw err
-                                                // clear out the undefined
-                                                filter(addressesToFund, (address, cb) => {
-                                                  cb(null, !!address) // bang bang
-                                                }, (err, results) => {
-                                                  if (err) throw err
-                                                  console.log('results: ', results)
-
-                                                  eachLimit(results,1, (address, cb) => {
-                                                    utils.fundRemoteAccount(config.name, address, '1', `livepeer_geth`, cb)
-                                                  }, (err) => {
-                                                    if (err) throw err
-                                                    console.log('funding secured!!')
-                                                    this.swarm.getPubIP(`${config.name}-manager`, (err, pubIP) => {
-                                                      if (err) throw err
-                                                      setTimeout(() => {
-                                                        cb(null, {
-                                                          parsedCompose,
-                                                          baseUrl: pubIP.trim(),
-                                                          config: config
-                                                        })
-                                                      }, 10000)
-                                                    })
-                                                  })
-                                                })
-                                              })
-                                              // -------------------------------------------------------------------------
-                                            }, 5000)
-                                          }
-                                        )
-                                      })
-                                    })
-                                }
-                              )
-                            }
-                          )
-
-
+                  console.log('stack deployed ', (outputBuf) ? outputBuf.toString() : outputBuf)
+                  setTimeout(() => {
+                    // fund accounts here.
+                    // ----------------[eth funding]--------------------------------------------
+                    this.parseComposeAndGetAddresses(config, (err, results) => {
+                      if (err) throw err
+                      let parsedCompose = results.parsedCompose
+                      eachLimit(results.addresses, 1, (address, cb) => {
+                        utils.fundRemoteAccount(config.name, address, '1', `livepeer_geth`, cb)
+                      }, (err) => {
+                        if (err) throw err
+                        console.log('funding secured!!')
+                        this.swarm.getPubIP(`${config.name}-manager`, (err, pubIP) => {
+                          if (err) throw err
+                          setTimeout(() => {
+                            cb(null, {
+                              parsedCompose,
+                              baseUrl: pubIP.trim(),
+                              config: config
+                            })
+                          }, 10000)
                         })
                       })
-                  })
-                })
-
-              })
+                    })
+                    // -------------------------------------------------------------------------
+                  }, 10000)
+                }
+              )
             })
+          })
         })
       }
     })
