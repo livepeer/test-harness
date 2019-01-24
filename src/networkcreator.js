@@ -208,6 +208,7 @@ class NetworkCreator extends EventEmitter {
     switch (this.config.blockchain.name) {
       case 'rinkeby':
       case 'mainnet':
+      case 'offchain':
           // no need to run a node.
         break
       case 'lpTestNet':
