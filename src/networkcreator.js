@@ -205,6 +205,36 @@ class NetworkCreator extends EventEmitter {
   }
 
   generateGethService () {
+    let gethService = {
+      // image: 'geth-dev:latest',
+      image: 'darkdragon/geth-with-livepeer-protocol:pm',
+      ports: [
+        '8545:8545',
+        '8546:8546',
+        '30303:30303'
+      ],
+      networks: {
+        testnet: {
+          aliases: [`geth`]
+        }
+      }
+    }
+
+    if (!this.config.local) {
+      gethService.logging = {
+        driver: 'gcplogs',
+        options: {
+          'gcp-project': 'test-harness-226018'
+        }
+      }
+
+      gethService.deploy = {
+        placement: {
+          constraints: ['node.role == manager']
+        }
+      }
+    }
+
     switch (this.config.blockchain.name) {
       case 'rinkeby':
       case 'mainnet':
@@ -213,31 +243,7 @@ class NetworkCreator extends EventEmitter {
         break
       case 'lpTestNet':
       default:
-        return {
-          // image: 'geth-dev:latest',
-          image: 'darkdragon/geth-with-livepeer-protocol:pm',
-          ports: [
-            '8545:8545',
-            '8546:8546',
-            '30303:30303'
-          ],
-          networks: {
-            testnet: {
-              aliases: [`geth`]
-            }
-          },
-          deploy: {
-            placement: {
-              constraints: ['node.role == manager']
-            }
-          },
-          logging: {
-            driver: 'gcplogs',
-            options: {
-              'gcp-project': 'test-harness-226018'
-            }
-          // networks: ['outside']
-        }
+        return gethService
     }
   }
 

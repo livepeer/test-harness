@@ -158,7 +158,7 @@ class TestHarness {
                         console.log('all lpnodes are up: ', logs.out)
                         this.api = new Api(parsedCompose)
                         setTimeout(() => {
-                          cb(null, parsedCompose)
+                          cb(null, {parsedCompose})
                         }, 10000)
                       }).catch((e) => { if (e) throw e })
                     })
