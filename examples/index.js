@@ -46,18 +46,19 @@ th.run({
       // these are the livepeer binary flags, add them as you wish.
       // the test-harness overrides flags that has to do with directories or
       // ip/port bindings, these are automated.
-      flags: '--v 4 -transcoder -initializeRound=true'
+      flags: '--v 4 -transcoder -initializeRound=true -standaloneTranscoder=true \
+        -orchAddr https://orchestrator_0:8935 -orchSecret test'
     },
     orchestrators: {
       instances: 1,
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `--v 4 -initializeRound=true \
       -gasPrice 200 -gasLimit 2000000 \
-      -monitor=false -currentManifest=true -orchestrator`
+      -monitor=false -currentManifest=true -transcoder`
     },
     broadcasters: {
-      instances: 10,
-      flags: `--v 99 \
+      instances: 5,
+      flags: `--v 4 \
       -gasPrice 200 -gasLimit 2000000 \
       -monitor=false -currentManifest=true`
     }
@@ -77,7 +78,7 @@ th.run({
       console.log('Depositing....')
       api.fundAndApproveSigners(['all'], '5000000000', '500000000000000000', next)
     },
-    (next) => { api.initializeRound(['lp_transcoder_0'], next) },
+    (next) => { api.initializeRound(['orchestrator_0'], next) },
     (next) => {
       console.log('activating orchestrators...')
       api.activateOrchestrator(['orchestrators'], {
@@ -88,9 +89,11 @@ th.run({
         // ServiceURI will be set by the test-harness.
       }, next)
     },
-    (next) => { api.bond(['broadcasters'], '5000', 'lp_orchestrator_0', next) },
     (next) => {
-      swarm.restartService('lp_orchestrator_0', (logs) => {
+      api.bond(['broadcasters'], '5000', 'orchestrator_0', next)
+    },
+    (next) => {
+      swarm.restartService('orchestrator_0', (logs) => {
         console.log('restarted orchestrator')
         next()
       })

@@ -104,7 +104,7 @@ if (program.swarm) {
           console.log('results: ', results)
 
           each(results, (address, cb) => {
-            fundAccount(address, '1', 'lp_geth', cb)
+            fundAccount(address, '1', 'geth', cb)
           }, (err) => {
             if (err) throw err
             console.log('accounts funded!!')

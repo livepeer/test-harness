@@ -189,7 +189,7 @@ class NetworkCreator extends EventEmitter {
           if (err) throw err
           // console.log(`finished ${type}, ${JSON.stringify(nodes)}`)
           nodes.forEach((node, i) => {
-            output[`lp_${type}_${i}`] = node
+            output[`${type}_${i}`] = node
           })
           // console.log('output', output)
           callback(null)

@@ -4,9 +4,9 @@ const request = require('request')
 const { map, each, eachLimit, filter } = require('async')
 const NODE_TYPES = ['broadcasters', 'transcoders', 'orchestrators']
 const NODE_REGEX = {
-  broadcasters: /_broadcaster_/g,
-  orchestrators: /_orchestrator_/g,
-  transcoders: /_transcoder_/g
+  broadcasters: /broadcaster_/g,
+  orchestrators: /orchestrator_/g,
+  transcoders: /transcoder_/g
 }
 
 const BASE_URL = 'localhost'

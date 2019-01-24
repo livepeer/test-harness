@@ -37,7 +37,7 @@ try {
 let servicesNames = Object.keys(parsedCompose.services)
 
 let broadcasters = servicesNames.filter((service) => {
-  return (service.match(/lp_b_*/g))
+  return (service.match(/broadcaster_*/g))
 })
 
 const st = new Streamer({})

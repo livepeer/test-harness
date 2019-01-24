@@ -108,6 +108,13 @@ class Streamer extends EventEmitter {
       command: `-re -i /temp/${input} ${DEFAULT_ARGS} ${parsedOutput}`,
       // volumes: [`assets:/temp/`]
     }
+
+    generated.logging = {
+      driver: 'gcplogs',
+      options: {
+        'gcp-project': 'test-harness-226018'
+      }
+    }
     console.log('generated: ', generated)
     cb(null, generated)
   }
