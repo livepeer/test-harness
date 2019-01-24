@@ -197,6 +197,7 @@ class NetworkCreator extends EventEmitter {
     }, (err) => {
       if (err) throw err
       console.log('all nodes have been generated')
+      pool.killAll()
       log('output:', output)
       cb(null, output)
     })
