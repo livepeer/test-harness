@@ -6,6 +6,8 @@ const fs = require('fs')
 const YAML = require('yaml')
 const Streamer = require('../streamer')
 const Swarm = require('../swarm')
+const utils = require('../utils/helpers')
+const DIST_DIR = '../../dist'
 
 program
   .option('-r --remote', 'remote streamer mode. used with GCP test-harness')
@@ -47,20 +49,40 @@ if (program.remote) {
     program.dir = `/tmp/assets`
     program.file = 'BigBuckBunny.mp4'
   }
-  swarm.getPubIP(`${configName}-manager`, (err, ip) => {
+  // swarm.getPubIP(`${configName}-manager`, (err, ip) => {
+  //   if (err) throw err
+  //   baseUrl = ip.trim()
+  //
+  //   swarm.setEnv(`${configName}-manager`, (err, env) => {
+  //     if (err) throw err
+  //     broadcasters.forEach((broadcaster) => {
+  //       // let broadcaster = `lp_broadcaster_0`
+  //       let rtmpPort = getForwardedPort(broadcaster, '1935')
+  //       if (rtmpPort) {
+  //         st.rStream(broadcaster, env, program.dir, program.file, `rtmp://${baseUrl}:${rtmpPort}`)
+  //       }
+  //     })
+  //   })
+  // })
+  console.log('generating compose')
+  st.generateComposeFile(broadcasters, program.dir, program.file, path.resolve(__dirname, `../../dist/${configName}`), (err, result) => {
     if (err) throw err
-    baseUrl = ip.trim()
-
-    swarm.setEnv(`${configName}-manager`, (err, env) => {
-      if (err) throw err
-      broadcasters.forEach((broadcaster) => {
-        // let broadcaster = `lp_broadcaster_0`
-        let rtmpPort = getForwardedPort(broadcaster, '1935')
-        if (rtmpPort) {
-          st.rStream(broadcaster, env, program.dir, program.file, `rtmp://${baseUrl}:${rtmpPort}`)
-        }
-      })
-    })
+    console.log('done', result)
+    swarm.scp(
+      path.resolve(__dirname, `../../dist/${configName}/stream-stack.yml`),
+      `${configName}-manager:/tmp/config/stream-stack.yml`, ``,
+      (err, output) => {
+        if (err) throw err
+        console.log('uploaded stream-stack.yml')
+        utils.remotelyExec(
+          `${configName}-manager`,
+          `cd /tmp/config && sudo docker stack deploy -c stream-stack.yml streamer`,
+          (err, outputBuf) => {
+            if (err) throw err
+            console.log('stack deployed', (outputBuf) ? outputBuf.toString() : null)
+          })
+      }
+    )
   })
 } else {
   if (!program.dir) {

@@ -196,7 +196,21 @@ class Swarm {
                 config.machines.num - 1,
                 5,
                 (i, next) => {
-                  this.join(`${config.name}-worker-${i + 1}`, result.token[0].trim(), result.internalIP[0].trim(), next)
+                  this.join(`${config.name}-worker-${i + 1}`, result.token[0].trim(), result.internalIP[0].trim(), (err, output) => {
+                    if (err) throw err
+                    utils.remotelyExec(
+                      `${config.name}-worker-${i + 1}`,
+                      `mkdir -p /tmp/assets`,
+                      (err, output) => {
+                        if (err) throw err
+                        this.rsync(
+                          `${config.name}-worker-${i + 1}`,
+                          `gs://lp_testharness_assets`,
+                          `/tmp/assets`,
+                          next
+                        )
+                      })
+                  })
                 }, (err, results) => {
                   if (err) throw err
                   cb(null, {
@@ -331,7 +345,7 @@ class Swarm {
   }
 
   setupManager (name, cb) {
-    exec(`cp ./scripts/manager_setup.sh ${path.resolve(__dirname, `${DIST_DIR}/${name}`)}`, (err, stdout) => {
+    exec(`cp -r ./scripts/* ${path.resolve(__dirname, `${DIST_DIR}/${name}`)}`, (err, stdout) => {
       if (err) throw err
       console.log('manager_setup.sh copied')
       parallel({
@@ -360,7 +374,7 @@ class Swarm {
               `${name}-manager`,
               `cd /tmp && \
                sudo rm -r -f config && \
-               sudo mv ${name} config && cd /tmp/config && /bin/sh manager_setup.sh`,
+               sudo mv ${name} config && cd /tmp/config && /bin/sh manager_setup.sh && /bin/sh create_streamer_image.sh`,
               cb)
           }
         )

@@ -103,7 +103,8 @@ class NetworkCreator extends EventEmitter {
       services: {},
       networks: {
         testnet: {
-          driver: this.config.local ? 'bridge' : 'overlay'
+          driver: this.config.local ? 'bridge' : 'overlay',
+          external: this.config.local ? false : true
         }
       }
       // network_mode: 'host',
