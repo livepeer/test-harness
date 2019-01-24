@@ -28,7 +28,7 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       eachLimit(ports, 1, (port, next) => {
-        this._httpGet(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, {}, (err, res, body) => {
+        this._httpPost(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, (err, res, body) => {
           next(err, res)
         })
       }, cb)
@@ -513,6 +513,7 @@ class Api {
   }
 
   _httpPostWithParams (url, params, cb) {
+    console.log('POST:', url, params)
     request({
       headers: {
         'Content-Length': params.length,
@@ -525,13 +526,15 @@ class Api {
   }
 
   _httpPost (url, cb) {
+    console.log('POST: ', url)
     request({
       uri: url,
       method: 'POST'
     }, cb)
   }
 
-  _httpGet (url, params, cb) {
+  _httpGet (url, cb) {
+    console.log('GET: ', url)
     request({
       uri: url,
       method: 'GET'

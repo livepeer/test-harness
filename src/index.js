@@ -179,9 +179,11 @@ class TestHarness {
         config.machines = config.machines || {
           num: DEFAULT_MACHINES,
           zone: 'us-east1-b',
-          machineType: 'n1-standard-1'
+          machineType: 'n1-standard-2',
+          tags: `${config.name}-cluster`
         }
         config.machines.num = config.machines.num || DEFAULT_MACHINES
+        console.log('machines config', config.manchines)
         this.swarm.createSwarm(config, (err, result) => {
           if (err) throw err
           // result = {internalIp, token, networkId}

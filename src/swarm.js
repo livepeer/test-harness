@@ -26,9 +26,9 @@ class Swarm {
       (done) => {
         this.createMachine({
           name: `${name}-manager`,
-          zone: opts.zone,
-          machineType: opts.machineType,
-          tags: opts.tags
+          zone: opts.machines.zone,
+          machineType: opts.machines.machineType,
+          tags: opts.machines.tags || `${name}-cluster`
         }, done)
       },
       (done) => {
@@ -36,9 +36,9 @@ class Swarm {
           // create workers
           this.createMachine({
             name: `${name}-worker-${i + 1}`,
-            zone: opts.zone,
-            machineType: opts.machineType,
-            tags: opts.tags
+            zone: opts.machines.zone,
+            machineType: opts.machines.machineType,
+            tags: opts.machines.tags || `${name}-cluster`
           }, next)
         }, done)
       }
