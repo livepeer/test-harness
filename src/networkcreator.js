@@ -230,7 +230,12 @@ class NetworkCreator extends EventEmitter {
             placement: {
               constraints: ['node.role == manager']
             }
-          }
+          },
+          logging: {
+            driver: 'gcplogs',
+            options: {
+              'gcp-project': 'test-harness-226018'
+            }
           // networks: ['outside']
         }
     }
