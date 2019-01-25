@@ -1,7 +1,7 @@
 'use strict'
 const path = require('path')
 const { exec, spawn } = require('child_process')
-const { each, timesLimit, parallel } = require('async')
+const { each, eachLimit, timesLimit, parallel } = require('async')
 const shortid = require('shortid')
 const utils = require('./utils/helpers')
 const DIST_DIR = '../dist'
@@ -32,7 +32,7 @@ class Swarm {
         }, done)
       },
       (done) => {
-        timesLimit(machinesCount - 1, 3, (i, next) => {
+        timesLimit(machinesCount - 1, 20, (i, next) => {
           // create workers
           this.createMachine({
             name: `${name}-worker-${i + 1}`,
@@ -312,6 +312,18 @@ class Swarm {
         if (err) throw err
         exec(`docker service scale livepeer_${serviceName}=1`, {env}, cb)
       })
+    })
+  }
+
+  restartServices (services, cb) {
+    this.setEnv(this._managerName, (err, env) => {
+      if (err) throw err
+      eachLimit(services, 3, (serviceName, next) => {
+        exec(`docker service scale livepeer_${serviceName}=0`, {env}, (err, output) => {
+          if (err) throw err
+          exec(`docker service scale livepeer_${serviceName}=1`, {env}, next)
+        })
+      }, cb)
     })
   }
 

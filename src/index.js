@@ -207,7 +207,7 @@ class TestHarness {
                     this.parseComposeAndGetAddresses(config, (err, results) => {
                       if (err) throw err
                       let parsedCompose = results.parsedCompose
-                      eachLimit(results.addresses, 1, (address, cb) => {
+                      eachLimit(results.addresses, 10, (address, cb) => {
                         utils.fundRemoteAccount(config.name, address, '1', `livepeer_geth`, cb)
                       }, (err) => {
                         if (err) throw err

@@ -8,6 +8,7 @@ const NODE_REGEX = {
   orchestrators: /orchestrator_/g,
   transcoders: /transcoder_/g
 }
+const MAX_CONCURRENCY = 1
 
 const BASE_URL = 'localhost'
 class Api {
@@ -27,7 +28,7 @@ class Api {
     }
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(ports, 1, (port, next) => {
+      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
         this._httpPost(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, (err, res, body) => {
           next(err, res)
         })
@@ -50,7 +51,7 @@ class Api {
 
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(ports, 1, (port, next) => {
+      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
         this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
@@ -70,7 +71,7 @@ class Api {
 
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(ports, 1, (port, next) => {
+      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
         this._httpPost(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, (err, res, body) => {
           next(err, res)
         })
@@ -91,7 +92,7 @@ class Api {
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
       // TODO, get the service URIs too.
-      eachLimit(ports, 1, (port, next) => {
+      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
         params.serviceURI = `https://${port.name}:8935`
         this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
@@ -115,7 +116,7 @@ class Api {
       return cb(new Error(`couldn't find ${nodeName}'s ETH address'`))
     }
 
-    console.log('bonding to ', toAddr)
+    console.log(`bonding ${nodes.join(',')} to ${nodeName}: ${toAddr}`)
 
     let params = {
       amount: amountInWei,
@@ -124,7 +125,7 @@ class Api {
 
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(ports, 1, (port, next) => {
+      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
         this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
@@ -148,7 +149,7 @@ class Api {
 
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(ports, 1, (port, next) => {
+      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
         this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
@@ -172,7 +173,7 @@ class Api {
 
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(ports, 1, (port, next) => {
+      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
         this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
@@ -192,7 +193,7 @@ class Api {
 
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(ports, 1, (port, next) => {
+      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
         this._httpPost(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, (err, res, body) => {
           next(err, res)
         })
@@ -216,7 +217,7 @@ class Api {
 
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(ports, 1, (port, next) => {
+      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
         this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
@@ -241,7 +242,7 @@ class Api {
 
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(ports, 1, (port, next) => {
+      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
         this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
@@ -265,7 +266,7 @@ class Api {
 
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(ports, 1, (port, next) => {
+      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
         this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
@@ -291,7 +292,7 @@ class Api {
 
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(ports, 1, (port, next) => {
+      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
         this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
@@ -311,7 +312,7 @@ class Api {
 
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(ports, 1, (port, next) => {
+      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
         this._httpPost(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, (err, res, body) => {
           next(err, res)
         })
@@ -331,7 +332,7 @@ class Api {
 
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(ports, 1, (port, next) => {
+      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
         this._httpPost(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, (err, res, body) => {
           next(err, res)
         })
@@ -351,7 +352,7 @@ class Api {
 
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(ports, 1, (port, next) => {
+      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
         this._httpPost(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, (err, res, body) => {
           next(err, res)
         })
@@ -376,7 +377,7 @@ class Api {
 
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(ports, 1, (port, next) => {
+      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
         this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
@@ -398,7 +399,7 @@ class Api {
 
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(ports, 1, (port, next) => {
+      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
         this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
           next(err, res)
         })
@@ -420,7 +421,7 @@ class Api {
 
     this._getPortsArray(nodes, (err, ports) => {
       if (err) throw err
-      eachLimit(ports, 1, (port, next) => {
+      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
         this._httpGet(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, (err, res, body) => {
           next(err, res)
         })
