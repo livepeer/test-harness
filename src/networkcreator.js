@@ -57,7 +57,9 @@ class NetworkCreator extends EventEmitter {
   }
 
   loadBinaries (dist, cb) {
-    return cb()
+    if (this.config.localBuild) {
+      return cb()
+    }
     // copy livepeer binaries to lpnode image folder
     console.log(`copying LP binary from ${this.config.livepeerBinaryPath}. ${__dirname}`)
     exec(`cp ${path.resolve(__dirname, this.config.livepeerBinaryPath)} ${path.resolve(__dirname, dist)}`,
@@ -70,6 +72,10 @@ class NetworkCreator extends EventEmitter {
   }
 
   buildLpImage (cb) {
+    if (this.config.localBuild) {
+      this.buildLocalLpImage(cb)
+      return
+    }
     console.log('building lpnode...')
     let builder = spawn('docker', [
       'build',
@@ -238,9 +244,11 @@ class NetworkCreator extends EventEmitter {
     } else {
       this.hasGeth = true
     }
-    output.metrics = this.generateMetricsService()
-    output.mongodb = this.generateMongoService()
-    this.hasMetrics = true
+    if (this.config.startMetricsServer) {
+      output.metrics = this.generateMetricsService()
+      output.mongodb = this.generateMongoService()
+      this.hasMetrics = true
+    }
 
     eachLimit(['transcoder', 'orchestrator', 'broadcaster'], 1, (type, callback) => {
       console.log(`generating ${type} nodes ${this.config.nodes[`${type}s`].instances}`)

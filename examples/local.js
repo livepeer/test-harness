@@ -8,6 +8,8 @@ let th = new TestHarness()
 
 th.run({
   local: true,
+  localBuild: true,
+  startMetricsServer: true,
   name: 'test123',
   livepeerBinaryPath: '../containers/lpnode/livepeer_linux/livepeer',
   blockchain: {
@@ -30,7 +32,7 @@ th.run({
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `--v 4 -initializeRound=true \
       -gasPrice 200 -gasLimit 2000000 \
-      -monitor=false -currentManifest=true -transcoder`
+      -currentManifest=true -transcoder`
     },
     broadcasters: {
       instances: 2,
