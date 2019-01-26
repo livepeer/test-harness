@@ -225,7 +225,7 @@ class TestHarness {
               if (err) throw err
               //
               // deploy the stack.
-              this.finishSetup(config.name).catch(err => { throw err })
+              this.finishSetup(config).catch(err => { throw err })
               return
               utils.remotelyExec(
                 `${config.name}-manager`,
@@ -273,11 +273,13 @@ class TestHarness {
     await this.networkCreator.buildLocalLpImage()
     await this.saveLocalDockerImage()
     const loadToWorkers = [this.loadLocalDockerImageToSwarm(managerName)]
-    for (let i = 0; i < DEFAULT_MACHINES - 1; i++) {
+    for (let i = 0; i < config.machines.num - 1; i++) {
       const workerName = `${configName}-worker-${ i+1 }`
       loadToWorkers.push(this.loadLocalDockerImageToSwarm(workerName))
     }
     await Promise.all(loadToWorkers)
+    const dockerComposeFileName = `${DIST_DIR}/${config.name}/docker-compose.yml`
+    await this.swarm.deployComposeFile(dockerComposeFileName, 'livepier', managerName)
 
     // this.swarm.deployComposeFile
     console.log('docker image pushed')

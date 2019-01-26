@@ -262,9 +262,21 @@ class Swarm {
   }
 
   deployComposeFile (filePath, prefix, managerName, cb) {
-    this.setEnv(managerName, (err, env) => {
-      if (err) throw err
-      exec(`docker stack deploy --compose-file ${filePath} ${prefix}`, {env: env}, cb)
+    return new Promise((resolve, reject) => {
+      this.setEnv(managerName, (err, env) => {
+        if (err) {
+          reject(err)
+          cb(err)
+        }
+        exec(`docker stack deploy --compose-file ${filePath} ${prefix}`, {env: env}, (e, r) => {
+          if (cb) cb(e, r)
+          if (e) {
+            reject(e)
+          } else {
+            resolve(r)
+          }
+        })
+      })
     })
   }
 
