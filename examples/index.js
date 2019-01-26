@@ -2,7 +2,7 @@
 
 const { exec, spawn } = require('child_process')
 const Swarm = require('../src/swarm')
-const { series, eachLimit } = require('async')
+const { series, eachLimit, parallel } = require('async')
 const Api = require('../src/api')
 const TestHarness = require('../src/index')
 let th = new TestHarness()
@@ -35,9 +35,9 @@ th.run({
     controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982',
   },
   machines: {
-    num: 4,
+    num: 3,
     zone: 'us-east1-b',
-    machineType: 'n1-standard-2'
+    machineType: 'n1-highcpu-4'
   },
   nodes: {
     transcoders: {
@@ -52,14 +52,12 @@ th.run({
     orchestrators: {
       instances: 2,
       // TODO these are not complete, try adding the right orchestrator flags :)
-      flags: `--v 4 -initializeRound=true \
-      -gasPrice 200 -gasLimit 2000000 \
-      -monitor=false -currentManifest=true -transcoder`
+      flags: `--v 99 -initializeRound=true -gasPrice 200 -gasLimit 2000000 \
+      -monitor=false -currentManifest=true -orchestrator`
     },
     broadcasters: {
       instances: 6,
-      flags: `--v 4 \
-      -gasPrice 200 -gasLimit 2000000 \
+      flags: `--v 99 -gasPrice 200 -gasLimit 2000000 \
       -monitor=false -currentManifest=true`
     }
   }
@@ -90,19 +88,26 @@ th.run({
       }, next)
     },
     (next) => {
-      api.bond([
-        'broadcaster_0',
-        'broadcaster_1',
-        'broadcaster_2'
-      ], '5000', 'orchestrator_0', next)
+      parallel([
+        (done) => {
+          api.bond([
+            'broadcaster_0', 'broadcaster_1', 'broadcaster_2'
+          ], '5000', 'orchestrator_0', done)
+        },
+        (done) => {
+          api.bond([
+            'broadcaster_3', 'broadcaster_4', 'broadcaster_5'
+          ], '5000', 'orchestrator_1', done)
+        },
+      ], next)
     },
-    (next) => {
-      api.bond([
-        'broadcaster_3',
-        'broadcaster_4',
-        'broadcaster_5'
-      ], '5000', 'orchestrator_1', next)
-    },
+    // (next) => {
+    //   api.bond([
+    //     'broadcaster_3',
+    //     'broadcaster_4',
+    //     'broadcaster_5'
+    //   ], '5000', 'orchestrator_1', next)
+    // },
     (next) => {
       swarm.restartService('orchestrator_0', (logs) => {
         console.log('restarted orchestrator')

@@ -8,7 +8,7 @@ const NODE_REGEX = {
   orchestrators: /orchestrator_/g,
   transcoders: /transcoder_/g
 }
-const MAX_CONCURRENCY = 1
+const MAX_CONCURRENCY = 10
 
 const BASE_URL = 'localhost'
 class Api {
