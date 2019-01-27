@@ -16,14 +16,14 @@ function functionEncodedABI (name, params, values) {
   return ethUtil.bufferToHex(Buffer.concat([ethUtil.sha3(name).slice(0, 4), ethAbi.rawEncode(params, values)]))
 }
 
-function remotelyExec (machineName, command, cb) {
+function remotelyExec (machineName, zone, command, cb) {
   // reference : https://stackoverflow.com/a/39104844
   let args = [
     'compute',
     'ssh',
     machineName,
     '--zone',
-    'us-east1-b',
+    zone || 'us-east1-b',
     '--',
   ]
 
@@ -59,10 +59,11 @@ function fundAccount (address, valueInEth, containerId, cb) {
   })
 }
 
-function fundRemoteAccount (name, address, valueInEth, serviceName, cb) {
+function fundRemoteAccount (config, address, valueInEth, serviceName, cb) {
   // NOTE: this requires the geth container to be running and account[0] to be unlocked.
+  console.log(`funding ${address} with ${valueInEth} ETH`)
   remotelyExec(
-    `${name}-manager`,
+    `${config.name}-manager`, config.machines.zone,
     `sudo docker exec livepeer_geth.1.$(sudo docker service ps -q livepeer_geth) geth --exec 'eth.sendTransaction({from: eth.accounts[0], to: "${address}", value: web3.toHex(web3.toWei("${valueInEth}", "ether"))})' attach`,
   (err, stdout, stderr) => {
     if (err) throw err

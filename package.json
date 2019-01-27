@@ -17,7 +17,7 @@
   "dependencies": {
     "async": "^2.6.1",
     "commander": "^2.19.0",
-    "composefile": "github:ya7ya/composefile#master",
+    "composefile": "github:darkdarkdragon/composefile#master",
     "debug": "^4.1.1",
     "docker-compose": "github:ya7ya/docker-compose#feat-restart",
     "ethereumjs-abi": "^0.6.5",

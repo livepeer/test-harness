@@ -3,6 +3,7 @@
 const { EventEmitter } = require('events')
 const { exec, spawn } = require('child_process')
 const path = require('path')
+const fs = require('fs')
 const toml = require('toml')
 const composefile = require('composefile')
 const { timesLimit, each, eachLimit } = require('async')
@@ -149,9 +150,10 @@ class NetworkCreator extends EventEmitter {
   }
 
   generateComposeFile (outputPath, cb) {
+    const outputFolder = path.resolve(__dirname, outputPath)
     let output = {
-      version: '3',
-      outputFolder: path.resolve(__dirname, outputPath),
+      version: '3.7',
+      outputFolder,
       filename: 'docker-compose.yml',
       services: {},
       networks: {
@@ -163,11 +165,43 @@ class NetworkCreator extends EventEmitter {
       // network_mode: 'host',
     }
 
+    this.copySecrets(output, outputFolder)
+
     this.generateServices((err, services) => {
       if (err) throw err
       output.services = services
       this.nodes = output.services
       composefile(output, cb)
+    })
+  }
+
+  copySecrets (top, outputFolder) {
+    Object.keys(this.config.nodes).forEach(nodesName => {
+      const nodes = this.config.nodes[nodesName]
+      const gs = nodes.googleStorage
+      if (gs) {
+        if (!gs.bucket) {
+          throw 'Should specify "bucket" field for google storage'
+        }
+        if (!gs.key) {
+          throw 'Should specify "key" field for google storage'
+        }
+        console.log('dirname:', __dirname)
+        const fileName = path.basename(gs.key)
+        gs.keyName = fileName
+        const fnp = fileName.split('.')
+        gs.secretName = fnp[0]
+        const srcPath = path.resolve(__dirname, '..', gs.key)
+        console.log(`Copying from ${srcPath} to ${outputFolder}`)
+        fs.copyFileSync(srcPath, path.join(outputFolder, fileName))
+        if (!top.secrets) {
+          top.secrets = {}
+        }
+        top.secrets[gs.secretName] = {
+          file: './' + fileName,
+          name: gs.secretName
+        }
+      }
     })
   }
 
@@ -183,31 +217,36 @@ class NetworkCreator extends EventEmitter {
   }
 
   _generateService (type, i, cb) {
+    const serviceName = `${type}_${i}`
+    const nodes = this.config.nodes[`${type}s`]
     let generated = {
     // generated['lp_t_' + i] = {
-      image: (this.config.local) ? 'lpnode:latest' : 'localhost:5000/lpnode:latest',
+      image: (this.config.local || this.config.localBuild) ? 'lpnode:latest' : 'localhost:5000/lpnode:latest',
       ports: [
         `${getRandomPort(8935)}:8935`,
         `${getRandomPort(7935)}:7935`,
         `${getRandomPort(1935)}:1935`
       ],
       // TODO fix the serviceAddr issue
-      command: this.getNodeOptions(type, this.config.nodes[`${type}s`].flags),
+      command: this.getNodeOptions(type, nodes),
       depends_on: this.getDependencies(),
       networks: {
         testnet: {
-          aliases: [`${type}_${i}`]
+          aliases: [serviceName]
         }
       }
+    }
+    if (nodes.googleStorage) {
+      generated.secrets = [nodes.googleStorage.secretName]
     }
 
     if (this.config.local) {
 
     } else {
-      generated.logging = {
+     generated.logging = {
         driver: 'gcplogs',
         options: {
-          'gcp-project': 'test-harness-226018'
+          'gcp-project': 'test-harness-226018',
         }
       }
       if (type === 'orchestrator' || type == 'transcoder') {
@@ -245,8 +284,8 @@ class NetworkCreator extends EventEmitter {
       this.hasGeth = true
     }
     if (this.config.startMetricsServer) {
-      output.metrics = this.generateMetricsService()
       output.mongodb = this.generateMongoService()
+      output.metrics = this.generateMetricsService()
       this.hasMetrics = true
     }
 
@@ -368,13 +407,21 @@ class NetworkCreator extends EventEmitter {
     }
   }
 
-  getNodeOptions (nodeType, userFlags) {
+  getNodeOptions (nodeType, nodes) {
     const output = []
+    const userFlags = nodes.flags
 
     // default 0.0.0.0 binding
     output.push(`-httpAddr 0.0.0.0:8935`)
     output.push(`-cliAddr 0.0.0.0:7935`)
     output.push(`-rtmpAddr 0.0.0.0:1935`)
+
+    if (nodes.googleStorage) {
+      output.push('-gsbucket')
+      output.push(nodes.googleStorage.bucket)
+      output.push('-gskey')
+      output.push('/run/secrets/' + nodes.googleStorage.secretName)
+    }
 
     // default datadir
     output.push(`-datadir /lpData`)

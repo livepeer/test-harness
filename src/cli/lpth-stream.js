@@ -74,8 +74,10 @@ if (program.remote) {
       (err, output) => {
         if (err) throw err
         console.log('uploaded stream-stack.yml')
+        // TODO find and use proper zone
+        const zone = undefined
         utils.remotelyExec(
-          `${configName}-manager`,
+          `${configName}-manager`, zone,
           `cd /tmp/config && sudo docker stack deploy -c stream-stack.yml streamer`,
           (err, outputBuf) => {
             if (err) throw err

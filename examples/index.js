@@ -53,12 +53,12 @@ th.run({
       instances: 4,
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `--v 99 -initializeRound=true -gasPrice 200 -gasLimit 2000000 \
-      -monitor=false -currentManifest=true -transcoder`
+      -currentManifest=true -orchestrator`
     },
     broadcasters: {
       instances: 12,
       flags: `--v 99 -gasPrice 200 -gasLimit 2000000 \
-      -monitor=false -currentManifest=true`
+      -currentManifest=true`
     }
   }
 }, (err, experiment) => {
