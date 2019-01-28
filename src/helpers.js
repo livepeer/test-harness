@@ -30,21 +30,6 @@ async function prettyPrintDeploymentInfo(configName, parsedCompose) {
   console.log(`\nMetrics server: http://${worker1IP}:3000`)
 }
 
-function wait(pauseTimeMs, suppressLogs) {
-  if (!suppressLogs) {
-    console.log(`Waiting for ${pauseTimeMs} ms`)
-  }
-  return new Promise(resolve => {
-    setTimeout(() => {
-      if (!suppressLogs) {
-        console.log('Done waiting.')
-      }
-      resolve()
-    }, pauseTimeMs)
-  })
-}
-
 module.exports = {
-  prettyPrintDeploymentInfo,
-  wait
+  prettyPrintDeploymentInfo
 }

@@ -7,8 +7,8 @@ const Streamer = require('../streamer')
 const Swarm = require('../swarm')
 const Api = require('../api')
 const utils = require('../utils/helpers')
+const { wait } = require('../utils/helpers')
 const { parseConfigFromCommandLine } = require('./helpers.js')
-const { wait } = require('../helpers.js')
 
 const DIST_DIR = '../../dist'
 

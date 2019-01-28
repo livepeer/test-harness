@@ -10,6 +10,7 @@ const { timesLimit, each, eachLimit } = require('async')
 const log = require('debug')('livepeer:test-harness:network')
 const spawnThread = require('threads').spawn
 const Pool = require('threads').Pool
+const { getNames, spread } = require('./utils/helpers')
 
 const pool = new Pool()
 const thread = pool.run(function(input, done) {
@@ -47,6 +48,17 @@ class NetworkCreator extends EventEmitter {
     this.nodes = {}
     this.hasGeth = false
     this.hasMetrics = false
+
+    const workers = getNames(`${config.name}-worker-`, config.machines.num-1, 1)
+    const broadcasters = getNames('broadcaster_', config.nodes.broadcasters.instances)
+    const orchestrators = getNames('orchestrator_', config.nodes.orchestrators.instances)
+    const transcoders = getNames('transcoder_', config.nodes.transcoders.instances)
+
+    this._serviceConstraints = {
+      broadcaster: spread(broadcasters, workers, true),
+      orchestrator: spread(orchestrators, workers, true),
+      transcoder: spread(transcoders, workers, true),
+    }
   }
 
   isPortUsed (port) {
@@ -161,15 +173,17 @@ class NetworkCreator extends EventEmitter {
           driver: this.config.local ? 'bridge' : 'overlay',
           external: this.config.local ? false : true
         }
-      }
+      },
+      volumes: {}
       // network_mode: 'host',
     }
 
     this.copySecrets(output, outputFolder)
 
-    this.generateServices((err, services) => {
+    this.generateServices((err, services, volumes) => {
       if (err) throw err
       output.services = services
+      output.volumes = volumes
       this.nodes = output.services
       composefile(output, cb)
     })
@@ -216,11 +230,11 @@ class NetworkCreator extends EventEmitter {
     return deps
   }
 
-  _generateService (type, i, cb) {
+  _generateService (type, i, volumes, cb) {
     const serviceName = `${type}_${i}`
     const nodes = this.config.nodes[`${type}s`]
-    let generated = {
-    // generated['lp_t_' + i] = {
+    const vname = 'v_' + serviceName
+    const generated = {
       image: (this.config.local || this.config.localBuild) ? 'lpnode:latest' : 'localhost:5000/lpnode:latest',
       ports: [
         `${getRandomPort(8935)}:8935`,
@@ -234,8 +248,10 @@ class NetworkCreator extends EventEmitter {
         testnet: {
           aliases: [serviceName]
         }
-      }
+      },
+      volumes: [vname + ':/lpData']
     }
+    volumes[vname] = {}
     if (nodes.googleStorage) {
       generated.secrets = [nodes.googleStorage.secretName]
     }
@@ -249,17 +265,22 @@ class NetworkCreator extends EventEmitter {
           'gcp-project': 'test-harness-226018',
         }
       }
-      if (type === 'orchestrator' || type == 'transcoder') {
+      if (type === 'orchestrator' || type == 'transcoder' || type == 'broadcaster') {
         generated.deploy = {
           replicas: 1,
-          resources: {
+          placement: {
+            constraints: [
+              'node.role == worker', 
+              'node.hostname == ' + this._serviceConstraints[type].get(serviceName)
+            ]
+          }
+        }
+        if (this.config.constrainResources) {
+          generated.deploy.resources = {
             reservations: {
               cpus: '0.2',
               memory: '100M'
             }
-          },
-          placement: {
-            constraints: ['node.role == worker']
           }
         }
       }
@@ -273,10 +294,12 @@ class NetworkCreator extends EventEmitter {
   }
 
   generateServices (cb) {
-    let output = {}
+    const output = {}
+    const volumes = {}
+    
     // if (this.config.blockchain && this.config.blockchain.controllerAddress === '') {
     // }
-    output.geth = this.generateGethService()
+    output.geth = this.generateGethService(volumes)
     if (!output.geth) {
       delete output.geth
       this.hasGeth = false
@@ -284,7 +307,7 @@ class NetworkCreator extends EventEmitter {
       this.hasGeth = true
     }
     if (this.config.startMetricsServer) {
-      output.mongodb = this.generateMongoService()
+      output.mongodb = this.generateMongoService(volumes)
       output.metrics = this.generateMetricsService()
       this.hasMetrics = true
     }
@@ -297,7 +320,7 @@ class NetworkCreator extends EventEmitter {
         (i, next) => {
           // generate separate services with the forwarded ports.
           // append it to output as output.<node_generate_id> = props
-          this._generateService(type, i, next)
+          this._generateService(type, i, volumes, next)
         },
         (err, nodes) => {
           if (err) throw err
@@ -314,7 +337,7 @@ class NetworkCreator extends EventEmitter {
       console.log('all nodes have been generated')
       pool.killAll()
       log('output:', output)
-      cb(null, output)
+      cb(null, output, volumes)
     })
   }
 
@@ -339,7 +362,7 @@ class NetworkCreator extends EventEmitter {
       return mService
   }
 
-  generateMongoService () {
+  generateMongoService (volumes) {
     const mService = {
         image: 'mongo:latest',
         networks: {
@@ -351,13 +374,16 @@ class NetworkCreator extends EventEmitter {
           placement: {
             constraints: ['node.role == manager']
           }
-        }
+        },
+        volumes: ['vmongo1:/data/db', 'vmongo2:/data/configdb']
         // networks: ['outside']
       }
+      volumes.vmongo1 = {}
+      volumes.vmongo2 = {}
       return mService
   }
 
-  generateGethService () {
+  generateGethService (volumes) {
     let gethService = {
       // image: 'geth-dev:latest',
       image: 'darkdragon/geth-with-livepeer-protocol:pm',
@@ -383,16 +409,20 @@ class NetworkCreator extends EventEmitter {
 
       gethService.deploy = {
         replicas: 1,
-        resources: {
-          reservations: {
-            cpus: '0.5',
-            memory: '500M'
-          }
-        },
         placement: {
           constraints: ['node.role == manager']
         }
       }
+      if (this.config.constrainResources) {
+        gethService.deploy.resources = {
+          reservations: {
+            cpus: '0.5',
+            memory: '500M'
+          }
+        }
+      }
+      gethService.volumes = ['vgeth:/root/.ethereum']
+      volumes.vgeth = {}
     }
 
     switch (this.config.blockchain.name) {
@@ -401,6 +431,7 @@ class NetworkCreator extends EventEmitter {
       case 'offchain':
           // no need to run a node.
         break
+      case 'lpTestNet2':
       case 'lpTestNet':
       default:
         return gethService

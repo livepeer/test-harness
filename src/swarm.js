@@ -4,6 +4,7 @@ const { exec, spawn } = require('child_process')
 const { each, eachLimit, timesLimit, parallel } = require('async')
 const shortid = require('shortid')
 const utils = require('./utils/helpers')
+const { wait } = require('./utils/helpers')
 const DIST_DIR = '../dist'
 
 class Swarm {
@@ -12,11 +13,13 @@ class Swarm {
       driver: 'google',
       zone: 'us-east1-b',
       machineType: 'n1-standard-1',
+      managerMachineType: 'n1-standard-1',
       tags: 'swarm-cluster',
       projectId: 'test-harness-226018'
     }
 
     this._managerName = `${name}-manager` || null
+    this._name = name
   }
 
   createMachines (opts, cb) {
@@ -27,7 +30,7 @@ class Swarm {
         this.createMachine({
           name: `${name}-manager`,
           zone: opts.machines.zone,
-          machineType: opts.machines.machineType,
+          machineType: opts.machines.managerMachineType,
           tags: opts.machines.tags || `${name}-cluster`
         }, done)
       },
@@ -186,7 +189,7 @@ class Swarm {
     if (runninMachines.length) {
       runninMachines.sort()
       const machinesToCreate = this.getMachinesToCreateNames(config)
-      console.log(`machines to creagte:`, machinesToCreate)
+      console.log(`machines to create:`, machinesToCreate)
       if (runninMachines.length === machinesToCreate.length &&
         runninMachines.reduce((ac, cv, ci) => ac && (cv === machinesToCreate[ci]), true)
       ) {
@@ -194,6 +197,17 @@ class Swarm {
         console.log(`not removing them. If you want to remove them, run`)
         console.log(`docker-machine rm -y -f ${runninMachines.join(' ')}`)
         await this.stopStack('livepeer')
+        while (true) {
+          await wait(2000) // need to wait while instances gets shutdown
+          try {
+            await this.pruneLocalVolumes(config.name)
+          } catch {
+          }
+          const volumes = await this.getVolumes(config.name + '-manager')
+          if (volumes.filter(n => n.startsWith('livepeer_')).length === 0) {
+            break
+          }
+        }
         return true
       } else {
         await this.tearDown(config.name)
@@ -323,19 +337,80 @@ class Swarm {
   }
 
   stopStack (stackName, cb) {
-    console.log(`Stopping stack ${stackName}`)
+    console.log(`Stopping stack ${stackName} on ${this._managerName}`)
     return new Promise((resolve, reject) => {
       this.setEnv(this._managerName, (err, env) => {
         if (err) throw err
-        exec(`docker stack rm ${stackName}`, {env: env}, (e, r) => {
+        const cmd = `docker stack rm ${stackName}`
+        console.log('running:', cmd)
+        exec(cmd, {env: env}, (e, r) => {
           if (e) {
+            console.log(e)
             reject(e)
           } else {
+            console.log(r)
             resolve(r)
           }
           if (cb) {
             cb(e, r)
           }
+          /*
+          if (e) {
+            console.log('Error removing stack:', e)
+            reject(e)
+            if (cb) cb(e, r)
+            return
+          }
+          console.log(r)
+          console.log('running "docker volume prune -f"')
+          console.log(env)
+          exec('docker volume prune -f', {env}, (e, r) => {
+            if (e) {
+              console.log(e)
+              reject(e)
+            } else {
+              console.log(r)
+              resolve(r)
+            }
+            if (cb) {
+              cb(e, r)
+            }
+          })
+          */
+        })
+      })
+    })
+  }
+
+  async getVolumes (machineName) {
+    const v = await this._runDocker(machineName, 'volume ls -q')
+    return v.trim().split('\n')
+  }
+
+  async pruneLocalVolumes (name) {
+    const rm = await this.getRunningMachinesList(name)
+    for (let mn of rm) {
+      const conts = await this._runDocker(mn, 'ps -f "status=exited" -q')
+      console.log(conts)
+      if (conts.trim()) {
+        await this._runDocker(mn, `rm -f ${conts.trim().split('\n').join(' ')}`)
+      }
+      await wait(1000)
+      const out2 = await this._runDocker(mn, 'volume prune -f')
+      console.log(out2)
+    }
+  }
+
+  async _runDocker(machineName, args) {
+    return new Promise((resolve, reject) => {
+      this.setEnv(machineName, (err, env) => {
+        if (err) {
+          reject(err)
+          throw err
+        }
+        const cmd = 'docker ' + args
+        exec(cmd, {env}, (err, r) => {
+          err ? reject(err) : resolve(r)
         })
       })
     })

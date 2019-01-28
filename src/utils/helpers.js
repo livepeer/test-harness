@@ -72,4 +72,42 @@ function fundRemoteAccount (config, address, valueInEth, serviceName, cb) {
     cb(null, stdout)
   })
 }
-module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount}
+
+function getNames (prefix, num, shift = 0) {
+  return Array.from({length: num}, (_, i) => `${prefix}${i+shift}`)
+}
+
+function spread (items, plts, reverse) {
+  const res = new Map()
+  const rres = new Map()
+  for (let i = 0, oi = 0; i < items.length; i++) {
+    const oname = plts[oi]
+    const p = res.get(oname) || []
+    p.push(items[i])
+    res.set(oname, p)
+    // const rp = rres.get(items[i]) || new Set()
+    // rp.add(oname)
+    rres.set(items[i], oname)
+    oi = ++oi % plts.length
+  }
+  return reverse ? rres : res
+}
+
+function wait(pauseTimeMs, suppressLogs) {
+  if (!suppressLogs) {
+    console.log(`Waiting for ${pauseTimeMs} ms`)
+  }
+  return new Promise(resolve => {
+    setTimeout(() => {
+      if (!suppressLogs) {
+        console.log('Done waiting.')
+      }
+      resolve()
+    }, pauseTimeMs)
+  })
+}
+
+
+module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount,
+  getNames, spread, wait
+}

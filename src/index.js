@@ -11,7 +11,8 @@ const NetworkCreator = require('./networkcreator')
 const Swarm = require('./swarm')
 const Api = require('./api')
 const utils = require('./utils/helpers')
-const { prettyPrintDeploymentInfo, wait } = require('./helpers')
+const { wait } = require('./utils/helpers')
+const { prettyPrintDeploymentInfo } = require('./helpers')
 
 const DIST_DIR = '../dist'
 const DEFAULT_MACHINES = 5
@@ -140,6 +141,7 @@ class TestHarness {
     this.networkCreator = new NetworkCreator(config)
     this.networkCreator.generateComposeFile(`${DIST_DIR}/${config.name}`, (err) => {
       if (err) return handleError(err)
+      // return
 
       if (config.local) {
         this.runLocal(config, cb)

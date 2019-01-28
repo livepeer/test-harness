@@ -12,6 +12,7 @@ th.run({
   // command in go-livepeer repo
   standardSetup: true, // request token, register orchestartors, etc...
   startMetricsServer: true,
+  constrainResources: true,
   name: 'gce',
   livepeerBinaryPath: null, 
   blockchain: {
@@ -23,7 +24,8 @@ th.run({
     num: 3,
     zone: 'us-east1-b',
     // zone: 'europe-west3-b',
-    machineType: 'n1-highcpu-4'
+    machineType: 'n1-highcpu-4',
+    managerMachineType: 'n1-standard-2'
     // machineType: 'n1-standard-2'
   },
   nodes: {
