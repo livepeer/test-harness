@@ -118,10 +118,10 @@ class Swarm {
         if (err) {
           reject(err)
         } else {
-          resolve(ip)
+          resolve(ip.trim())
         }
         if (cb) {
-          cb(err, ip)
+          cb(err, ip.trim())
         }
       })
     })
@@ -231,6 +231,8 @@ class Swarm {
               config.machines.num - 1,
               5,
               (i, next) => {
+                this.join(`${config.name}-worker-${i + 1}`, result.token[0].trim(), result.internalIP[0].trim(), next)
+                /*
                 this.join(`${config.name}-worker-${i + 1}`, result.token[0].trim(), result.internalIP[0].trim(), (err, output) => {
                   if (err) throw err
                   if (config.localBuild) {
@@ -252,6 +254,7 @@ class Swarm {
                       )
                     })
                 })
+                */
               }, (err, results) => {
                 if (err) throw err
                 resolve({
@@ -384,11 +387,28 @@ class Swarm {
   }
 
   restartService (serviceName, cb) {
-    this.setEnv(this._managerName, (err, env) => {
-      if (err) throw err
-      exec(`docker service scale livepeer_${serviceName}=0`, {env}, (err, output) => {
-        if (err) throw err
-        exec(`docker service scale livepeer_${serviceName}=1`, {env}, cb)
+    return new Promise((resolve, reject) => {
+      this.setEnv(this._managerName, (err, env) => {
+        if (err) {
+          reject(err)
+          throw err
+        }
+        exec(`docker service scale livepeer_${serviceName}=0`, {env}, (err, output) => {
+          if (err) {
+            reject(err)
+            throw err
+          }
+          exec(`docker service scale livepeer_${serviceName}=1`, {env}, (err, out) => {
+            if (err) {
+              reject(err)
+            } else {
+              resolve(out)
+            }
+            if (cb) {
+              cb(err, out)
+            }
+          })
+        })
       })
     })
   }

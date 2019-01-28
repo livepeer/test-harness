@@ -11,6 +11,7 @@ const NetworkCreator = require('./networkcreator')
 const Swarm = require('./swarm')
 const Api = require('./api')
 const utils = require('./utils/helpers')
+const { prettyPrintDeploymentInfo, wait } = require('./helpers')
 
 const DIST_DIR = '../dist'
 const DEFAULT_MACHINES = 5
@@ -54,7 +55,7 @@ class TestHarness {
         reject(e)
         throw e
       }
-      console.log('==== PARSED compose yaml:', parsedCompose)
+      // console.log('==== PARSED compose yaml:', parsedCompose)
 
       map(parsedCompose.services, (service, next) => {
         // console.log('service.environment = ', service.environment)
@@ -134,6 +135,8 @@ class TestHarness {
 
     this._config = config
 
+    // this.prettyPrintDeploymentInfo(config)
+    // return
     this.networkCreator = new NetworkCreator(config)
     this.networkCreator.generateComposeFile(`${DIST_DIR}/${config.name}`, (err) => {
       if (err) return handleError(err)
@@ -236,6 +239,7 @@ class TestHarness {
     config.machines.tags = `${config.name}-cluster`
 
     console.log('machines config', config.machines)
+
     if (config.localBuild) {
       await this.networkCreator.buildLocalLpImage()
     }
@@ -243,17 +247,72 @@ class TestHarness {
     const notCreatedNow = await this.swarm.createSwarm(config)
     // result = {internalIp, token, networkId}
     if (!notCreatedNow) {
-      await  this.swarm.createRegistry()
+      await this.swarm.createRegistry()
     }
     // if (err) throw err
     // if (err) console.log('create registry error : ', err)
-
+    let experiment
     if (config.localBuild) {
-      const res = await this.finishSetup(config)
-      return res
+      experiment = await this.finishSetup(config)
+    } else {
+      experiment = await this.setupManager(config)
     }
-    const res = await this.setupManager(config)
+    this.api = new Api(experiment.parsedCompose, experiment.baseUrl)
+    if (config.standardSetup) {
+      await this.standardSetup(config)
+    }
+    await this.swarm.restartService('metrics')
+    console.log('restarted metrics service')
+
+    await this.prettyPrintDeploymentInfo(config, experiment.parsedCompose)
+    return experiment
+  }
+
+  assignBroadcasters2Orchs (config) {
+    const numOrchs = config.nodes.orchestrators.instances
+    const numBroad = config.nodes.broadcasters.instances
+    const res = {}
+    const bnames = Array.from({length: numBroad}, (_, i) => `broadcaster_${i}`)
+    for (let i = 0, oi = 0; i < bnames.length; i++) {
+      const oname = `orchestrator_${oi}`
+      if (!res[oname]) {
+        res[oname] = []
+      }
+      res[oname].push(bnames[i])
+      oi = ++oi % numOrchs
+    }
+    console.log(res)
     return res
+  }
+
+  async prettyPrintDeploymentInfo (config, parsedCompose) {
+    await prettyPrintDeploymentInfo(config.name, parsedCompose)
+  }
+
+  async standardSetup (config) {
+      console.log('requesting tokens')
+      await this.api.requestTokens(['all'])
+      console.log('Depositing....')
+      await this.api.fundAndApproveSigners(['all'], '5000000000', '500000000000000000')
+      console.log('Initialize round...')
+      await this.api.initializeRound(['orchestrator_0'])
+      console.log('activating orchestrators...')
+      await this.api.activateOrchestrator(['orchestrators'], {
+        blockRewardCut: '10',
+        feeShare: '5',
+        pricePerSegment: '1',
+        amount: '500'
+        // ServiceURI will be set by the test-harness.
+      })
+      // bond
+      const o2b = this.assignBroadcasters2Orchs(config)
+      await Promise.all(Object.keys(o2b).map(oname => this.api.bond(o2b[oname], '5000', oname)))
+      const onames = Array.from({length: config.nodes.orchestrators.instances}, (_, i) => `orchestrator_${i}`)
+      await Promise.all(onames.map(n => this.swarm.restartService(n)))
+      console.log(`restarted ${onames.length} orchestrators`)
+      const bnames = Array.from({length: config.nodes.broadcasters.instances}, (_, i) => `broadcaster_${i}`)
+      await Promise.all(bnames.map(n => this.swarm.restartService(n)))
+      console.log(`restarted ${bnames.length} broadcasters`)
   }
 
   setupManager(config) {
@@ -302,7 +361,9 @@ class TestHarness {
 
   async saveLocalDockerImage() {
     return new Promise((resolve, reject) => {
-      exec(`docker save -o /tmp/lpnodeimage.tar lpnode:latest`, (err, stdout) => {
+      // exec(`docker save -o /tmp/lpnodeimage.tar lpnode:latest`, (err, stdout) =>
+      const cmd = 'docker save  lpnode:latest | gzip -9 > /tmp/lpnodeimage.tar.gz'
+      exec(cmd, (err, stdout) => {
         if (err) return reject(err)
         console.log('lpnode image saved')
         resolve()
@@ -315,7 +376,7 @@ class TestHarness {
     return new Promise((resolve, reject) => {
       this.swarm.setEnv(managerName, (err, env) => {
         if (err) return reject(err)
-        exec(`docker load -i /tmp/lpnodeimage.tar`, {env}, (err, stdout) => {
+        exec(`docker load -i /tmp/lpnodeimage.tar.gz`, {env}, (err, stdout) => {
           if (err) return reject(err)
           console.log('lpnode image loaded into swarm ' + managerName)
           resolve()
@@ -325,7 +386,7 @@ class TestHarness {
   }
 
   async fundAccounts(config) {
-    await this.wait(10000)
+    await wait(10000)
     // fund accounts here.
     const results = await this.parseComposeAndGetAddresses(config)
     console.log('=========== GOT RESULTS ', results)
@@ -334,7 +395,7 @@ class TestHarness {
     await this.fundAccountsList(config, results.addresses)
     console.log('funding secured!!')
     const pubIP = await this.swarm.getPubIP(`${config.name}-manager`)
-    await this.wait(10000)
+    await wait(10000)
     return {
       parsedCompose,
       config,
@@ -353,16 +414,6 @@ class TestHarness {
           resolve()
         }
       })
-    })
-  }
-
-  wait(pauseTimeMs) {
-    console.log(`Waiting for ${pauseTimeMs} ms`)
-    return new Promise(resolve => {
-      setTimeout(() => {
-        console.log('Done waiting.')
-        resolve()
-      }, pauseTimeMs)
     })
   }
 }

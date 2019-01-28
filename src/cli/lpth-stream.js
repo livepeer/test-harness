@@ -3,52 +3,84 @@
 const program = require('commander')
 const path = require('path')
 const fs = require('fs')
-const YAML = require('yaml')
 const Streamer = require('../streamer')
 const Swarm = require('../swarm')
+const Api = require('../api')
 const utils = require('../utils/helpers')
+const { parseConfigFromCommandLine } = require('./helpers.js')
+const { wait } = require('../helpers.js')
+
 const DIST_DIR = '../../dist'
 
 program
   .option('-r --remote', 'remote streamer mode. used with GCP test-harness')
   .option('-d --dir [DIR]', 'asset dir, must be absolute dir')
   .option('-f --file [FILE]', 'test mp4 file in the asset dir')
+  .option('-t --to-cloud', 'streams from local machine to cloud')
+  .option('-s --streams <n>', 'maximum number of streams to stream', parseInt)
   .description('starts stream simulator to deployed broadcasters. [WIP]')
 
 program.parse(process.argv)
 
-let configName = program.args
-if (!configName) {
-  console.error('dockercompose file required')
-  process.exit(1)
-} else {
-  configName = configName[0]
-}
-
-let parsedCompose = null
-try {
-  let file = fs.readFileSync(path.resolve(__dirname, `../../dist/${configName}/docker-compose.yml`), 'utf-8')
-  parsedCompose = YAML.parse(file)
-} catch (e) {
-  throw e
-}
-
+const { configName, parsedCompose } = parseConfigFromCommandLine(program.args)
 // console.log('parsedCompose', parsedCompose.services)
 let servicesNames = Object.keys(parsedCompose.services)
 
-let broadcasters = servicesNames.filter((service) => {
+const broadcasters = servicesNames.filter((service) => {
   return (service.match(/broadcaster_*/g))
 })
 
 const st = new Streamer({})
 const swarm = new Swarm(configName)
 
-let baseUrl = 'localhost'
-if (program.remote) {
-  if (!program.dir) {
-    program.dir = `/tmp/assets`
-    program.file = 'BigBuckBunny.mp4'
+
+async function local2cloudStream() {
+  const api = new Api(parsedCompose)
+  const bPorts = await api.getPortsArray(['broadcasters'])
+  if (program.streams && program.streams < bPorts.length) {
+    bPorts.splice(program.streams, bPorts.length - program.streams)
   }
+  console.log(`Streaming ${program.file} to ${bPorts.length} broadcasters in cloud, config ${configName}`)
+
+  const worker1IP = await swarm.getPubIP(`${configName}-worker-1`)
+  console.log(`Worker 1 public ip is "${worker1IP}"`)
+  console.log('Check sreams here:')
+  const m = bPorts.map(po => `curl http://${worker1IP}:${po['8935']}/stream/current.m3u8`)
+  console.log(m.join('\n'))
+  await wait(2000, true)
+
+  await Promise.all(bPorts.map(po => {
+      return st.stream(program.dir, program.file, `rtmp://${worker1IP}:${po['1935']}/anything`)
+  }))
+  console.log('DONE streaming')
+}
+
+// let baseUrl = 'localhost'
+if (!program.dir) {
+  program.file = 'BigBuckBunny.mp4'
+  program.dir = path.resolve(__dirname, `../../assets`)
+  if (!fs.existsSync(path.join(program.dir, program.file))) {
+    program.dir = `/tmp/assets`
+  }
+  const ffn = path.join(program.dir, program.file)
+  if (!fs.existsSync(ffn)) {
+    console.error(`File ${ffn} doesn not exists!`)
+    process.exit(2)
+  }
+}
+
+  // console.log(`streams: "${program.streams}"`)
+// if (program.streams) {
+//   console.log(`streams: "${program.streams}"`)
+//   const s = parseInt(program.streams)
+//   if (isNaN) {
+//     console.log('--streams options should be integer')
+//     process.exit(3)
+//   }
+//   program.streams = s
+// }
+
+if (program.remote) {
   // swarm.getPubIP(`${configName}-manager`, (err, ip) => {
   //   if (err) throw err
   //   baseUrl = ip.trim()
@@ -86,12 +118,9 @@ if (program.remote) {
       }
     )
   })
+} else if (program.toCloud) {
+  local2cloudStream().catch(console.error)
 } else {
-  if (!program.dir) {
-    program.dir = path.resolve('./assets')
-    program.file = 'BigBuckBunny.mp4'
-  }
-
   broadcasters.forEach((broadcaster) => {
     let rtmpPort = getForwardedPort(broadcaster, '1935')
     if (rtmpPort) {

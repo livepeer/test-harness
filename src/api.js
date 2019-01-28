@@ -18,21 +18,37 @@ class Api {
   }
 
   requestTokens (nodes, cb) {
-    let endpoint = `requestTokens`
-    if (!nodes) {
-      return cb(new Error(`nodes array is required`))
-    }
+    return new Promise((resolve, reject) => {
+      let endpoint = `requestTokens`
+      if (!nodes) {
+        const e = new Error(`nodes array is required`)
+        reject(e)
+        if (cb) {
+          cb(e)
+        }
+        return
+      }
 
-    if (!Array.isArray(nodes)) {
-      nodes = [nodes]
-    }
-    this._getPortsArray(nodes, (err, ports) => {
-      if (err) throw err
-      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
-        this._httpPost(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, (err, res, body) => {
-          next(err, res)
+      if (!Array.isArray(nodes)) {
+        nodes = [nodes]
+      }
+      this._getPortsArray(nodes, (err, ports) => {
+        if (err) throw err
+        eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
+          this._httpPost(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, (err, res, body) => {
+            next(err, res)
+          })
+        }, (e, r) => {
+          if (e) {
+            reject(e)
+          } else {
+            resolve(r)
+          }
+          if (cb) {
+            cb(e, r)
+          }
         })
-      }, cb)
+      })
     })
   }
 
@@ -60,76 +76,129 @@ class Api {
   }
 
   initializeRound (nodes, cb) {
-    let endpoint = `initializeRound`
-    if (!nodes) {
-      return cb(new Error(`nodes array is required`))
-    }
+    return new Promise((resolve, reject) => {
+      if (!nodes) {
+        const e = new Error(`nodes array is required`)
+        reject(e)
+        if (cb) {
+          cb(e)
+        }
+        return
+      }
+      let endpoint = `initializeRound`
 
-    if (!Array.isArray(nodes)) {
-      nodes = [nodes]
-    }
+      if (!Array.isArray(nodes)) {
+        nodes = [nodes]
+      }
 
-    this._getPortsArray(nodes, (err, ports) => {
-      if (err) throw err
-      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
-        this._httpPost(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, (err, res, body) => {
-          next(err, res)
+      this._getPortsArray(nodes, (err, ports) => {
+        if (err) throw err
+        eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
+          this._httpPost(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, (err, res, body) => {
+            next(err, res)
+          })
+        }, (e, r) => {
+          if (e) {
+            reject(e)
+          } else {
+            resolve(r)
+          }
+          if (cb) {
+            cb(e, r)
+          }
         })
-      }, cb)
+      })
     })
   }
 
   activateOrchestrator (nodes, params, cb) {
-    let endpoint = `activateOrchestrator`
-    if (!nodes) {
-      return cb(new Error(`nodes array is required`))
-    }
+    return new Promise((resolve, reject) => {
+      if (!nodes) {
+        const e = new Error(`nodes array is required`)
+        reject(e)
+        if (cb) {
+          cb(e)
+        }
+        return
+      }
+      let endpoint = `activateOrchestrator`
 
-    if (!Array.isArray(nodes)) {
-      nodes = [nodes]
-    }
+      if (!Array.isArray(nodes)) {
+        nodes = [nodes]
+      }
 
-    this._getPortsArray(nodes, (err, ports) => {
-      if (err) throw err
-      // TODO, get the service URIs too.
-      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
-        params.serviceURI = `https://${port.name}:8935`
-        this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
-          next(err, res)
+      this._getPortsArray(nodes, (err, ports) => {
+        if (err) throw err
+        // TODO, get the service URIs too.
+        eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
+          params.serviceURI = `https://${port.name}:8935`
+          this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+            next(err, res)
+          })
+        }, (e, r) => {
+          if (e) {
+            reject(e)
+          } else {
+            resolve(r)
+          }
+          if (cb) {
+            cb(e, r)
+          }
         })
-      }, cb)
+      })
     })
   }
 
   bond (nodes, amountInWei, nodeName, cb) {
-    let endpoint = `bond`
-    if (!nodes) {
-      return cb(new Error(`nodes array is required`))
-    }
+    return new Promise((resolve, reject) => {
+      if (!nodes) {
+        const e = new Error(`nodes array is required`)
+        reject(e)
+        if (cb) {
+          cb(e)
+        }
+        return
+      }
+      let endpoint = `bond`
 
-    if (!Array.isArray(nodes)) {
-      nodes = [nodes]
-    }
+      if (!Array.isArray(nodes)) {
+        nodes = [nodes]
+      }
 
-    let toAddr = this._getEthAddr(nodeName)
-    if (!toAddr) {
-      return cb(new Error(`couldn't find ${nodeName}'s ETH address'`))
-    }
+      let toAddr = this._getEthAddr(nodeName)
+      if (!toAddr) {
+        const e = new Error(`couldn't find ${nodeName}'s ETH address'`)
+        reject(e)
+        if (cb) {
+          cb(e)
+        }
+        return
+      }
 
-    console.log(`bonding ${nodes.join(',')} to ${nodeName}: ${toAddr}`)
+      console.log(`bonding ${nodes.join(',')} to ${nodeName}: ${toAddr}`)
 
-    let params = {
-      amount: amountInWei,
-      toAddr: '0x' + toAddr
-    }
+      let params = {
+        amount: amountInWei,
+        toAddr: '0x' + toAddr
+      }
 
-    this._getPortsArray(nodes, (err, ports) => {
-      if (err) throw err
-      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
-        this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
-          next(err, res)
+      this._getPortsArray(nodes, (err, ports) => {
+        if (err) throw err
+        eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
+          this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+            next(err, res)
+          })
+        }, (e, r) => {
+          if (e) {
+            reject(e)
+          } else {
+            resolve(r)
+          }
+          if (cb) {
+            cb(e, r)
+          }
         })
-      }, cb)
+      })
     })
   }
 
@@ -276,27 +345,43 @@ class Api {
 
   // tickerbroker
   fundAndApproveSigners (nodes, depositAmountInWei, penaltyEscrowAmount, cb) {
-    let endpoint = `fundAndApproveSigners`
-    if (!nodes) {
-      return cb(new Error(`nodes array is required`))
-    }
+    return new Promise((resolve, reject) => {
+      let endpoint = `fundAndApproveSigners`
+      if (!nodes) {
+        const e = new Error(`nodes array is required`)
+        reject(e)
+        if (cb) {
+          cb(e)
+        }
+        return
+      }
 
-    if (!Array.isArray(nodes)) {
-      nodes = [nodes]
-    }
+      if (!Array.isArray(nodes)) {
+        nodes = [nodes]
+      }
 
-    let params = {
-      depositAmount: depositAmountInWei,
-      penaltyEscrowAmount: penaltyEscrowAmount
-    }
+      let params = {
+        depositAmount: depositAmountInWei,
+        penaltyEscrowAmount: penaltyEscrowAmount
+      }
 
-    this._getPortsArray(nodes, (err, ports) => {
-      if (err) throw err
-      eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
-        this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
-          next(err, res)
+      this._getPortsArray(nodes, (err, ports) => {
+        if (err) throw err
+        eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
+          this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+            next(err, res)
+          })
+        }, (e, r) => {
+          if (e) {
+            reject(e)
+          } else {
+            resolve(r)
+          }
+          if (cb) {
+            cb(e, r)
+          }
         })
-      }, cb)
+      })
     })
   }
 
@@ -439,53 +524,62 @@ class Api {
     return parsedKey.address
   }
 
+  getPortsArray (nodes) {
+    return this._getPortsArray(nodes)
+  }
+
   _getPortsArray (nodes, cb) {
-    map(nodes, (node, n) => {
-      if (node === 'all') {
-        map(this._config.services, (service, next) => {
-          if (service.image.startsWith('darkdragon/geth') ||
-              service.image.startsWith('darkdragon/livepeermetrics') ||
-              service.image.startsWith('mongo'))
-          {
-            return next()
-          }
-          let ports = this._getPorts(service.ports)
-          next(null, ports)
-        }, (err, results) => {
-          if (err) throw err
-          // concat this to output.
-          n(null, results)
-        })
-      } else if (NODE_TYPES.indexOf(node) !== -1) {
-        console.log('filtering ', node)
-        filter(Object.keys(this._config.services), (service, next) => {
-          next(null, service.match(NODE_REGEX[node]))
-        }, (err, servicesNames) => {
-          if (err) throw err
-          map(servicesNames, (nodeName, next) => {
-            let ports = this._getPorts(this._config.services[nodeName].ports)
-            ports.name = nodeName
+    return new Promise((resolve, reject) => {
+      map(nodes, (node, n) => {
+        if (node === 'all') {
+          map(this._config.services, (service, next) => {
+            if (service.image.startsWith('darkdragon/geth') ||
+                service.image.startsWith('darkdragon/livepeermetrics') ||
+                service.image.startsWith('mongo'))
+            {
+              return next()
+            }
+            let ports = this._getPorts(service.ports)
             next(null, ports)
           }, (err, results) => {
             if (err) throw err
+            // concat this to output.
             n(null, results)
           })
-        })
-      } else {
-        let ports = this._getPorts(this._config.services[node].ports)
-        ports.name = node
-        n(null, [ports])
-      }
-    }, (err, output) => {
-      if (err) throw err
-      // flatten this array of arrays
-      // let flattened = output.flat(1) // this is experimental.
-      let flattened = [].concat.apply([], output)
-      filter(flattened, (url, next) => {
-        next(null, !!url)
-      }, (err, trimmed) => {
+        } else if (NODE_TYPES.indexOf(node) !== -1) {
+          console.log('filtering ', node)
+          filter(Object.keys(this._config.services), (service, next) => {
+            next(null, service.match(NODE_REGEX[node]))
+          }, (err, servicesNames) => {
+            if (err) throw err
+            map(servicesNames, (nodeName, next) => {
+              let ports = this._getPorts(this._config.services[nodeName].ports)
+              ports.name = nodeName
+              next(null, ports)
+            }, (err, results) => {
+              if (err) throw err
+              n(null, results)
+            })
+          })
+        } else {
+          let ports = this._getPorts(this._config.services[node].ports)
+          ports.name = node
+          n(null, [ports])
+        }
+      }, (err, output) => {
         if (err) throw err
-        cb(null, trimmed)
+        // flatten this array of arrays
+        // let flattened = output.flat(1) // this is experimental.
+        let flattened = [].concat.apply([], output)
+        filter(flattened, (url, next) => {
+          next(null, !!url)
+        }, (err, trimmed) => {
+          if (err) throw err
+          resolve(trimmed)
+          if (cb) {
+            cb(null, trimmed)
+          }
+        })
       })
     })
   }
