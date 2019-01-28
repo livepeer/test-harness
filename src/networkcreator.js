@@ -10,7 +10,7 @@ const { timesLimit, each, eachLimit } = require('async')
 const log = require('debug')('livepeer:test-harness:network')
 const spawnThread = require('threads').spawn
 const Pool = require('threads').Pool
-const { getNames, spread } = require('./utils/helpers')
+const { getNames, spread, getServiceConstraints } = require('./utils/helpers')
 
 const pool = new Pool()
 const thread = pool.run(function(input, done) {
@@ -50,15 +50,8 @@ class NetworkCreator extends EventEmitter {
     this.hasMetrics = false
 
     const workers = getNames(`${config.name}-worker-`, config.machines.num-1, 1)
-    const broadcasters = getNames('broadcaster_', config.nodes.broadcasters.instances)
-    const orchestrators = getNames('orchestrator_', config.nodes.orchestrators.instances)
-    const transcoders = getNames('transcoder_', config.nodes.transcoders.instances)
-
-    this._serviceConstraints = {
-      broadcaster: spread(broadcasters, workers, true),
-      orchestrator: spread(orchestrators, workers, true),
-      transcoder: spread(transcoders, workers, true),
-    }
+    const n = config.nodes
+    this._serviceConstraints = getServiceConstraints(workers, n.broadcasters.instances, n.orchestrators.instances, n.transcoders.instances)
   }
 
   isPortUsed (port) {

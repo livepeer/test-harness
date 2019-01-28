@@ -11,7 +11,7 @@ const NetworkCreator = require('./networkcreator')
 const Swarm = require('./swarm')
 const Api = require('./api')
 const utils = require('./utils/helpers')
-const { wait } = require('./utils/helpers')
+const { wait, getNames } = require('./utils/helpers')
 const { prettyPrintDeploymentInfo } = require('./helpers')
 
 const DIST_DIR = '../dist'
@@ -266,7 +266,8 @@ class TestHarness {
     await this.swarm.restartService('metrics')
     console.log('restarted metrics service')
 
-    await this.prettyPrintDeploymentInfo(config, experiment.parsedCompose)
+    const workers = getNames(`${config.name}-worker-`, config.machines.num-1, 1)
+    await prettyPrintDeploymentInfo(workers, config.name, experiment.parsedCompose)
     return experiment
   }
 
@@ -285,10 +286,6 @@ class TestHarness {
     }
     console.log(res)
     return res
-  }
-
-  async prettyPrintDeploymentInfo (config, parsedCompose) {
-    await prettyPrintDeploymentInfo(config.name, parsedCompose)
   }
 
   async standardSetup (config) {

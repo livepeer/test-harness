@@ -107,7 +107,19 @@ function wait(pauseTimeMs, suppressLogs) {
   })
 }
 
+function getServiceConstraints(workers, bs, os, ts) {
+    const broadcasters = getNames('broadcaster_', bs)
+    const orchestrators = getNames('orchestrator_', os)
+    const transcoders = getNames('transcoder_', ts)
+
+    return {
+      broadcaster: spread(broadcasters, workers, true),
+      orchestrator: spread(orchestrators, workers, true),
+      transcoder: spread(transcoders, workers, true),
+    }
+}
+
 
 module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount,
-  getNames, spread, wait
+  getNames, spread, wait, getServiceConstraints
 }

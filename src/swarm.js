@@ -619,13 +619,13 @@ class Swarm {
   getRunningMachinesList(name) {
     return new Promise((resolve, reject) => {
       const cmd = `docker-machine ls -q --filter "name=${name}-([a-z]+)" -filter "state=Running"`
-      console.log(cmd)
+      // console.log(cmd)
       exec(cmd, (err, output) => {
         if (err) {
           reject(err)
         } else {
           const machines = output.trim().split('\n')
-          console.log('found running machines: ', machines)
+          // console.log('found running machines: ', machines)
           resolve(machines)
         }
       })
