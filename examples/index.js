@@ -35,7 +35,7 @@ th.run({
     controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982',
   },
   machines: {
-    num: 3,
+    num: 5,
     zone: 'us-east1-b',
     machineType: 'n1-highcpu-4'
   },
@@ -50,13 +50,13 @@ th.run({
         -orchAddr https://orchestrator_0:8935 -orchSecret test'
     },
     orchestrators: {
-      instances: 2,
+      instances: 4,
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `--v 99 -initializeRound=true -gasPrice 200 -gasLimit 2000000 \
-      -monitor=false -currentManifest=true -orchestrator`
+      -monitor=false -currentManifest=true -transcoder`
     },
     broadcasters: {
-      instances: 6,
+      instances: 12,
       flags: `--v 99 -gasPrice 200 -gasLimit 2000000 \
       -monitor=false -currentManifest=true`
     }
@@ -92,12 +92,26 @@ th.run({
         (done) => {
           api.bond([
             'broadcaster_0', 'broadcaster_1', 'broadcaster_2'
-          ], '5000', 'orchestrator_0', done)
+          ], '1000', 'orchestrator_0', done)
         },
         (done) => {
           api.bond([
             'broadcaster_3', 'broadcaster_4', 'broadcaster_5'
-          ], '5000', 'orchestrator_1', done)
+          ], '1000', 'orchestrator_1', done)
+        },
+      ], next)
+    },
+    (next) => {
+      parallel([
+        (done) => {
+          api.bond([
+            'broadcaster_6', 'broadcaster_7', 'broadcaster_8'
+          ], '1000', 'orchestrator_2', done)
+        },
+        (done) => {
+          api.bond([
+            'broadcaster_9', 'broadcaster_10', 'broadcaster_11'
+          ], '1000', 'orchestrator_3', done)
         },
       ], next)
     },
@@ -109,9 +123,19 @@ th.run({
     //   ], '5000', 'orchestrator_1', next)
     // },
     (next) => {
-      swarm.restartService('orchestrator_0', (logs) => {
-        console.log('restarted orchestrator')
-        next()
+      // swarm.restartService('orchestrator_0', (logs) => {
+      //   console.log('restarted orchestrator')
+      //   next()
+      // })
+
+      api._getPortsArray(['orchestrators'], (err, ports) => {
+        if (err) throw err
+        eachLimit(ports, 3, (port, n) => {
+          swarm.restartService(port.name, (logs) => {
+            console.log('restarted orchestrator', port.name)
+            n()
+          })
+        }, next)
       })
     },
     (next) => {

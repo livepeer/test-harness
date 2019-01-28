@@ -74,6 +74,33 @@ class TestHarness {
     })
   }
 
+  onReady(config, cb) {
+    if (config.local) {
+
+    } else {
+      this.parseComposeAndGetAddresses(config, (err, results) => {
+        if (err) throw err
+        let parsedCompose = results.parsedCompose
+        eachLimit(results.addresses, 5, (address, cb) => {
+          utils.fundRemoteAccount(config.name, address, '1', `livepeer_geth`, cb)
+        }, (err) => {
+          if (err) throw err
+          console.log('funding secured!!')
+          this.swarm.getPubIP(`${config.name}-manager`, (err, pubIP) => {
+            if (err) throw err
+            setTimeout(() => {
+              cb(null, {
+                parsedCompose,
+                baseUrl: pubIP.trim(),
+                config: config
+              })
+            }, 10000)
+          })
+        })
+      })
+    }
+  }
+
   run (config, cb) {
     // 1. [ ] validate the configurations
     // 2. [x] provision GCP machines
@@ -186,7 +213,10 @@ class TestHarness {
 
         console.log('machines config', config.manchines)
         this.swarm.createSwarm(config, (err, result) => {
-          if (err) throw err
+          // if (err) {
+          //   // machine exists
+          //   return this.onReady(config, cb)
+          // }
           // result = {internalIp, token, networkId}
           this.swarm.createRegistry((err, stdout) => {
             // if (err) throw err
@@ -207,7 +237,7 @@ class TestHarness {
                     this.parseComposeAndGetAddresses(config, (err, results) => {
                       if (err) throw err
                       let parsedCompose = results.parsedCompose
-                      eachLimit(results.addresses, 10, (address, cb) => {
+                      eachLimit(results.addresses, 5, (address, cb) => {
                         utils.fundRemoteAccount(config.name, address, '1', `livepeer_geth`, cb)
                       }, (err) => {
                         if (err) throw err

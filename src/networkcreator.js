@@ -154,6 +154,20 @@ class NetworkCreator extends EventEmitter {
           'gcp-project': 'test-harness-226018'
         }
       }
+      if (type === 'orchestrator' || type == 'transcoder') {
+        generated.deploy = {
+          replicas: 1,
+          resources: {
+            reservations: {
+              cpus: '0.2',
+              memory: '100M'
+            }
+          },
+          placement: {
+            constraints: ['node.role == worker']
+          }
+        }
+      }
     }
     // cb(null, generated)
     this.getEnvVars((err, envObj) => {
@@ -229,6 +243,13 @@ class NetworkCreator extends EventEmitter {
       }
 
       gethService.deploy = {
+        replicas: 1,
+        resources: {
+          reservations: {
+            cpus: '0.5',
+            memory: '500M'
+          }
+        },
         placement: {
           constraints: ['node.role == manager']
         }
@@ -258,14 +279,17 @@ class NetworkCreator extends EventEmitter {
     // default datadir
     output.push(`-datadir /lpData`)
 
-    if (nodeType === 'transcoder' || nodeType === 'orchestrator') {
+    if (nodeType === 'transcoder' ) { //|| nodeType === 'orchestrator') {
       output.push('-transcoder')
+    } else if (nodeType === 'orchestrator') {
+      output.push('-orchestrator')
     }
 
     switch (this.config.blockchain.name) {
       case 'rinkeby':
         output.push('-rinkeby')
         break
+      case 'lpTestNet2':
       case 'lpTestNet':
         output.push('-devenv')
         output.push(`-ethUrl ws://geth:8546`)

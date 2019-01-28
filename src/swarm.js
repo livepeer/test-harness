@@ -169,6 +169,7 @@ class Swarm {
           // call this again after it's down.
           this.createSwarm(config, cb)
         })
+        // return cb(new Error(`AlreadyExists`))
       } else {
         // createMachines
         this.createMachines(config, (err) => {
@@ -196,21 +197,21 @@ class Swarm {
                 config.machines.num - 1,
                 5,
                 (i, next) => {
-                  this.join(`${config.name}-worker-${i + 1}`, result.token[0].trim(), result.internalIP[0].trim(), (err, output) => {
-                    if (err) throw err
-                    utils.remotelyExec(
-                      `${config.name}-worker-${i + 1}`,
-                      `mkdir -p /tmp/assets`,
-                      (err, output) => {
-                        if (err) throw err
-                        this.rsync(
-                          `${config.name}-worker-${i + 1}`,
-                          `gs://lp_testharness_assets`,
-                          `/tmp/assets`,
-                          next
-                        )
-                      })
-                  })
+                  this.join(`${config.name}-worker-${i + 1}`, result.token[0].trim(), result.internalIP[0].trim(), next) // (err, output) => {
+                    // if (err) throw err
+                    // utils.remotelyExec(
+                    //   `${config.name}-worker-${i + 1}`,
+                    //   `mkdir -p /tmp/assets`,
+                    //   (err, output) => {
+                    //     if (err) throw err
+                    //     this.rsync(
+                    //       `${config.name}-worker-${i + 1}`,
+                    //       `gs://lp_testharness_assets`,
+                    //       `/tmp/assets`,
+                    //       next
+                    //     )
+                    //   })
+                  // })
                 }, (err, results) => {
                   if (err) throw err
                   cb(null, {
@@ -394,16 +395,16 @@ class Swarm {
     })
   }
 
-  // updateStack (cb) {
-  //   // 1. remove old stack.
-  //   // 2. update docker-compose.yml.
-  //   // 3. deploy new stack.
-  //   // 4. profit.
-  //   this.stopStack(`livepeer`, (err, resp) => {
-  //     if (err) throw err
-  //
-  //   })
-  // }
+  updateStack (cb) {
+    // 1. remove old stack.
+    // 2. update docker-compose.yml.
+    // 3. deploy new stack.
+    // 4. profit.
+    this.stopStack(`livepeer`, (err, resp) => {
+      if (err) throw err
+      cb()
+    })
+  }
 
   tearDown (name, cb) {
     exec(`docker-machine ls -q --filter "name=${name}-([a-z]+)"`, (err, output) => {
