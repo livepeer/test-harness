@@ -8,7 +8,8 @@ const Swarm = require('../swarm')
 const Api = require('../api')
 const utils = require('../utils/helpers')
 const { wait } = require('../utils/helpers')
-const { parseConfigFromCommandLine } = require('./helpers.js')
+const { parseConfigFromCommandLine,  } = require('./helpers')
+const { getPublicIPOfService } = require('../helpers')
 
 const DIST_DIR = '../../dist'
 
@@ -42,16 +43,24 @@ async function local2cloudStream() {
   }
   console.log(`Streaming ${program.file} to ${bPorts.length} broadcasters in cloud, config ${configName}`)
 
-  const worker1IP = await swarm.getPubIP(`${configName}-worker-1`)
-  console.log(`Worker 1 public ip is "${worker1IP}"`)
-  console.log('Check sreams here:')
-  const m = bPorts.map(po => `curl http://${worker1IP}:${po['8935']}/stream/current.m3u8`)
-  console.log(m.join('\n'))
+  const checkURLs = []
+  for (let po of bPorts) {
+    const ip = await getPublicIPOfService(configName, parsedCompose, po.name)
+    const m = `curl http://${ip}:${po['8935']}/stream/current.m3u8`
+    checkURLs.push(m)
+  }
+  console.log('Check streams here:')
+  console.log(checkURLs.join('\n'))
   await wait(2000, true)
 
-  await Promise.all(bPorts.map(po => {
-      return st.stream(program.dir, program.file, `rtmp://${worker1IP}:${po['1935']}/anything`)
-  }))
+  const tasks = []
+  for (let po of bPorts) {
+      const ip = await getPublicIPOfService(configName, parsedCompose, po.name)
+      const task = st.stream(program.dir, program.file, `rtmp://${ip}:${po['1935']}/anything`)
+      tasks.push(task)
+  }
+
+  await Promise.all(tasks)
   console.log('DONE streaming')
 }
 

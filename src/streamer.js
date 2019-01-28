@@ -38,7 +38,7 @@ class Streamer extends EventEmitter {
   // }
 
   stream (dir, input, output) {
-    return new Promise((resove, reject) => {
+    return new Promise((resolve, reject) => {
       let args = [
         'run',
         '-v',
