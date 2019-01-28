@@ -5,51 +5,112 @@ const path = require('path')
 const fs = require('fs')
 const YAML = require('yaml')
 const Streamer = require('../streamer')
+const Swarm = require('../swarm')
+const utils = require('../utils/helpers')
+const DIST_DIR = '../../dist'
 
 program
+  .option('-r --remote', 'remote streamer mode. used with GCP test-harness')
   .option('-d --dir [DIR]', 'asset dir, must be absolute dir')
   .option('-f --file [FILE]', 'test mp4 file in the asset dir')
   .description('starts stream simulator to deployed broadcasters. [WIP]')
 
 program.parse(process.argv)
 
-let configFilePath = program.args
-if (!configFilePath) {
+let configName = program.args
+if (!configName) {
   console.error('dockercompose file required')
   process.exit(1)
 } else {
-  configFilePath = configFilePath[0]
+  configName = configName[0]
 }
 
 let parsedCompose = null
 try {
-  let file = fs.readFileSync(path.resolve(configFilePath), 'utf-8')
+  let file = fs.readFileSync(path.resolve(__dirname, `../../dist/${configName}/docker-compose.yml`), 'utf-8')
   parsedCompose = YAML.parse(file)
 } catch (e) {
   throw e
 }
 
-console.log('parsedCompose', parsedCompose.services)
-
+// console.log('parsedCompose', parsedCompose.services)
 let servicesNames = Object.keys(parsedCompose.services)
 
 let broadcasters = servicesNames.filter((service) => {
-  return (service.match(/lp_b_*/g))
+  return (service.match(/broadcaster_*/g))
 })
 
 const st = new Streamer({})
+const swarm = new Swarm(configName)
 
-if (!program.dir) {
-  program.dir = path.resolve('./assets')
-  program.file = 'BigBuckBunny.mp4'
+let baseUrl = 'localhost'
+if (program.remote) {
+  if (!program.dir) {
+    program.dir = `/tmp/assets`
+    program.file = 'BigBuckBunny.mp4'
+  }
+  // swarm.getPubIP(`${configName}-manager`, (err, ip) => {
+  //   if (err) throw err
+  //   baseUrl = ip.trim()
+  //
+  //   swarm.setEnv(`${configName}-manager`, (err, env) => {
+  //     if (err) throw err
+  //     broadcasters.forEach((broadcaster) => {
+  //       // let broadcaster = `lp_broadcaster_0`
+  //       let rtmpPort = getForwardedPort(broadcaster, '1935')
+  //       if (rtmpPort) {
+  //         st.rStream(broadcaster, env, program.dir, program.file, `rtmp://${baseUrl}:${rtmpPort}`)
+  //       }
+  //     })
+  //   })
+  // })
+  console.log('generating compose')
+  st.generateComposeFile(broadcasters, program.dir, program.file, path.resolve(__dirname, `../../dist/${configName}`), (err, result) => {
+    if (err) throw err
+    console.log('done', result)
+    swarm.scp(
+      path.resolve(__dirname, `../../dist/${configName}/stream-stack.yml`),
+      `${configName}-manager:/tmp/config/stream-stack.yml`, ``,
+      (err, output) => {
+        if (err) throw err
+        console.log('uploaded stream-stack.yml')
+        utils.remotelyExec(
+          `${configName}-manager`,
+          `cd /tmp/config && sudo docker stack deploy -c stream-stack.yml streamer`,
+          (err, outputBuf) => {
+            if (err) throw err
+            console.log('stack deployed', (outputBuf) ? outputBuf.toString() : null)
+          })
+      }
+    )
+  })
+} else {
+  if (!program.dir) {
+    program.dir = path.resolve('./assets')
+    program.file = 'BigBuckBunny.mp4'
+  }
+
+  broadcasters.forEach((broadcaster) => {
+    let rtmpPort = getForwardedPort(broadcaster, '1935')
+    if (rtmpPort) {
+      st.stream(program.dir, program.file, `rtmp://localhost:${rtmpPort}`)
+    }
+  })
 }
 
-broadcasters.forEach((broadcaster) => {
-  let rtmpPort = getForwardedPort(broadcaster, '1935')
-  if (rtmpPort) {
-    st.stream(program.dir, program.file, `rtmp://localhost:${rtmpPort}`)
-  }
-})
+//
+//
+// if (!program.dir) {
+//   program.dir = path.resolve('./assets')
+//   program.file = 'BigBuckBunny.mp4'
+// }
+//
+// broadcasters.forEach((broadcaster) => {
+//   let rtmpPort = getForwardedPort(broadcaster, '1935')
+//   if (rtmpPort) {
+//     st.stream(program.dir, program.file, `rtmp://localhost:${rtmpPort}`)
+//   }
+// })
 
 // let p = getForwardedPort('lp_b_0', '7935')
 // console.log(p)

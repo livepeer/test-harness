@@ -2,7 +2,7 @@
 
 const { exec, spawn } = require('child_process')
 const Swarm = require('../src/swarm')
-const { series, eachLimit, parallel } = require('async')
+const { series, eachLimit } = require('async')
 const Api = require('../src/api')
 const TestHarness = require('../src/index')
 let th = new TestHarness()
@@ -24,10 +24,23 @@ let th = new TestHarness()
 //     })
 //   })
 // })
+//
+// let bondingArr = []
+// for (let i = 0; i < 25; i += 2) {
+//   bondingArr.push([range(i, i + 2, 'broadcaster_'), '5000', `orchestrator_${(i%2 === 0) ? i : i - 1}`])
+// }
+//
+// eachLimit(bondingArr, 3, (group, done) => {
+//   console.log(group[0], group[1], group[2])
+//   done()
+// }, (err) => {
+//   if (err) throw err
+//   console.log('done')
+// })
 
 th.run({
   local: false,
-  name: 'test321',
+  name: 'test100',
   livepeerBinaryPath: null, // this will use the livepeer binary in the GCP bucket.
   blockchain: {
     name: 'lpTestNet',
@@ -35,14 +48,14 @@ th.run({
     controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982',
   },
   machines: {
-    num: 5,
+    num: 20,
     zone: 'us-east1-b',
-    machineType: 'n1-highcpu-4'
+    machineType: 'n1-standard-2'
   },
   nodes: {
     transcoders: {
       // how many containers to run as transcoders.
-      instances: 1,
+      instances: 0,
       // these are the livepeer binary flags, add them as you wish.
       // the test-harness overrides flags that has to do with directories or
       // ip/port bindings, these are automated.
@@ -50,14 +63,16 @@ th.run({
         -orchAddr https://orchestrator_0:8935 -orchSecret test'
     },
     orchestrators: {
-      instances: 4,
+      instances: 25,
       // TODO these are not complete, try adding the right orchestrator flags :)
-      flags: `--v 99 -initializeRound=true -gasPrice 200 -gasLimit 2000000 \
+      flags: `--v 4 -initializeRound=true \
+      -gasPrice 200 -gasLimit 2000000 \
       -monitor=false -currentManifest=true -transcoder`
     },
     broadcasters: {
-      instances: 12,
-      flags: `--v 99 -gasPrice 200 -gasLimit 2000000 \
+      instances: 50,
+      flags: `--v 4 \
+      -gasPrice 200 -gasLimit 2000000 \
       -monitor=false -currentManifest=true`
     }
   }
@@ -88,46 +103,16 @@ th.run({
       }, next)
     },
     (next) => {
-      parallel([
-        (done) => {
-          api.bond([
-            'broadcaster_0', 'broadcaster_1', 'broadcaster_2'
-          ], '1000', 'orchestrator_0', done)
-        },
-        (done) => {
-          api.bond([
-            'broadcaster_3', 'broadcaster_4', 'broadcaster_5'
-          ], '1000', 'orchestrator_1', done)
-        },
-      ], next)
-    },
-    (next) => {
-      parallel([
-        (done) => {
-          api.bond([
-            'broadcaster_6', 'broadcaster_7', 'broadcaster_8'
-          ], '1000', 'orchestrator_2', done)
-        },
-        (done) => {
-          api.bond([
-            'broadcaster_9', 'broadcaster_10', 'broadcaster_11'
-          ], '1000', 'orchestrator_3', done)
-        },
-      ], next)
-    },
-    // (next) => {
-    //   api.bond([
-    //     'broadcaster_3',
-    //     'broadcaster_4',
-    //     'broadcaster_5'
-    //   ], '5000', 'orchestrator_1', next)
-    // },
-    (next) => {
-      // swarm.restartService('orchestrator_0', (logs) => {
-      //   console.log('restarted orchestrator')
-      //   next()
-      // })
+      let bondingArr = []
+      for (let i = 0; i < 25; i += 2) {
+        bondingArr.push([range(i, i + 2, 'broadcaster_'), '5000', `orchestrator_${i}`])
+      }
 
+      eachLimit(bondingArr, 1, (group, done) => {
+        api.bond(group[0], group[1], group[2], done)
+      }, next)
+    },
+    (next) => {
       api._getPortsArray(['orchestrators'], (err, ports) => {
         if (err) throw err
         eachLimit(ports, 3, (port, n) => {
@@ -154,3 +139,12 @@ th.run({
     console.log('done!')
   })
 })
+
+function range (start, stop, prefix) {
+  let arr = []
+  for (let i = start; i < stop; i++) {
+    arr.push(`${prefix}${i}`)
+  }
+
+  return arr
+}

@@ -2,6 +2,8 @@
 
 const { EventEmitter } = require('events')
 const { exec, spawn } = require('child_process')
+const composefile = require('composefile')
+const { each } = require('async')
 const { URL } = require('url')
 const path = require('path')
 
@@ -66,6 +68,142 @@ class Streamer extends EventEmitter {
 
     args.push(output)
     this.streams[output] = spawn('docker', args)
+
+    this.streams[output].stdout.on('data', (data) => {
+      console.log(`stdout: ${data}`)
+    })
+    this.streams[output].stderr.on('data', (data) => {
+      console.log(`stderr: ${data}`)
+    })
+
+    this.streams[output].on('close', (code) => {
+      console.log(`${output} child process exited with code ${code}`)
+    })
+
+    return this.streams[output]
+  }
+
+  _generateService (broadcaster, sourceDir, input, destination, cb) {
+    let parsedOutput = null
+    // validate output
+    try {
+      parsedOutput = new URL(destination)
+    } catch (e) {
+      throw e
+    }
+    if (parsedOutput.protocol && parsedOutput.protocol !== 'rtmp:') {
+      console.log(parsedOutput)
+      console.error(`streamer can only output to rtmp endpoints, ${parsedOutput.protocol} is not supported`)
+      // TODO throw error here.
+      return
+    }
+
+    let generated = {
+      image: 'localhost:5000/streamer:latest',
+      networks: {
+        testnet: {
+          aliases: [`streamer_${broadcaster}`]
+        }
+      },
+      command: `-re -i /temp/${input} ${DEFAULT_ARGS} ${parsedOutput}`,
+      // volumes: [`assets:/temp/`]
+    }
+
+    generated.logging = {
+      driver: 'gcplogs',
+      options: {
+        'gcp-project': 'test-harness-226018'
+      }
+    }
+    console.log('generated: ', generated)
+    cb(null, generated)
+  }
+
+  _generateStreamServices (broadcasters, sourceDir, input, cb) {
+    let output = {}
+    each(broadcasters, (broadcaster, next) => {
+      this._generateService(broadcaster, sourceDir, input, `rtmp://${broadcaster}:1935`, (err, service) => {
+        if (err) return next(err)
+        output[broadcaster] = service
+        next(null, service)
+      })
+    }, (err, result) => {
+      if (err) throw err
+      console.log('output ', output)
+      cb(null, output)
+    })
+  }
+
+  generateComposeFile (broadcasters, sourceDir, input, outputPath, cb) {
+    let output = {
+      version: '3',
+      outputFolder: path.resolve(__dirname, outputPath),
+      filename: 'stream-stack.yml',
+      services: {},
+      networks: {
+        testnet: {
+          driver: 'overlay',
+          external: true
+        }
+      },
+      // volumes: {
+      //   assets: {
+      //     driver: 'local',
+      //     driver_opts: {
+      //       type: 'none',
+      //       o: 'bind',
+      //       mount: '/tmp/assets'
+      //     }
+      //   }
+      // }
+    }
+
+    this._generateStreamServices(broadcasters, sourceDir, input, (err, services) => {
+      if (err) throw err
+      output.services = services
+      console.log('got services: ', services)
+      // this.nodes = output.services
+      composefile(output, cb)
+    })
+  }
+
+  rStream (name, env, dir, input, output) {
+    let args = [
+      'service',
+      'create',
+      '--name',
+      `streamer_${name}`,
+      '--network',
+      'testnet',
+      '--replicas',
+      '1',
+      '--mount',
+      `type=bind,source=${dir},destination=/temp/`,
+      'jrottenberg/ffmpeg:4.0-ubuntu',
+      '-re',
+      '-i',
+      // path.resolve(input)
+      `/temp/${input}`
+    ]
+
+    args = args.concat(DEFAULT_ARGS.split(' '))
+
+    let parsedOutput = null
+    // validate output
+    try {
+      parsedOutput = new URL(output)
+    } catch (e) {
+      throw e
+    }
+    if (parsedOutput.protocol && parsedOutput.protocol !== 'rtmp:') {
+      console.log(parsedOutput)
+      console.error(`streamer can only output to rtmp endpoints, ${parsedOutput.protocol} is not supported`)
+      // TODO throw error here.
+      return
+    }
+
+    args.push(output)
+    this.streams[output] = spawn('docker', args, {env: env})
 
     this.streams[output].stdout.on('data', (data) => {
       console.log(`stdout: ${data}`)

@@ -59,4 +59,16 @@ function fundAccount (address, valueInEth, containerId, cb) {
   })
 }
 
-module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount}
+function fundRemoteAccount (name, address, valueInEth, serviceName, cb) {
+  // NOTE: this requires the geth container to be running and account[0] to be unlocked.
+  remotelyExec(
+    `${name}-manager`,
+    `sudo docker exec livepeer_geth.1.$(sudo docker service ps -q livepeer_geth) geth --exec 'eth.sendTransaction({from: eth.accounts[0], to: "${address}", value: web3.toHex(web3.toWei("${valueInEth}", "ether"))})' attach`,
+  (err, stdout, stderr) => {
+    if (err) throw err
+    console.log('stdout: ', stdout)
+    console.log('stderr: ', stderr)
+    cb(null, stdout)
+  })
+}
+module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount}

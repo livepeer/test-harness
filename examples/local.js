@@ -19,7 +19,7 @@ th.run({
   nodes: {
     transcoders: {
       // how many containers to run as transcoders.
-      instances: 1,
+      instances: 0,
       // these are the livepeer binary flags, add them as you wish.
       // the test-harness overrides flags that has to do with directories or
       // ip/port bindings, these are automated.
@@ -29,11 +29,13 @@ th.run({
       instances: 1,
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `--v 4 -initializeRound=true \
-      -monitor=false -currentManifest=true -orchestrator`
+      -gasPrice 200 -gasLimit 2000000 \
+      -monitor=false -currentManifest=true -transcoder`
     },
     broadcasters: {
       instances: 2,
-      flags: `--v 99 \
+      flags: `--v 4 \
+      -gasPrice 200 -gasLimit 2000000 \
       -monitor=false -currentManifest=true`
     }
   }
@@ -43,35 +45,41 @@ th.run({
   console.log('so far so good')
   // Now we have a running network.
   // lets get some tokens, do some deposits and activate transcoders
-  var api = new Api(experiment)
+  let api = new Api(experiment.parsedCompose)
   // NOTE: all API methods are based on `livepeer_cli`
   // the first parameter is always an array that can be
   // 'all' , all the livepeer nodes.
   // 'broadcasters', 'transcoders', 'orchestrators' : types of nodes.
   // 'lp_broadcaster_0' : a single lp node.
   series([
-    (next) => { api.requestTokens(['all'], next) },
-    (next) => { api.fundDeposit(['all'], '5000000000000', next) },
-    (next) => { api.initializeRound(['lp_transcoder_0'], next) },
     (next) => {
-      console.log('activating transcoders...')
+      console.log('requesting tokens')
+      api.requestTokens(['all'], next)
+    },
+    (next) => {
+      console.log('Depositing....')
+      api.fundAndApproveSigners(['all'], '5000000000', '500000000000000000', next)
+    },
+    (next) => { api.initializeRound(['orchestrator_0'], next) },
+    (next) => {
+      console.log('activating orchestrators...')
       api.activateOrchestrator(['orchestrators'], {
         blockRewardCut: '10',
         feeShare: '5',
         pricePerSegment: '1',
-        amount: '500000'
+        amount: '500'
         // ServiceURI will be set by the test-harness.
       }, next)
     },
-    (next) => { api.bond(['lp_broadcaster_0'], '5000', 'lp_orchestrator_0', next) },
+    (next) => { api.bond(['broadcasters'], '5000', 'orchestrator_0', next) },
     (next) => {
-      th.restartService('lp_orchestrator_0', (logs) => {
+      th.restartService('orchestrator_0', (logs) => {
         console.log('restarted orchestrator')
         next()
       })
     },
     (next) => {
-      th.restartService('lp_broadcaster_0', (logs) => {
+      th.restartService('broadcaster_0', (logs) => {
         console.log('restarted broadcaster')
         next()
       })
