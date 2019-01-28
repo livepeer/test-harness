@@ -48,9 +48,9 @@ th.run({
     controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982',
   },
   machines: {
-    num: 20,
+    num: 10,
     zone: 'us-east1-b',
-    machineType: 'n1-standard-2'
+    machineType: 'n1-highcpu-4'
   },
   nodes: {
     transcoders: {
@@ -63,15 +63,15 @@ th.run({
         -orchAddr https://orchestrator_0:8935 -orchSecret test'
     },
     orchestrators: {
-      instances: 25,
+      instances: 10,
       // TODO these are not complete, try adding the right orchestrator flags :)
-      flags: `--v 4 -initializeRound=true \
+      flags: `--v 99 -initializeRound=true \
       -gasPrice 200 -gasLimit 2000000 \
       -monitor=false -currentManifest=true -transcoder`
     },
     broadcasters: {
-      instances: 50,
-      flags: `--v 4 \
+      instances: 20,
+      flags: `--v 99 \
       -gasPrice 200 -gasLimit 2000000 \
       -monitor=false -currentManifest=true`
     }
@@ -104,8 +104,9 @@ th.run({
     },
     (next) => {
       let bondingArr = []
-      for (let i = 0; i < 25; i += 2) {
-        bondingArr.push([range(i, i + 2, 'broadcaster_'), '5000', `orchestrator_${i}`])
+      for (let i = 0; i < 10; i++) {
+        let start = i * 2
+        bondingArr.push([range(start, start + 2, 'broadcaster_'), '1000', `orchestrator_${i}`])
       }
 
       eachLimit(bondingArr, 1, (group, done) => {

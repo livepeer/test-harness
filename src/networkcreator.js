@@ -151,16 +151,19 @@ class NetworkCreator extends EventEmitter {
       generated.logging = {
         driver: 'gcplogs',
         options: {
-          'gcp-project': 'test-harness-226018'
+          'gcp-project': 'test-harness-226018',
+          'gcp-log-cmd': 'true',
+          'labels': `type=${type},node=${type}_${i}`
         }
       }
-      if (type === 'orchestrator' || type == 'transcoder') {
+
+      if (type === 'orchestrator' || type === 'transcoder') {
         generated.deploy = {
           replicas: 1,
           resources: {
             reservations: {
-              cpus: '0.2',
-              memory: '100M'
+              cpus: '0.25',
+              memory: '250M'
             }
           },
           placement: {

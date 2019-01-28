@@ -74,7 +74,7 @@ class TestHarness {
     })
   }
 
-  onReady(config, cb) {
+  onReady (config, cb) {
     if (config.local) {
 
     } else {
