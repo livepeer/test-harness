@@ -3,7 +3,7 @@
 cd /tmp
 mkdir -p /tmp/streamer/assets
 cd /tmp/streamer
-echo "FROM jrottenberg/ffmpeg:4.0-ubuntu \n\
+echo "FROM jrottenberg/ffmpeg:4.0-alpine \n\
   COPY ./assets /temp \n\
   CMD ["--help"] \n\
   " > Dockerfile

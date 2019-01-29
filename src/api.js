@@ -1,7 +1,10 @@
 'use strict'
 
 const request = require('request')
+const axios = require('axios')
 const { map, each, eachLimit, filter } = require('async')
+const { wait } = require('./utils/helpers')
+
 const NODE_TYPES = ['broadcasters', 'transcoders', 'orchestrators']
 const NODE_REGEX = {
   broadcasters: /broadcaster_/g,
@@ -131,10 +134,11 @@ class Api {
         if (err) throw err
         // TODO, get the service URIs too.
         eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
+          // console.log('== artivate for port:', port, params)
           this.initializeRound([port.name], (err) => {
             if (err) throw err
-            params.serviceURI = `https://${port.name}:8935`
-            this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+            const p = {...params, serviceURI: `https://${port.name}:8935`}
+            this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, p, (err, res, body) => {
               next(err, res)
             })
           })
@@ -150,6 +154,38 @@ class Api {
         })
       })
     })
+  }
+
+  async waitTillAlive (nodeName) {
+    const [port] = await this._getPortsArray([nodeName])
+    const url = `http://${this._baseUrl}:${port['7935']}/status`
+    for(let i = 0; i < 30; i++) {
+      try {
+        console.log(`Contacting ${url}`)
+        const res = await axios.get(url)
+        console.log('== got /status data: ', res.data)
+        if (res.data && res.data.Manifests) {
+          return true
+        }
+      } catch {
+      }
+      await wait(2000)
+    }
+    return false
+  }
+
+  async getOrchestratorsList (nodeName) {
+    // resp, err := http.Get(fmt.Sprintf("http://%v:%v/registeredOrchestrators", w.host, w.httpPort))
+    try {
+      const [port] = await this._getPortsArray([nodeName])
+      const url = `http://${this._baseUrl}:${port['7935']}/registeredOrchestrators`
+      console.log(`Contacting ${url}`)
+      const res = await axios.get(url)
+      console.log('== got registeredOrchestrators data: ', res.data)
+      return res.data ? res.data : []
+    } catch {
+    }
+    return []
   }
 
   bond (nodes, amountInWei, nodeName, cb) {
@@ -550,7 +586,7 @@ class Api {
             n(null, results)
           })
         } else if (NODE_TYPES.indexOf(node) !== -1) {
-          console.log('filtering ', node)
+          // console.log('filtering ', node)
           filter(Object.keys(this._config.services), (service, next) => {
             next(null, service.match(NODE_REGEX[node]))
           }, (err, servicesNames) => {

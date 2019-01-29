@@ -1,17 +1,16 @@
 'use strict'
 
-const fs = require('fs')
 const path = require('path')
+const chalk = require('chalk')
 const { exec } = require('child_process')
 const { each, eachLimit, timesLimit, filter, map } = require('async')
 const dockercompose = require('docker-compose')
-const YAML = require('yaml')
 
 const NetworkCreator = require('./networkcreator')
 const Swarm = require('./swarm')
 const Api = require('./api')
 const utils = require('./utils/helpers')
-const { wait, getNames } = require('./utils/helpers')
+const { wait, getNames, parseComposeAndGetAddresses } = require('./utils/helpers')
 const { prettyPrintDeploymentInfo } = require('./helpers')
 
 const DIST_DIR = '../dist'
@@ -24,10 +23,19 @@ class TestHarness {
   }
 
   restartService (serviceName, cb) {
-    dockercompose.restartOne(serviceName, {
-      cwd: path.join(this.distDir, this._config.name),
-      log: true
-    }).then(cb)
+    if (this._config.localBuild) {
+      return dockercompose.restartOne(serviceName, {
+        cwd: path.join(this.distDir, this._config.name),
+        log: true
+      }).then(r => {
+        if (cb) {
+          cb(null, r)
+        }
+        return r
+      })
+    } else {
+      return this.swarm.restartService(serviceName, cb)
+    }
   }
 
   AlreadyExists (name, cb) {
@@ -46,70 +54,26 @@ class TestHarness {
     return path.join(this.distDir, DIST_DIR, config.name, 'docker-compose.yml')
   }
 
-  parseComposeAndGetAddresses (config, cb) {
-    return new Promise((resolve, reject) => {
-      let parsedCompose = null
-      try {
-        let file = fs.readFileSync(this.getDockerComposePath(config), 'utf-8')
-        parsedCompose = YAML.parse(file)
-      } catch (e) {
-        reject(e)
-        throw e
-      }
-      // console.log('==== PARSED compose yaml:', parsedCompose)
-
-      map(parsedCompose.services, (service, next) => {
-        // console.log('service.environment = ', service.environment)
-        if (service.environment && service.environment.JSON_KEY) {
-          let addressObj = JSON.parse(service.environment.JSON_KEY)
-          console.log('address to fund: ', addressObj.address)
-          next(null, addressObj.address)
-        } else {
-          next()
-        }
-      }, (err, addressesToFund) => {
-        if (err) throw err
-        // clear out the undefined
-        filter(addressesToFund, (address, cb) => {
-          cb(null, !!address) // bang bang
-        }, (err, addresses) => {
-          if (err) throw err
-          console.log('addresses results: ', addresses)
-          const results = {
-            parsedCompose,
-            addresses 
-          }
-          resolve(results)
-          if (cb) {
-            cb(null, results)
-          }
-        })
-      })
-    })
-  }
 
   onReady (config, cb) {
     if (config.local) {
 
     } else {
-      this.parseComposeAndGetAddresses(config, (err, results) => {
+      const parsedCompose = parseComposeAndGetAddresses(config.name)
+      eachLimit(parsedCompose.addresses, 5, (address, cb) => {
+        utils.fundRemoteAccount(config.name, address, '1', `livepeer_geth`, cb)
+      }, (err) => {
         if (err) throw err
-        let parsedCompose = results.parsedCompose
-        eachLimit(results.addresses, 5, (address, cb) => {
-          utils.fundRemoteAccount(config.name, address, '1', `livepeer_geth`, cb)
-        }, (err) => {
+        console.log('funding secured!!')
+        this.swarm.getPubIP(`${config.name}-manager`, (err, pubIP) => {
           if (err) throw err
-          console.log('funding secured!!')
-          this.swarm.getPubIP(`${config.name}-manager`, (err, pubIP) => {
-            if (err) throw err
-            setTimeout(() => {
-              cb(null, {
-                parsedCompose,
-                baseUrl: pubIP.trim(),
-                config: config
-              })
-            }, 10000)
-          })
+          setTimeout(() => {
+            cb(null, {
+              parsedCompose,
+              baseUrl: pubIP,
+              config: config
+            })
+          }, 10000)
         })
       })
     }
@@ -132,11 +96,11 @@ class TestHarness {
     // 14. teardown the cluster.
     // 15. callback.
     config.name = config.name || 'testharness'
-    this.swarm._managerName = `${config.name}-manager`
+    this.swarm = new Swarm(config.name)
 
     this._config = config
 
-    // this.prettyPrintDeploymentInfo(config)
+    // prettyPrintDeploymentInfo(config)
     // return
     this.networkCreator = new NetworkCreator(config)
     this.networkCreator.generateComposeFile(`${DIST_DIR}/${config.name}`, (err) => {
@@ -144,7 +108,9 @@ class TestHarness {
       // return
 
       if (config.local) {
-        this.runLocal(config, cb)
+        this.runLocal(config)
+          .then(r => cb(null, r))
+          .catch(cb)
       } else {
         this.runSwarm(config)
           .then(r => cb(null, r))
@@ -153,76 +119,44 @@ class TestHarness {
     })
   }
 
-  runLocal(config, cb) {
+  async runLocal(config) {
     // copy binaries
     // build lpnode:latest
     // run geth:pm
     // 420 funding secured
     // run the lpnodes
     // profit.
-    this.networkCreator.loadBinaries(`../containers/lpnode/binaries`, (err) => {
-      if (err) throw err
-      this.networkCreator.buildLpImage((err) => {
-        if (err) throw err
-        dockercompose.upOne(`geth`, {
-          cwd: path.resolve(__dirname, `${DIST_DIR}/${config.name}`),
-          log: true
-        }).then((logs) => {
-          console.warn('docker-compose warning: ', logs.err)
-          console.log('geth is up...', logs.out)
-          setTimeout(() => {
-            // fund accounts here.
-            // ----------------[eth funding]--------------------------------------------
-            let parsedCompose = null
-            try {
-              let file = fs.readFileSync(this.getDockerComposePath(config), 'utf-8')
-              parsedCompose = YAML.parse(file)
-            } catch (e) {
-              throw e
-            }
-
-            map(parsedCompose.services, (service, next) => {
-              // console.log('service.environment = ', service.environment)
-              if (service.environment && service.environment.JSON_KEY) {
-                let addressObj = JSON.parse(service.environment.JSON_KEY)
-                console.log('address to fund: ', addressObj.address)
-                next(null, addressObj.address)
-              } else {
-                next()
-              }
-            }, (err, addressesToFund) => {
-              if (err) throw err
-              // clear out the undefined
-              filter(addressesToFund, (address, cb) => {
-                cb(null, !!address) // bang bang
-              }, (err, results) => {
-                if (err) throw err
-                console.log('results: ', results)
-
-                each(results, (address, cb) => {
-                  utils.fundAccount(address, '1', `${config.name}_geth_1`, cb)
-                }, (err) => {
-                  if (err) throw err
-                  console.log('funding secured!!')
-                  dockercompose.upAll({
-                    cwd: path.resolve(__dirname, `${DIST_DIR}/${config.name}`),
-                    log: true
-                  }).then((logs) => {
-                    console.warn('docker-compose warning: ', logs.err)
-                    console.log('all lpnodes are up: ', logs.out)
-                    this.api = new Api(parsedCompose)
-                    setTimeout(() => {
-                      cb(null, {parsedCompose})
-                    }, 10000)
-                  }).catch((e) => { if (e) throw e })
-                })
-              })
-            })
-            // -------------------------------------------------------------------------
-          }, 5000)
-        }).catch((e) => { if (e) throw e })
-      })
+    await this.networkCreator.loadBinaries(`../containers/lpnode/binaries`)
+    await this.networkCreator.buildLpImage()
+    let logs = await dockercompose.upOne(`geth`, {
+      cwd: path.resolve(__dirname, `${DIST_DIR}/${config.name}`),
+      log: true
     })
+    console.warn('docker-compose warning: ', logs.err)
+    console.log('geth is up...', logs.out)
+    await wait(5000)
+    const parsedCompose = parseComposeAndGetAddresses(config.name)
+
+    await Promise.all(parsedCompose.addresses.map(address => {
+      return utils.fundAccount(address, '1', `${config.name}_geth_1`)
+    }))
+    console.log('funding secured!!')
+    logs = await dockercompose.upAll({
+      cwd: path.resolve(__dirname, `${DIST_DIR}/${config.name}`),
+      log: true
+    })
+    console.warn('docker-compose warning: ', logs.err)
+    console.log('all lpnodes are up: ', logs.out)
+    // console.log('waiting 10s')
+    this.api = new Api(parsedCompose)
+    await wait(10000)
+    const experiment = {
+      parsedCompose,
+      baseUrl: '',
+      config
+    }
+    await this.setupEnd(config, experiment)
+    return experiment
   } 
 
   async runSwarm(config) {
@@ -259,17 +193,25 @@ class TestHarness {
     } else {
       experiment = await this.setupManager(config)
     }
+    return await this.setupEnd(config, experiment)
+  }
+
+  async setupEnd(config, experiment) {
     this.api = new Api(experiment.parsedCompose, experiment.baseUrl)
+    let setupSuccess = false
+
     if (config.standardSetup) {
-      await this.standardSetup(config)
+      setupSuccess =  await this.standardSetup(config)
     }
     if (config.startMetricsServer) {
-      await this.swarm.restartService('metrics')
+      await this.restartService('metrics')
       console.log('restarted metrics service')
     }
 
-    const workers = getNames(`${config.name}-worker-`, config.machines.num-1, 1)
-    await prettyPrintDeploymentInfo(workers, config.name, experiment.parsedCompose)
+    await prettyPrintDeploymentInfo(experiment.parsedCompose)
+    if (config.standardSetup && !setupSuccess) {
+      console.log(chalk.red('Configuration was not successful, please check logs!'))
+    }
     return experiment
   }
 
@@ -291,6 +233,12 @@ class TestHarness {
   }
 
   async standardSetup (config) {
+      const orchConf = {
+        blockRewardCut: '10',
+        feeShare: '5',
+        pricePerSegment: '1',
+        amount: '500'
+      }
       console.log('requesting tokens')
       await this.api.requestTokens(['all'])
       console.log('Depositing....')
@@ -298,22 +246,37 @@ class TestHarness {
       console.log('Initialize round...')
       await this.api.initializeRound(['orchestrator_0'])
       console.log('activating orchestrators...')
-      await this.api.activateOrchestrator(['orchestrators'], {
-        blockRewardCut: '10',
-        feeShare: '5',
-        pricePerSegment: '1',
-        amount: '500'
-        // ServiceURI will be set by the test-harness.
-      })
+      await wait(2000)
+      await this.api.activateOrchestrator(['orchestrators'], orchConf)
       // bond
       const o2b = this.assignBroadcasters2Orchs(config)
       await Promise.all(Object.keys(o2b).map(oname => this.api.bond(o2b[oname], '5000', oname)))
       const onames = Array.from({length: config.nodes.orchestrators.instances}, (_, i) => `orchestrator_${i}`)
-      await Promise.all(onames.map(n => this.swarm.restartService(n)))
+      await Promise.all(onames.map(n => this.restartService(n)))
       console.log(`restarted ${onames.length} orchestrators`)
       const bnames = Array.from({length: config.nodes.broadcasters.instances}, (_, i) => `broadcaster_${i}`)
-      await Promise.all(bnames.map(n => this.swarm.restartService(n)))
+      await Promise.all(bnames.map(n => this.restartService(n)))
       console.log(`restarted ${bnames.length} broadcasters`)
+      await this.api.waitTillAlive('orchestrator_0')
+      let orchsList = await this.api.getOrchestratorsList('orchestrator_0')
+      let tr = 0
+      while (orchsList.length < onames.length) {
+        await wait(2000, true)
+        for (let i = 0; i < onames.length; i++) {
+          await this.api.activateOrchestrator([onames[i]], orchConf)
+        }
+        await Promise.all(onames.map(n => this.restartService(n)))
+        await this.api.waitTillAlive('orchestrator_0')
+        orchsList = await this.api.getOrchestratorsList('orchestrator_0')
+        tr++
+        if (tr++ > 10) {
+          console.log(chalk.red('After 10 tries archestrators still not activated, giving up!'))
+          return false
+        }
+      }
+      await Promise.all(bnames.map(n => this.restartService(n)))
+      await this.api.waitTillAlive('broadcaster_0')
+      return true
   }
 
   setupManager(config) {
@@ -389,18 +352,16 @@ class TestHarness {
   async fundAccounts(config) {
     await wait(10000)
     // fund accounts here.
-    const results = await this.parseComposeAndGetAddresses(config)
-    console.log('=========== GOT RESULTS ', results)
-     
-    let parsedCompose = results.parsedCompose
-    await this.fundAccountsList(config, results.addresses)
+    const parsedCompose = parseComposeAndGetAddresses(config.name)
+    // console.log('=========== GOT RESULTS ', parsedCompose)
+    await this.fundAccountsList(config, parsedCompose.addresses)
     console.log('funding secured!!')
     const pubIP = await this.swarm.getPubIP(`${config.name}-manager`)
     await wait(10000)
     return {
       parsedCompose,
       config,
-      baseUrl: pubIP.trim()
+      baseUrl: pubIP
     }
   }
 

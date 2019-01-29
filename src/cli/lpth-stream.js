@@ -3,6 +3,7 @@
 const program = require('commander')
 const path = require('path')
 const fs = require('fs')
+const chalk = require('chalk')
 const Streamer = require('../streamer')
 const Swarm = require('../swarm')
 const Api = require('../api')
@@ -10,15 +11,18 @@ const utils = require('../utils/helpers')
 const { wait } = require('../utils/helpers')
 const { parseConfigFromCommandLine,  } = require('./helpers')
 const { getPublicIPOfService } = require('../helpers')
+const CloudChecker = require('../cloudchecker')
 
-const DIST_DIR = '../../dist'
+// const DIST_DIR = '../../dist'
 
 program
   .option('-r --remote', 'remote streamer mode. used with GCP test-harness')
   .option('-d --dir [DIR]', 'asset dir, must be absolute dir')
   .option('-f --file [FILE]', 'test mp4 file in the asset dir')
-  .option('-t --to-cloud', 'streams from local machine to cloud')
+  // .option('-t --to-cloud', 'streams from local machine to cloud')
   .option('-s --streams <n>', 'maximum number of streams to stream', parseInt)
+  .option('-t --time <n>', 'stream length, seconds', parseInt)
+  .option('-g --google-check', 'check transcoded files in google cloud and print success rate')
   .description('starts stream simulator to deployed broadcasters. [WIP]')
 
 program.parse(process.argv)
@@ -35,33 +39,93 @@ const st = new Streamer({})
 const swarm = new Swarm(configName)
 
 
-async function local2cloudStream() {
+async function fromLocalStream() {
   const api = new Api(parsedCompose)
   const bPorts = await api.getPortsArray(['broadcasters'])
   if (program.streams && program.streams < bPorts.length) {
     bPorts.splice(program.streams, bPorts.length - program.streams)
   }
-  console.log(`Streaming ${program.file} to ${bPorts.length} broadcasters in cloud, config ${configName}`)
+  const lm = parsedCompose.isLocal ? 'on localhost' : 'in cloud'
+  console.log(`Streaming ${program.file} to ${bPorts.length} broadcasters ${lm}, config ${configName}`)
 
+  const ids = getIds(configName, bPorts.length)
   const checkURLs = []
-  for (let po of bPorts) {
-    const ip = await getPublicIPOfService(configName, parsedCompose, po.name)
-    const m = `curl http://${ip}:${po['8935']}/stream/current.m3u8`
-    checkURLs.push(m)
+  const checkURLsMsg = []
+  for (let i = 0; i < bPorts.length; i++) {
+    const po = bPorts[i]
+    const id = ids[i]
+    const ip = parsedCompose.isLocal ? 'localhost' : await getPublicIPOfService(parsedCompose, po.name)
+    // const m = `curl http://${ip}:${po['8935']}/stream/current.m3u8`
+    const u = `http://${ip}:${po['8935']}/stream/${id}.m3u8`
+    checkURLs.push(u)
+    const m = `curl ${u}`
+    checkURLsMsg.push(m)
   }
   console.log('Check streams here:')
-  console.log(checkURLs.join('\n'))
+  console.log(checkURLsMsg.join('\n'))
+  console.log(ids)
+  const cloudChecker = program.googleCheck ? new CloudChecker(configName, checkURLs) : null
   await wait(2000, true)
 
   const tasks = []
-  for (let po of bPorts) {
-      const ip = await getPublicIPOfService(configName, parsedCompose, po.name)
-      const task = st.stream(program.dir, program.file, `rtmp://${ip}:${po['1935']}/anything`)
-      tasks.push(task)
+  for (let i = 0; i < bPorts.length; i++) {
+    const po = bPorts[i]
+    const id = ids[i]
+    const ip = parsedCompose.isLocal ? 'localhost' : await getPublicIPOfService(parsedCompose, po.name)
+    const task = st.stream(program.dir, program.file, `rtmp://${ip}:${po['1935']}/anything?manifestID=${id}`, program.time)
+    tasks.push(task)
+  }
+
+  if (cloudChecker) {
+    for (let rn = 0; rn < 10; rn++) {
+      // need to wait till manifest at broadcaster will be available
+      await wait(1000, true)
+      try {
+        await cloudChecker.getAndParseManifest()
+        break
+      } catch(e) {
+        const status = e && e.response && e.response.status
+        console.log('Got error', status)
+        // check error
+        if (status && status === 404) {
+          // manifest not here yet, waiting
+        } else if (e.message.startsWith('No access:')) {
+          // stop streams
+          console.log('Killing streams')
+          st.stopAll()
+          const bucket = e.message.split(':')[1]
+          // console.warn(`No access to bucket ${bucket}`)
+          console.warn(chalk.green('Please login using ') + chalk.inverse('gcloud auth application-default login') + ' or')
+          console.warn(chalk.green('Please run ') + chalk.inverse(`gsutil iam ch allUsers:objectViewer gs://${bucket}`) +
+            ' to give anonymous user read access to bucket')
+          process.exit(11)
+        } else {
+          // unknown error, aborting
+          console.log(chalk.red('Unknow error, aborting'), e)
+          console.log('Killing streams')
+          st.stopAll()
+          process.exit(12)
+        }
+      }
+    }
   }
 
   await Promise.all(tasks)
+  
   console.log('DONE streaming')
+  if (cloudChecker) {
+    const res = await cloudChecker.doChecks()
+    cloudChecker.printResults(res)
+  }
+}
+
+function getIds(configName, num) {
+  let u = process.env.USER
+  if (u) {
+    u += '-'
+  }
+  const d = (+new Date() - 1500000000000)/1000|0
+  return Array.from({length: num}, (_, i) => `${u}${configName}-${d}-${i}`)
 }
 
 // let baseUrl = 'localhost'
@@ -127,15 +191,8 @@ if (program.remote) {
       }
     )
   })
-} else if (program.toCloud) {
-  local2cloudStream().catch(console.error)
 } else {
-  broadcasters.forEach((broadcaster) => {
-    let rtmpPort = getForwardedPort(broadcaster, '1935')
-    if (rtmpPort) {
-      st.stream(program.dir, program.file, `rtmp://localhost:${rtmpPort}`)
-    }
-  })
+  fromLocalStream().catch(console.error)
 }
 
 //
@@ -155,13 +212,7 @@ if (program.remote) {
 // let p = getForwardedPort('lp_b_0', '7935')
 // console.log(p)
 
-
-
-
-
-
-
-
+/*
 function getForwardedPort (service, origin) {
   if (!parsedCompose.services[service]) {
     throw new Error(`container ${service} isn't in the compose file`)
@@ -178,3 +229,4 @@ function getForwardedPort (service, origin) {
     return null
   }
 }
+*/

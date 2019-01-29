@@ -624,7 +624,8 @@ class Swarm {
         if (err) {
           reject(err)
         } else {
-          const machines = output.trim().split('\n')
+          const tr = output.trim()
+          const machines = tr ? tr.split('\n') : []
           // console.log('found running machines: ', machines)
           resolve(machines)
         }

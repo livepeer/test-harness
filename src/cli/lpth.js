@@ -33,13 +33,15 @@ program
         console.log(`experiment ${name} doesn't exist in the ./dist folder`)
       }
 
-      dockercompose.down({
+      console.log('Running docker-compose down...')
+      dockercompose.execCompose('down', ['-v'], {
         cwd: path.resolve(__dirname, `../../dist/${name}/`),
-        logs: true
+        logs: true,
       }).then((logs) => {
         console.log(logs)
         console.log(`experiment ${name} services stopped.`)
-      })
+        process.exit(0)
+      }).catch(console.error)
     })
   })
 
