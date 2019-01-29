@@ -94,12 +94,8 @@ class Api {
       this._getPortsArray(nodes, (err, ports) => {
         if (err) throw err
         eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
-          this.initializeRound([port.name], (err) => {
-            if (err) throw err
-            params.serviceURI = `https://${port.name}:8935`
-            this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
-              next(err, res)
-            })
+          this._httpPost(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, (err, res, body) => {
+            next(err, res)
           })
         }, (e, r) => {
           if (e) {
@@ -136,8 +132,11 @@ class Api {
         // TODO, get the service URIs too.
         eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
           params.serviceURI = `https://${port.name}:8935`
-          this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
-            next(err, res)
+          this.initializeRound([port.name], (err) => {
+            if (err) throw err
+            this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+              next(err, res)
+            })
           })
         }, (e, r) => {
           if (e) {
