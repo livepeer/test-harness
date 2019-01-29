@@ -263,8 +263,10 @@ class TestHarness {
     if (config.standardSetup) {
       await this.standardSetup(config)
     }
-    await this.swarm.restartService('metrics')
-    console.log('restarted metrics service')
+    if (config.startMetricsServer) {
+      await this.swarm.restartService('metrics')
+      console.log('restarted metrics service')
+    }
 
     const workers = getNames(`${config.name}-worker-`, config.machines.num-1, 1)
     await prettyPrintDeploymentInfo(workers, config.name, experiment.parsedCompose)
