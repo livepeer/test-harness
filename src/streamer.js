@@ -38,49 +38,56 @@ class Streamer extends EventEmitter {
   // }
 
   stream (dir, input, output) {
-    let args = [
-      'run',
-      '-v',
-      `${dir}:/temp/`,
-      '--net=host',
-      'jrottenberg/ffmpeg:4.0-ubuntu',
-      '-re',
-      '-i',
-      // path.resolve(input)
-      `/temp/${input}`
-    ]
+    return new Promise((resolve, reject) => {
+      let args = [
+        'run',
+        '-v',
+        `${dir}:/temp/`,
+        '--net=host',
+        'jrottenberg/ffmpeg:4.0-ubuntu',
+        '-re',
+        '-i',
+        // path.resolve(input)
+        `/temp/${input}`
+      ]
 
-    args = args.concat(DEFAULT_ARGS.split(' '))
+      args = args.concat(DEFAULT_ARGS.split(' '))
 
-    let parsedOutput = null
-    // validate output
-    try {
-      parsedOutput = new URL(output)
-    } catch (e) {
-      throw e
-    }
-    if (parsedOutput.protocol && parsedOutput.protocol !== 'rtmp:') {
-      console.log(parsedOutput)
-      console.error(`streamer can only output to rtmp endpoints, ${parsedOutput.protocol} is not supported`)
-      // TODO throw error here.
-      return
-    }
+      let parsedOutput = null
+      // validate output
+      try {
+        parsedOutput = new URL(output)
+      } catch (e) {
+        throw e
+      }
+      if (parsedOutput.protocol && parsedOutput.protocol !== 'rtmp:') {
+        console.log(parsedOutput)
+        const e = new Error(`streamer can only output to rtmp endpoints, ${parsedOutput.protocol} is not supported`)
+        console.error(e)
+        throw e
+      }
 
-    args.push(output)
-    this.streams[output] = spawn('docker', args)
+      args.push(output)
+      console.log('running:')
+      console.log('docker', args.join(' '))
+      this.streams[output] = spawn('docker', args)
 
-    this.streams[output].stdout.on('data', (data) => {
-      console.log(`stdout: ${data}`)
+      this.streams[output].stdout.on('data', (data) => {
+        console.log(`stdout: ${data}`)
+      })
+      this.streams[output].stderr.on('data', (data) => {
+        console.log(`stderr: ${data}`)
+      })
+
+      this.streams[output].on('close', (code) => {
+        console.log(`${output} child process exited with code ${code}`)
+        if (code) {
+          reject(code)
+        } else {
+          resolve(code)
+        }
+      })
     })
-    this.streams[output].stderr.on('data', (data) => {
-      console.log(`stderr: ${data}`)
-    })
-
-    this.streams[output].on('close', (code) => {
-      console.log(`${output} child process exited with code ${code}`)
-    })
-
-    return this.streams[output]
   }
 
   _generateService (broadcaster, sourceDir, input, destination, cb) {

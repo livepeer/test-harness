@@ -22,6 +22,7 @@ program
   .command('deploy <file>', 'deploy generated docker compose')
   .command('stream <file>', 'starts ffmpeg stream to broadcasters specified in <file>')
   .command('utils [options]', 'various utils for quick debugging')
+  .command('info <config>', 'prints list of endpoints of deployed services')
 
 program
   .command('down [name]')

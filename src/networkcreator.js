@@ -3,12 +3,14 @@
 const { EventEmitter } = require('events')
 const { exec, spawn } = require('child_process')
 const path = require('path')
+const fs = require('fs')
 const toml = require('toml')
 const composefile = require('composefile')
 const { timesLimit, each, eachLimit } = require('async')
 const log = require('debug')('livepeer:test-harness:network')
 const spawnThread = require('threads').spawn
 const Pool = require('threads').Pool
+const { getNames, spread, getServiceConstraints } = require('./utils/helpers')
 
 const pool = new Pool()
 const thread = pool.run(function(input, done) {
@@ -44,6 +46,12 @@ class NetworkCreator extends EventEmitter {
 
     this.ports = {}
     this.nodes = {}
+    this.hasGeth = false
+    this.hasMetrics = false
+
+    const workers = getNames(`${config.name}-worker-`, config.machines.num-1, 1)
+    const n = config.nodes
+    this._serviceConstraints = getServiceConstraints(workers, n.broadcasters.instances, n.orchestrators.instances, n.transcoders.instances)
   }
 
   isPortUsed (port) {
@@ -55,6 +63,9 @@ class NetworkCreator extends EventEmitter {
   }
 
   loadBinaries (dist, cb) {
+    if (this.config.localBuild) {
+      return cb()
+    }
     // copy livepeer binaries to lpnode image folder
     console.log(`copying LP binary from ${this.config.livepeerBinaryPath}. ${__dirname}`)
     exec(`cp ${path.resolve(__dirname, this.config.livepeerBinaryPath)} ${path.resolve(__dirname, dist)}`,
@@ -67,6 +78,10 @@ class NetworkCreator extends EventEmitter {
   }
 
   buildLpImage (cb) {
+    if (this.config.localBuild) {
+      this.buildLocalLpImage(cb)
+      return
+    }
     console.log('building lpnode...')
     let builder = spawn('docker', [
       'build',
@@ -95,10 +110,55 @@ class NetworkCreator extends EventEmitter {
     // })
   }
 
+  async buildLocalLpImage(cb) {
+    console.log('building local lpnode...')
+    return new Promise((resolve, reject) => {
+      const lpnodeDir = path.resolve(__dirname, '../containers/lpnode')
+      const builder = spawn('docker', [
+        'build',
+        '-t',
+        'lpnode:latest',
+        '-f',
+        path.join(lpnodeDir, 'Dockerfile.local'),
+        lpnodeDir
+      ])
+
+      builder.stdout.on('data', (data) => {
+        console.log(`stdout: ${data}`)
+      })
+
+      builder.stderr.on('data', (data) => {
+        console.log(`stderr: ${data}`)
+      })
+
+      builder.on('close', (code) => {
+        console.log(`child process exited with code ${code}`)
+        if (code != 0) {
+          reject(code)
+          if (cb) {
+            cb(err)
+          }
+        } else {
+          resolve()
+          if (cb) {
+            cb(null)
+          }
+        }
+      })
+    })
+    //
+    // exec(`docker build -t lpnode:latest ./containers/lpnode/`, (err, stdout, stderr) => {
+    //   if (err) throw err
+    //   console.log('stdout: ', stdout)
+    //   console.log('stderr: ', stderr)
+    // })
+  }
+
   generateComposeFile (outputPath, cb) {
+    const outputFolder = path.resolve(__dirname, outputPath)
     let output = {
-      version: '3',
-      outputFolder: path.resolve(__dirname, outputPath),
+      version: '3.7',
+      outputFolder,
       filename: 'docker-compose.yml',
       services: {},
       networks: {
@@ -106,65 +166,116 @@ class NetworkCreator extends EventEmitter {
           driver: this.config.local ? 'bridge' : 'overlay',
           external: this.config.local ? false : true
         }
-      }
+      },
+      volumes: {}
       // network_mode: 'host',
     }
 
-    this.generateServices((err, services) => {
+    this.copySecrets(output, outputFolder)
+
+    this.generateServices((err, services, volumes) => {
       if (err) throw err
       output.services = services
+      output.volumes = volumes
       this.nodes = output.services
       composefile(output, cb)
     })
   }
 
-  getDependencies () {
-    if (this.hasGeth) {
-      return ['geth']
-    } else {
-      return []
-    }
+  copySecrets (top, outputFolder) {
+    Object.keys(this.config.nodes).forEach(nodesName => {
+      const nodes = this.config.nodes[nodesName]
+      const gs = nodes.googleStorage
+      if (gs) {
+        if (!gs.bucket) {
+          throw 'Should specify "bucket" field for google storage'
+        }
+        if (!gs.key) {
+          throw 'Should specify "key" field for google storage'
+        }
+        console.log('dirname:', __dirname)
+        const fileName = path.basename(gs.key)
+        gs.keyName = fileName
+        const fnp = fileName.split('.')
+        gs.secretName = fnp[0]
+        const srcPath = path.resolve(__dirname, '..', gs.key)
+        console.log(`Copying from ${srcPath} to ${outputFolder}`)
+        fs.copyFileSync(srcPath, path.join(outputFolder, fileName))
+        if (!top.secrets) {
+          top.secrets = {}
+        }
+        top.secrets[gs.secretName] = {
+          file: './' + fileName,
+          name: gs.secretName
+        }
+      }
+    })
   }
 
-  _generateService (type, i, cb) {
-    let generated = {
-    // generated['lp_t_' + i] = {
-      image: (this.config.local) ? 'lpnode:latest' : 'localhost:5000/lpnode:latest',
+  getDependencies () {
+    const deps = []
+    if (this.hasGeth) {
+      deps.push('geth')
+    }
+    if (this.hasMetrics) {
+      deps.push('metrics')
+    }
+    return deps
+  }
+
+  _generateService (type, i, volumes, cb) {
+    const serviceName = `${type}_${i}`
+    const nodes = this.config.nodes[`${type}s`]
+    const vname = 'v_' + serviceName
+    const generated = {
+      image: (this.config.local || this.config.localBuild) ? 'lpnode:latest' : 'localhost:5000/lpnode:latest',
       ports: [
         `${getRandomPort(8935)}:8935`,
         `${getRandomPort(7935)}:7935`,
         `${getRandomPort(1935)}:1935`
       ],
       // TODO fix the serviceAddr issue
-      command: this.getNodeOptions(type, this.config.nodes[`${type}s`].flags),
+      command: this.getNodeOptions(type, nodes),
       depends_on: this.getDependencies(),
       networks: {
         testnet: {
-          aliases: [`${type}_${i}`]
+          aliases: [serviceName]
         }
-      }
+      },
+      volumes: [vname + ':/lpData']
+    }
+    volumes[vname] = {}
+    if (nodes.googleStorage) {
+      generated.secrets = [nodes.googleStorage.secretName]
     }
 
     if (this.config.local) {
 
     } else {
-      generated.logging = {
+     generated.logging = {
         driver: 'gcplogs',
         options: {
-          'gcp-project': 'test-harness-226018'
+          'gcp-project': 'test-harness-226018',
+          'gcp-log-cmd': 'true',
+          'labels': `type=${type},node=${type}_${i}`
         }
       }
-      if (type === 'orchestrator' || type == 'transcoder') {
+      if (type === 'orchestrator' || type == 'transcoder' || type == 'broadcaster') {
         generated.deploy = {
           replicas: 1,
-          resources: {
-            reservations: {
-              cpus: '0.2',
-              memory: '100M'
-            }
-          },
           placement: {
-            constraints: ['node.role == worker']
+            constraints: [
+              'node.role == worker', 
+              'node.hostname == ' + this._serviceConstraints[type].get(serviceName)
+            ]
+          }
+        }
+        if (this.config.constrainResources) {
+          generated.deploy.resources = {
+            reservations: {
+              cpus: '0.25',
+              memory: '250M'
+            }
           }
         }
       }
@@ -178,15 +289,22 @@ class NetworkCreator extends EventEmitter {
   }
 
   generateServices (cb) {
-    let output = {}
+    const output = {}
+    const volumes = {}
+    
     // if (this.config.blockchain && this.config.blockchain.controllerAddress === '') {
     // }
-    output.geth = this.generateGethService()
+    output.geth = this.generateGethService(volumes)
     if (!output.geth) {
       delete output.geth
       this.hasGeth = false
     } else {
       this.hasGeth = true
+    }
+    if (this.config.startMetricsServer) {
+      output.mongodb = this.generateMongoService(volumes)
+      output.metrics = this.generateMetricsService()
+      this.hasMetrics = true
     }
 
     eachLimit(['transcoder', 'orchestrator', 'broadcaster'], 1, (type, callback) => {
@@ -197,7 +315,7 @@ class NetworkCreator extends EventEmitter {
         (i, next) => {
           // generate separate services with the forwarded ports.
           // append it to output as output.<node_generate_id> = props
-          this._generateService(type, i, next)
+          this._generateService(type, i, volumes, next)
         },
         (err, nodes) => {
           if (err) throw err
@@ -214,11 +332,53 @@ class NetworkCreator extends EventEmitter {
       console.log('all nodes have been generated')
       pool.killAll()
       log('output:', output)
-      cb(null, output)
+      cb(null, output, volumes)
     })
   }
 
-  generateGethService () {
+  generateMetricsService () {
+    const mService = {
+        image: 'darkdragon/livepeermetrics:latest',
+        ports: [
+          '3000:3000',
+        ],
+        depends_on: ['mongodb'],
+        networks: {
+          testnet: {
+            aliases: [`metrics`]
+          }
+        },
+        deploy: {
+          placement: {
+            constraints: ['node.role == manager']
+          }
+        }
+      }
+      return mService
+  }
+
+  generateMongoService (volumes) {
+    const mService = {
+        image: 'mongo:latest',
+        networks: {
+          testnet: {
+            aliases: [`mongodb`]
+          }
+        },
+        deploy: {
+          placement: {
+            constraints: ['node.role == manager']
+          }
+        },
+        volumes: ['vmongo1:/data/db', 'vmongo2:/data/configdb']
+        // networks: ['outside']
+      }
+      volumes.vmongo1 = {}
+      volumes.vmongo2 = {}
+      return mService
+  }
+
+  generateGethService (volumes) {
     let gethService = {
       // image: 'geth-dev:latest',
       image: 'darkdragon/geth-with-livepeer-protocol:pm',
@@ -244,16 +404,20 @@ class NetworkCreator extends EventEmitter {
 
       gethService.deploy = {
         replicas: 1,
-        resources: {
-          reservations: {
-            cpus: '0.5',
-            memory: '500M'
-          }
-        },
         placement: {
           constraints: ['node.role == manager']
         }
       }
+      if (this.config.constrainResources) {
+        gethService.deploy.resources = {
+          reservations: {
+            cpus: '0.5',
+            memory: '500M'
+          }
+        }
+      }
+      gethService.volumes = ['vgeth:/root/.ethereum']
+      volumes.vgeth = {}
     }
 
     switch (this.config.blockchain.name) {
@@ -262,22 +426,36 @@ class NetworkCreator extends EventEmitter {
       case 'offchain':
           // no need to run a node.
         break
+      case 'lpTestNet2':
       case 'lpTestNet':
       default:
         return gethService
     }
   }
 
-  getNodeOptions (nodeType, userFlags) {
-    let output = []
+  getNodeOptions (nodeType, nodes) {
+    const output = []
+    const userFlags = nodes.flags
 
     // default 0.0.0.0 binding
     output.push(`-httpAddr 0.0.0.0:8935`)
     output.push(`-cliAddr 0.0.0.0:7935`)
     output.push(`-rtmpAddr 0.0.0.0:1935`)
 
+    if (nodes.googleStorage) {
+      output.push('-gsbucket')
+      output.push(nodes.googleStorage.bucket)
+      output.push('-gskey')
+      output.push('/run/secrets/' + nodes.googleStorage.secretName)
+    }
+
     // default datadir
     output.push(`-datadir /lpData`)
+
+    if (this.hasMetrics) {
+      output.push('-monitor=true')
+      output.push('-monitorhost http://metrics:3000/api/events')
+    }
 
     if (nodeType === 'transcoder' ) { //|| nodeType === 'orchestrator') {
       output.push('-transcoder')

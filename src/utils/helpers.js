@@ -16,14 +16,14 @@ function functionEncodedABI (name, params, values) {
   return ethUtil.bufferToHex(Buffer.concat([ethUtil.sha3(name).slice(0, 4), ethAbi.rawEncode(params, values)]))
 }
 
-function remotelyExec (machineName, command, cb) {
+function remotelyExec (machineName, zone, command, cb) {
   // reference : https://stackoverflow.com/a/39104844
   let args = [
     'compute',
     'ssh',
     machineName,
     '--zone',
-    'us-east1-b',
+    zone || 'us-east1-b',
     '--',
   ]
 
@@ -59,10 +59,11 @@ function fundAccount (address, valueInEth, containerId, cb) {
   })
 }
 
-function fundRemoteAccount (name, address, valueInEth, serviceName, cb) {
+function fundRemoteAccount (config, address, valueInEth, serviceName, cb) {
   // NOTE: this requires the geth container to be running and account[0] to be unlocked.
+  console.log(`funding ${address} with ${valueInEth} ETH`)
   remotelyExec(
-    `${name}-manager`,
+    `${config.name}-manager`, config.machines.zone,
     `sudo docker exec livepeer_geth.1.$(sudo docker service ps -q livepeer_geth) geth --exec 'eth.sendTransaction({from: eth.accounts[0], to: "${address}", value: web3.toHex(web3.toWei("${valueInEth}", "ether"))})' attach`,
   (err, stdout, stderr) => {
     if (err) throw err
@@ -71,4 +72,54 @@ function fundRemoteAccount (name, address, valueInEth, serviceName, cb) {
     cb(null, stdout)
   })
 }
-module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount}
+
+function getNames (prefix, num, shift = 0) {
+  return Array.from({length: num}, (_, i) => `${prefix}${i+shift}`)
+}
+
+function spread (items, plts, reverse) {
+  const res = new Map()
+  const rres = new Map()
+  for (let i = 0, oi = 0; i < items.length; i++) {
+    const oname = plts[oi]
+    const p = res.get(oname) || []
+    p.push(items[i])
+    res.set(oname, p)
+    // const rp = rres.get(items[i]) || new Set()
+    // rp.add(oname)
+    rres.set(items[i], oname)
+    oi = ++oi % plts.length
+  }
+  return reverse ? rres : res
+}
+
+function wait(pauseTimeMs, suppressLogs) {
+  if (!suppressLogs) {
+    console.log(`Waiting for ${pauseTimeMs} ms`)
+  }
+  return new Promise(resolve => {
+    setTimeout(() => {
+      if (!suppressLogs) {
+        console.log('Done waiting.')
+      }
+      resolve()
+    }, pauseTimeMs)
+  })
+}
+
+function getServiceConstraints(workers, bs, os, ts) {
+    const broadcasters = getNames('broadcaster_', bs)
+    const orchestrators = getNames('orchestrator_', os)
+    const transcoders = getNames('transcoder_', ts)
+
+    return {
+      broadcaster: spread(broadcasters, workers, true),
+      orchestrator: spread(orchestrators, workers, true),
+      transcoder: spread(transcoders, workers, true),
+    }
+}
+
+
+module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount,
+  getNames, spread, wait, getServiceConstraints
+}
