@@ -48,10 +48,13 @@ class NetworkCreator extends EventEmitter {
     this.nodes = {}
     this.hasGeth = false
     this.hasMetrics = false
+    if (config.local) {
 
-    const workers = getNames(`${config.name}-worker-`, config.machines.num-1, 1)
-    const n = config.nodes
-    this._serviceConstraints = getServiceConstraints(workers, n.broadcasters.instances, n.orchestrators.instances, n.transcoders.instances)
+    } else {
+      const workers = getNames(`${config.name}-worker-`, config.machines.num-1, 1)
+      const n = config.nodes
+      this._serviceConstraints = getServiceConstraints(workers, n.broadcasters.instances, n.orchestrators.instances, n.transcoders.instances)
+    }
   }
 
   isPortUsed (port) {
@@ -265,7 +268,7 @@ class NetworkCreator extends EventEmitter {
           replicas: 1,
           placement: {
             constraints: [
-              'node.role == worker', 
+              'node.role == worker',
               'node.hostname == ' + this._serviceConstraints[type].get(serviceName)
             ]
           }
@@ -291,7 +294,7 @@ class NetworkCreator extends EventEmitter {
   generateServices (cb) {
     const output = {}
     const volumes = {}
-    
+
     // if (this.config.blockchain && this.config.blockchain.controllerAddress === '') {
     // }
     output.geth = this.generateGethService(volumes)
