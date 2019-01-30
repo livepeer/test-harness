@@ -201,7 +201,7 @@ class Swarm {
           await wait(2000) // need to wait while instances gets shutdown
           try {
             await this.pruneLocalVolumes(config.name)
-          } catch {
+          } catch (e) {
           }
           const volumes = await this.getVolumes(config.name + '-manager')
           if (volumes.filter(n => n.startsWith('livepeer_')).length === 0) {
