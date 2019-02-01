@@ -122,6 +122,13 @@ class Streamer extends EventEmitter {
         'gcp-project': 'test-harness-226018'
       }
     }
+
+    let index = broadcaster.split('_')[1]
+    console.log('broadcaster number ', index)
+    generated.environment = {
+      'DELAY': 5 * parseInt(index)
+    }
+
     console.log('generated: ', generated)
     cb(null, generated)
   }

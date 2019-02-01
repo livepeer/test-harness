@@ -7,25 +7,25 @@ let th = new TestHarness()
 
 th.run({
   local: false,
-  localBuild: true, // binary will be taken from local image tagged `livepeerbinary:alpine`
+  localBuild: false, // binary will be taken from local image tagged `livepeerbinary:alpine`
   // this image should be built locally using `docker build -t livepeerbinary:alpine -f Dockerfile.alpine .`
   // command in go-livepeer repo
   standardSetup: true, // request token, register orchestartors, etc...
   startMetricsServer: true,
   constrainResources: true,
-  name: 'gce',
-  livepeerBinaryPath: null, 
+  name: 'y-gce',
+  livepeerBinaryPath: null,
   blockchain: {
     name: 'lpTestNet',
     networkId: 54321,
     controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982',
   },
   machines: {
-    num: 3,
+    num: 12,
     zone: 'us-east1-b',
     // zone: 'europe-west3-b',
-    machineType: 'n1-highcpu-4',
-    managerMachineType: 'n1-standard-2'
+    machineType: 'n1-highmem-4',
+    managerMachineType: 'n1-highmem-4'
     // machineType: 'n1-standard-2'
   },
   nodes: {
@@ -39,7 +39,7 @@ th.run({
         -orchAddr https://orchestrator_0:8935 -orchSecret test'
     },
     orchestrators: {
-      instances: 2,
+      instances: 14,
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `-v 5 -initializeRound=true -gasPrice 200 -gasLimit 2000000 \
       -currentManifest=true -transcoder `
@@ -50,7 +50,7 @@ th.run({
       //   bucket: 'lptest-fran',
       //   key: 'examples/test-harness-226018-e3a05729b733.json'
       // },
-      instances: 4,
+      instances: 24,
       flags: `-v 5 -gasPrice 200 -gasLimit 2000000 \
       -currentManifest=true`
     }
@@ -63,4 +63,3 @@ th.run({
   // const swarm = new Swarm(experiment.config.name)
   console.log('done!')
 })
-
