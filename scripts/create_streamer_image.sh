@@ -5,11 +5,12 @@ mkdir -p /tmp/streamer/assets
 mkdir -p /tmp/streamer/config
 cd /tmp/streamer
 echo "FROM jrottenberg/ffmpeg:4.0-alpine \n\
-  ARG DELAY=0
+  ARG DELAY=0\n\
   COPY ./assets /temp \n\
-  WORKDIR /
-  COPY ./config/delay.sh .
-  ENTRYPOINT [\"./delay.sh\"]\
+  WORKDIR /\n\
+  COPY ./config/delay.sh .\n\
+  RUN chmod +x delay.sh\n\
+  ENTRYPOINT [\"./delay.sh\"]\n\
   CMD [\"--help\"] \n\
   " > Dockerfile
 

@@ -159,6 +159,15 @@ class Streamer extends EventEmitter {
       'DELAY': 5 * parseInt(index)
     }
 
+    generated.deploy = {
+      replicas: 1,
+      placement: {
+        constraints: [
+          'node.role == worker'
+        ]
+      }
+    }
+
     console.log('generated: ', generated)
     cb(null, generated)
   }
