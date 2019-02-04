@@ -425,7 +425,9 @@ class NetworkCreator extends EventEmitter {
       gethService.logging = {
         driver: 'gcplogs',
         options: {
-          'gcp-project': 'test-harness-226018'
+          'gcp-project': 'test-harness-226018',
+          'gcp-log-cmd': 'true',
+          'labels': `type=geth,node=geth`
         }
       }
 
