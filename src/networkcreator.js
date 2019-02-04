@@ -160,7 +160,7 @@ class NetworkCreator extends EventEmitter {
   generateComposeFile (outputPath, cb) {
     const outputFolder = path.resolve(__dirname, outputPath)
     let output = {
-      version: '3.7',
+      version: '3',
       outputFolder,
       filename: 'docker-compose.yml',
       services: {},
@@ -278,6 +278,17 @@ class NetworkCreator extends EventEmitter {
             reservations: {
               cpus: '0.25',
               memory: '250M'
+            },
+            // limits: {
+            //   cpus: '0.9',
+            //   memory: '6G'
+            // }
+          }
+
+          if (type === 'broadcaster') {
+            generated.deploy.resources.limits = {
+              cpus: '0.2',
+              memory: '500M'
             }
           }
         }
