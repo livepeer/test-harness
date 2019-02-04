@@ -22,12 +22,13 @@ program
   // .option('-t --to-cloud', 'streams from local machine to cloud')
   .option('-s --streams <n>', 'maximum number of streams to stream', parseInt)
   .option('-t --time <n>', 'stream length, seconds', parseInt)
+  .option('-e --end-point [host:rtmpPort:mediaPort]', 'End point to stream to instead of streaming in config')
   .option('-g --google-check', 'check transcoded files in google cloud and print success rate')
   .description('starts stream simulator to deployed broadcasters. [WIP]')
 
 program.parse(process.argv)
 
-const { configName, parsedCompose } = parseConfigFromCommandLine(program.args)
+const { configName, parsedCompose } = parseConfigFromCommandLine(program)
 // console.log('parsedCompose', parsedCompose.services)
 let servicesNames = Object.keys(parsedCompose.services)
 
@@ -38,6 +39,10 @@ const broadcasters = servicesNames.filter((service) => {
 const st = new Streamer({})
 const swarm = new Swarm(configName)
 
+async function getIP(name) {
+  return parsedCompose.overrideBroadcasterHost ? parsedCompose.overrideBroadcasterHost :
+    parsedCompose.isLocal ? 'localhost' : await getPublicIPOfService(parsedCompose, name)
+}
 
 async function fromLocalStream() {
   const api = new Api(parsedCompose)
@@ -54,7 +59,7 @@ async function fromLocalStream() {
   for (let i = 0; i < bPorts.length; i++) {
     const po = bPorts[i]
     const id = ids[i]
-    const ip = parsedCompose.isLocal ? 'localhost' : await getPublicIPOfService(parsedCompose, po.name)
+    const ip = await getIP(po.name)
     // const m = `curl http://${ip}:${po['8935']}/stream/current.m3u8`
     const u = `http://${ip}:${po['8935']}/stream/${id}.m3u8`
     checkURLs.push(u)
@@ -71,7 +76,7 @@ async function fromLocalStream() {
   for (let i = 0; i < bPorts.length; i++) {
     const po = bPorts[i]
     const id = ids[i]
-    const ip = parsedCompose.isLocal ? 'localhost' : await getPublicIPOfService(parsedCompose, po.name)
+    const ip = await getIP(po.name)
     const task = st.stream(program.dir, program.file, `rtmp://${ip}:${po['1935']}/anything?manifestID=${id}`, program.time)
     tasks.push(task)
   }

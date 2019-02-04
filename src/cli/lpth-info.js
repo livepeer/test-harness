@@ -12,6 +12,6 @@ async function run(parsedCompose) {
 program
   .parse(process.argv)
 
-const { parsedCompose } = parseConfigFromCommandLine(program.args)
+const { parsedCompose } = parseConfigFromCommandLine(program)
 
 run(parsedCompose).catch(console.error)
