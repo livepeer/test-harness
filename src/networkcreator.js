@@ -299,6 +299,17 @@ class NetworkCreator extends EventEmitter {
             reservations: {
               cpus: '0.25',
               memory: '250M'
+            },
+            // limits: {
+            //   cpus: '0.9',
+            //   memory: '6G'
+            // }
+          }
+
+          if (type === 'broadcaster') {
+            generated.deploy.resources.limits = {
+              cpus: '0.2',
+              memory: '500M'
             }
           }
         }

@@ -21,5 +21,5 @@ sudo chown docker-user:docker-user -R /tmp/assets && \
 sudo chmod +x /tmp/assets/livepeer && sudo cp /tmp/assets/livepeer /tmp/config/livepeer && \
 cp /tmp/config/livepeer /tmp/test-harness/containers/lpnode/binaries
 cd /tmp/test-harness/containers/lpnode
-sudo docker build -t localhost:5000/lpnode:latest . && \
+sudo docker build -t localhost:5000/lpnode:latest -f Dockerfile . && \
 sudo docker push localhost:5000/lpnode:latest
