@@ -49,6 +49,7 @@ class Streamer extends EventEmitter {
     return new Promise((resolve, reject) => {
       let args = [
         'run',
+        '--rm',
         '-v',
         `${dir}:/temp/`,
         '--net=host',
