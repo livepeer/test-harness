@@ -39,7 +39,7 @@ th.run({
         -orchAddr https://orchestrator_0:8935 -orchSecret test'
     },
     orchestrators: {
-      instances: 4,
+      instances: 8,
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `-v 5 -initializeRound=true -gasPrice 200 -gasLimit 2000000 \
       -currentManifest=true -transcoder `
@@ -50,7 +50,7 @@ th.run({
       //   bucket: 'lptest-fran',
       //   key: 'examples/test-harness-226018-e3a05729b733.json'
       // },
-      instances: 4,
+      instances: 8,
       flags: `-v 5 -gasPrice 200 -gasLimit 2000000 \
       -currentManifest=true`
     }

@@ -156,7 +156,7 @@ class Streamer extends EventEmitter {
     let index = broadcaster.split('_')[1]
     console.log('broadcaster number ', index)
     generated.environment = {
-      'DELAY': (Math.floor(Math.random() * 55)) * parseInt(index)
+      'DELAY': (Math.floor(Math.random() * 60)) // * parseInt(index)
     }
 
     generated.deploy = {
@@ -175,7 +175,7 @@ class Streamer extends EventEmitter {
   _generateStreamServices (broadcasters, sourceDir, input, cb) {
     let output = {}
     each(broadcasters, (broadcaster, next) => {
-      let ids = getIds(input, 1)
+      let ids = getIds(input, 5)
       eachOf(ids, (id, i, n) => {
         this._generateService(`${broadcaster}_${i}`, sourceDir, input, `rtmp://${broadcaster}:1935/stream_${i}?manifestID=${id}`, (err, service) => {
           if (err) return next(err)
