@@ -156,6 +156,16 @@ function parseComposeAndGetAddresses (configName) {
   return parsedCompose
 }
 
+function getIds (configName, num) {
+  let u = process.env.USER
+  if (u) {
+    u += '-'
+  }
+  const d = (+new Date() - 1500000000000)/1000|0
+  return Array.from({length: num}, (_, i) => `${u}${configName}-${d}-${i}`)
+}
+
 module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount,
-  getNames, spread, wait, getServiceConstraints, parseComposeAndGetAddresses
+  getNames, spread, wait, getServiceConstraints, parseComposeAndGetAddresses,
+  getIds
 }

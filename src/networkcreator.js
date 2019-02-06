@@ -177,7 +177,7 @@ class NetworkCreator extends EventEmitter {
   generateComposeFile (outputPath, cb) {
     const outputFolder = path.resolve(__dirname, outputPath)
     let output = {
-      version: '3.7',
+      version: '3',
       outputFolder,
       filename: 'docker-compose.yml',
       services: {},
