@@ -4,7 +4,7 @@ cd /tmp
 mkdir -p /tmp/streamer/assets
 mkdir -p /tmp/streamer/config
 cd /tmp/streamer
-echo "FROM jrottenberg/ffmpeg:4.0-alpine \n\
+echo "FROM jrottenberg/ffmpeg:4.0-ubuntu \n\
   ARG DELAY=0\n\
   COPY ./assets /temp \n\
   WORKDIR /\n\

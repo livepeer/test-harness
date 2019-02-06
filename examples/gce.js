@@ -21,7 +21,7 @@ th.run({
     controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982',
   },
   machines: {
-    num: 6,
+    num: 12,
     zone: 'us-east1-b',
     // zone: 'europe-west3-b',
     machineType: 'n1-highcpu-4',
@@ -50,7 +50,7 @@ th.run({
       //   bucket: 'lptest-fran',
       //   key: 'examples/test-harness-226018-e3a05729b733.json'
       // },
-      instances: 24,
+      instances: 4,
       flags: `-v 5 -gasPrice 200 -gasLimit 2000000 \
       -currentManifest=true`
     }
