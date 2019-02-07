@@ -1,4 +1,5 @@
 
+const chalk = require('chalk')
 const Swarm = require('./swarm')
 const Api = require('./api')
 
@@ -7,7 +8,8 @@ const Api = require('./api')
 let service2IP = null
 let worker1IP = null
 
-async function getPublicIPOfService (configName, parsedCompose, serviceName) {
+async function getPublicIPOfService (parsedCompose, serviceName) {
+  const configName = parsedCompose.configName
   if (!service2IP) {
     const swarm = new Swarm(configName)
     const ri = await swarm.getRunningMachinesList(configName)
@@ -25,28 +27,29 @@ async function getPublicIPOfService (configName, parsedCompose, serviceName) {
   return service2IP.get(serviceName)
 }
 
-async function prettyPrintDeploymentInfo(workers, configName, parsedCompose) {
+async function prettyPrintDeploymentInfo(parsedCompose) {
   const api = new Api(parsedCompose)
   const oPorts = await api.getPortsArray(['orchestrators'])
   const bPorts = await api.getPortsArray(['broadcasters'])
+  const c = chalk.cyan
   console.log('==================================================================================')
   for (let po of oPorts) {
-    const ip = await getPublicIPOfService(configName, parsedCompose, po.name)
-    console.log(`===== ${po.name}:`)
+    const ip = parsedCompose.isLocal ? 'localhost' : await getPublicIPOfService(parsedCompose, po.name)
+    console.log(`===== ${chalk.green(po.name)}:`)
     console.log(`./livepeer_cli -host ${ip} -http ${po['7935']}`)
   }
 
   for (let po of bPorts) {
-    const ip = await getPublicIPOfService(configName, parsedCompose, po.name)
-    console.log(`===== ${po.name}:`)
+    const ip = parsedCompose.isLocal ? 'localhost' : await getPublicIPOfService(parsedCompose, po.name)
+    console.log(`===== ${chalk.green(po.name)}:`)
     console.log(`./livepeer_cli -host ${ip} -http ${po['7935']}`)
-    console.log(`curl http://${ip}:${po['7935']}/status`)
-    console.log(`curl http://${ip}:${po['8935']}/stream/current.m3u8`)
-    console.log(`curl http://${ip}:${po['8935']}/stream/customManifestID.m3u8`)
-    console.log(`RTMP ingest point: rtmp://${ip}:${po['1935']}/anything?manifestID=customManifestID`)
+    console.log(`curl ` + c(`http://${ip}:${po['7935']}/status`))
+    console.log(`curl ` + c(`http://${ip}:${po['8935']}/stream/current.m3u8`))
+    console.log(`curl ` + c(`http://${ip}:${po['8935']}/stream/customManifestID.m3u8`))
+    console.log(`RTMP ingest point: ` + c(`rtmp://${ip}:${po['1935']}/anything?manifestID=customManifestID`))
   }
-  const metricsIP = await getPublicIPOfService(configName, parsedCompose, 'metrics')
-  console.log(`\nMetrics server: http://${metricsIP}:3000`)
+  const metricsIP = parsedCompose.isLocal ? 'localhost' : await getPublicIPOfService(parsedCompose, 'metrics')
+  console.log(`\nMetrics server: ` + c(`http://${metricsIP}:3000`))
 }
 
 function getConstrain(service) {

@@ -66,51 +66,68 @@ class NetworkCreator extends EventEmitter {
   }
 
   loadBinaries (dist, cb) {
-    if (this.config.localBuild) {
-      return cb()
-    }
-    // copy livepeer binaries to lpnode image folder
-    console.log(`copying LP binary from ${this.config.livepeerBinaryPath}. ${__dirname}`)
-    exec(`cp ${path.resolve(__dirname, this.config.livepeerBinaryPath)} ${path.resolve(__dirname, dist)}`,
-    (err, stdout, stderr) => {
-      if (err) throw err
-      console.log('stdout: ', stdout)
-      console.log('stderr: ', stderr)
-      cb(null, stdout)
+    return new Promise((resolve, reject) => {
+      if (this.config.localBuild) {
+        resolve()
+        if (cb) {
+          cb()
+        }
+        return
+      }
+      // copy livepeer binaries to lpnode image folder
+      console.log(`copying LP binary from ${this.config.livepeerBinaryPath}. ${__dirname}`)
+      exec(`cp ${path.resolve(__dirname, this.config.livepeerBinaryPath)} ${path.resolve(__dirname, dist)}`,
+      (err, stdout, stderr) => {
+        if (err) throw err
+        console.log('stdout: ', stdout)
+        console.log('stderr: ', stderr)
+        if (cb) {
+          cb(null, stdout)
+        }
+        resolve(stdout)
+      })
     })
   }
 
   buildLpImage (cb) {
-    if (this.config.localBuild) {
-      this.buildLocalLpImage(cb)
-      return
-    }
-    console.log('building lpnode...')
-    let builder = spawn('docker', [
-      'build',
-      '-t',
-      'lpnode:latest',
-      path.resolve(__dirname, '../containers/lpnode')
-    ])
+    return new Promise((resolve, reject) => {
+      if (this.config.localBuild) {
+        return this.buildLocalLpImage(cb).then(resolve, reject)
+      }
+      console.log('building lpnode...')
+      let builder = spawn('docker', [
+        'build',
+        '-t',
+        'lpnode:latest',
+        path.resolve(__dirname, '../containers/lpnode')
+      ])
 
-    builder.stdout.on('data', (data) => {
-      console.log(`stdout: ${data}`)
-    })
+      builder.stdout.on('data', (data) => {
+        console.log(`stdout: ${data}`)
+      })
 
-    builder.stderr.on('data', (data) => {
-      console.log(`stderr: ${data}`)
-    })
+      builder.stderr.on('data', (data) => {
+        console.log(`stderr: ${data}`)
+      })
 
-    builder.on('close', (code) => {
-      console.log(`child process exited with code ${code}`)
-      cb(null)
+      builder.on('close', (code) => {
+        console.log(`child process exited with code ${code}`)
+        if (cb) {
+          cb(null)
+        }
+        if (code) {
+          reject(code)
+        } else {
+          resolve()
+        }
+      })
+      //
+      // exec(`docker build -t lpnode:latest ./containers/lpnode/`, (err, stdout, stderr) => {
+      //   if (err) throw err
+      //   console.log('stdout: ', stdout)
+      //   console.log('stderr: ', stderr)
+      // })
     })
-    //
-    // exec(`docker build -t lpnode:latest ./containers/lpnode/`, (err, stdout, stderr) => {
-    //   if (err) throw err
-    //   console.log('stdout: ', stdout)
-    //   console.log('stderr: ', stderr)
-    // })
   }
 
   async buildLocalLpImage(cb) {
@@ -202,6 +219,9 @@ class NetworkCreator extends EventEmitter {
         const fnp = fileName.split('.')
         gs.secretName = fnp[0]
         const srcPath = path.resolve(__dirname, '..', gs.key)
+        if (!fs.existsSync(outputFolder)) {
+          fs.mkdirSync(outputFolder, { recursive: true, mode: 484 })
+        }
         console.log(`Copying from ${srcPath} to ${outputFolder}`)
         fs.copyFileSync(srcPath, path.join(outputFolder, fileName))
         if (!top.secrets) {
@@ -245,6 +265,7 @@ class NetworkCreator extends EventEmitter {
           aliases: [serviceName]
         }
       },
+      restart: 'unless-stopped',
       volumes: [vname + ':/lpData']
     }
     volumes[vname] = {}
@@ -341,44 +362,46 @@ class NetworkCreator extends EventEmitter {
 
   generateMetricsService () {
     const mService = {
-        image: 'darkdragon/livepeermetrics:latest',
-        ports: [
-          '3000:3000',
-        ],
-        depends_on: ['mongodb'],
-        networks: {
-          testnet: {
-            aliases: [`metrics`]
-          }
-        },
-        deploy: {
-          placement: {
-            constraints: ['node.role == manager']
-          }
+      image: 'darkdragon/livepeermetrics:latest',
+      ports: [
+        '3000:3000',
+      ],
+      depends_on: ['mongodb'],
+      networks: {
+        testnet: {
+          aliases: [`metrics`]
         }
-      }
-      return mService
+      },
+      deploy: {
+        placement: {
+          constraints: ['node.role == manager']
+        }
+      },
+      restart: 'unless-stopped'
+    }
+    return mService
   }
 
   generateMongoService (volumes) {
     const mService = {
-        image: 'mongo:latest',
-        networks: {
-          testnet: {
-            aliases: [`mongodb`]
-          }
-        },
-        deploy: {
-          placement: {
-            constraints: ['node.role == manager']
-          }
-        },
-        volumes: ['vmongo1:/data/db', 'vmongo2:/data/configdb']
-        // networks: ['outside']
-      }
-      volumes.vmongo1 = {}
-      volumes.vmongo2 = {}
-      return mService
+      image: 'mongo:latest',
+      networks: {
+        testnet: {
+          aliases: [`mongodb`]
+        }
+      },
+      deploy: {
+        placement: {
+          constraints: ['node.role == manager']
+        }
+      },
+      restart: 'unless-stopped',
+      volumes: ['vmongo1:/data/db', 'vmongo2:/data/configdb']
+      // networks: ['outside']
+    }
+    volumes.vmongo1 = {}
+    volumes.vmongo2 = {}
+    return mService
   }
 
   generateGethService (volumes) {
@@ -394,14 +417,17 @@ class NetworkCreator extends EventEmitter {
         testnet: {
           aliases: [`geth`]
         }
-      }
+      },
+      restart: 'unless-stopped'
     }
 
     if (!this.config.local) {
       gethService.logging = {
         driver: 'gcplogs',
         options: {
-          'gcp-project': 'test-harness-226018'
+          'gcp-project': 'test-harness-226018',
+          'gcp-log-cmd': 'true',
+          'labels': `type=geth,node=geth`
         }
       }
 

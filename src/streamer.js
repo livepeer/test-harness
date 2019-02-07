@@ -36,20 +36,34 @@ class Streamer extends EventEmitter {
   //     console.log(`child process exited with code ${code}`)
   //   })
   // }
+  stopAll() {
+    for (let stname of Object.keys(this.streams)) {
+      const stream = this.streams[stname]
+      stream.kill()
+    }
+  }
 
-  stream (dir, input, output) {
+  // @cutByTime - how long to stream, seconds
+  // (should be less than movie length)
+  stream (dir, input, output, cutByTime = 0) {
     return new Promise((resolve, reject) => {
       let args = [
         'run',
+        '--rm',
         '-v',
         `${dir}:/temp/`,
         '--net=host',
-        'jrottenberg/ffmpeg:4.0-ubuntu',
+        'jrottenberg/ffmpeg:4.0-alpine',
         '-re',
-        '-i',
         // path.resolve(input)
-        `/temp/${input}`
       ]
+      if (cutByTime) {
+        const measuredTime = new Date(null)
+        measuredTime.setSeconds(cutByTime) // specify value of SECONDS
+        const MHSTime = measuredTime.toISOString().substr(11, 8)
+        args.push('-t', MHSTime)
+      }
+      args.push('-i', `/temp/${input}`)
 
       args = args.concat(DEFAULT_ARGS.split(' '))
 
@@ -143,7 +157,7 @@ class Streamer extends EventEmitter {
 
   generateComposeFile (broadcasters, sourceDir, input, outputPath, cb) {
     let output = {
-      version: '3',
+      version: '3.7',
       outputFolder: path.resolve(__dirname, outputPath),
       filename: 'stream-stack.yml',
       services: {},
@@ -186,7 +200,7 @@ class Streamer extends EventEmitter {
       '1',
       '--mount',
       `type=bind,source=${dir},destination=/temp/`,
-      'jrottenberg/ffmpeg:4.0-ubuntu',
+      'jrottenberg/ffmpeg:4.0-alpine',
       '-re',
       '-i',
       // path.resolve(input)

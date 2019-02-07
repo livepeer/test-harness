@@ -1,5 +1,8 @@
 // import ethUtil from 'ethereumjs-util'
 // import ethAbi from 'ethereumjs-abi'
+const fs = require('fs')
+const path = require('path')
+const YAML = require('yaml')
 const { spawn, exec } = require('child_process')
 const ethUtil = require('ethereumjs-util')
 const ethAbi = require('ethereumjs-abi')
@@ -50,12 +53,17 @@ function remotelyExec (machineName, zone, command, cb) {
 
 function fundAccount (address, valueInEth, containerId, cb) {
   // NOTE: this requires the geth container to be running and account[0] to be unlocked.
-  exec(`docker exec ${containerId} geth --exec 'eth.sendTransaction({from: eth.accounts[0], to: "${address}", value: web3.toHex(web3.toWei("${valueInEth}", "ether"))})' attach`,
-  (err, stdout, stderr) => {
-    if (err) throw err
-    console.log('stdout: ', stdout)
-    console.log('stderr: ', stderr)
-    cb(null, stdout)
+  return new Promise((resolve, reject) => {
+    exec(`docker exec ${containerId} geth --exec 'eth.sendTransaction({from: eth.accounts[0], to: "${address}", value: web3.toHex(web3.toWei("${valueInEth}", "ether"))})' attach`,
+    (err, stdout, stderr) => {
+      console.log('stdout: ', stdout)
+      console.log('stderr: ', stderr)
+      if (err) throw err
+      if (cb) {
+        cb(null, stdout)
+      }
+      resolve(stdout)
+    })
   })
 }
 
@@ -119,7 +127,35 @@ function getServiceConstraints(workers, bs, os, ts) {
     }
 }
 
+function getDockerComposePath (configName) {
+  return path.join(__dirname, '../../dist', configName, 'docker-compose.yml')
+}
+
+function parseComposeAndGetAddresses (configName) {
+  let parsedCompose = null
+  try {
+    const file = fs.readFileSync(getDockerComposePath(configName), 'utf-8')
+    parsedCompose = YAML.parse(file)
+  } catch (e) {
+    throw e
+  }
+
+  parsedCompose.addresses = Object.keys(parsedCompose.services).map(name => {
+    const service = parsedCompose.services[name]
+    if (service.environment && service.environment.JSON_KEY) {
+      const addressObj = JSON.parse(service.environment.JSON_KEY)
+      // console.log('address to fund: ', addressObj.address)
+      return addressObj.address
+    }
+    return null
+  }).filter(v => !!v)
+  // console.log('addresses results: ', parsedCompose.addresses)
+  parsedCompose.isLocal = parsedCompose.networks.testnet.driver === 'bridge'
+  // console.log('is local:', parsedCompose.isLocal)
+  parsedCompose.configName = configName
+  return parsedCompose
+}
 
 module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount,
-  getNames, spread, wait, getServiceConstraints
+  getNames, spread, wait, getServiceConstraints, parseComposeAndGetAddresses
 }

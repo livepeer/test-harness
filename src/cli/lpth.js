@@ -3,17 +3,11 @@
 const program = require('commander')
 const fs = require('fs')
 const path = require('path')
-const NetworkCreator = require('../networkcreator')
-const dockercompose = require('docker-compose')
 const YAML = require('yaml')
 
 function parsePath (val) {
   console.log(`parsing ${path.resolve(val)} config:`)
   return fs.readFileSync(path.resolve(val))
-}
-
-function parseOutput (val) {
-  return path.resolve(val)
 }
 
 program
@@ -23,25 +17,7 @@ program
   .command('stream <file>', 'starts ffmpeg stream to broadcasters specified in <file>')
   .command('utils [options]', 'various utils for quick debugging')
   .command('info <config>', 'prints list of endpoints of deployed services')
-
-program
-  .command('down [name]')
-  .description('stops and removes docker-compose services.')
-  .action((name) => {
-    fs.access(path.resolve(__dirname, `../../dist/${name}/docker-compose.yml`), (err) => {
-      if (err) {
-        console.log(`experiment ${name} doesn't exist in the ./dist folder`)
-      }
-
-      dockercompose.down({
-        cwd: path.resolve(__dirname, `../../dist/${name}/`),
-        logs: true
-      }).then((logs) => {
-        console.log(logs)
-        console.log(`experiment ${name} services stopped.`)
-      })
-    })
-  })
+  .command('down [name]', 'runs `docker-compose down` or removes VMs in cloud')
 
 program
   .command('port [name] [lpnode]')
