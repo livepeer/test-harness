@@ -1,4 +1,4 @@
-FROM livepeerbinary:alpine
+FROM livepeerbinary:debian
 
 WORKDIR /
 
@@ -7,7 +7,10 @@ ARG JSON_KEY='{"address":"c5065c9eeebe6df2c2284d046bfc906501846c51","crypto":{"c
 RUN mkdir /lpGeth && mkdir /lpData && mkdir /lpData/keystore
 RUN mkdir -p /lpData/mainnet/keystore && mkdir -p /lpData/rinkeby/keystore && mkdir -p /lpData/devenv/keystore && mkdir -p /lpData/offchain/keystore
 
-RUN apk add --no-cache jq bash
+# RUN apk add --no-cache gnutls-dev jq bash
+# RUN apk add --no-cache jq bash
+# RUN aptt update && apt -y install gnutls jq && apt clean
+RUN apt update && apt -y install libgnutls30 jq && apt clean
 
 ENV JSON_KEY=$JSON_KEY
 COPY store_key.sh .
