@@ -44,6 +44,12 @@ will be a folder for this experiment, which will contain the docker-compose
 generated. this will have the port forwarding for each node and should be
 accessible at your dev machine's `localhost`
 
+### Local Build
+
+If flag `localBuild` is set to true in config, then livepeer binary will be taken from local
+docker image tagged `livepeerbinary:debian`. It should be build by running
+`docker build -t livepeerbinary:debian -f Dockerfile.debian .`
+
 ### GCP integrated Test-harness
 
 1. setup `gcloud`, `docker-machine` Google driver uses [Application Default Credentials]() to get authorization credentials for use in calling Google APIs. follow https://cloud.google.com/sdk/docs/#deb to `gcloud init`.
