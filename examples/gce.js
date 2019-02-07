@@ -21,7 +21,7 @@ th.run({
     controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982',
   },
   machines: {
-    num: 12,
+    num: 15,
     zone: 'us-east1-b',
     // zone: 'europe-west3-b',
     machineType: 'n1-highcpu-4',

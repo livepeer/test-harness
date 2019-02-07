@@ -167,7 +167,7 @@ class Api {
         if (res.data && res.data.Manifests) {
           return true
         }
-      } catch {
+      } catch (e) {
       }
       await wait(2000)
     }
@@ -183,7 +183,8 @@ class Api {
       const res = await axios.get(url)
       console.log('== got registeredOrchestrators data: ', res.data)
       return res.data ? res.data : []
-    } catch {
+    } catch (e) {
+      
     }
     return []
   }

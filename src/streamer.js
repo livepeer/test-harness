@@ -154,9 +154,9 @@ class Streamer extends EventEmitter {
     }
 
     let index = broadcaster.split('_')[1]
-    console.log('broadcaster number ', index)
+    // console.log('broadcaster number ', index)
     generated.environment = {
-      'DELAY': (Math.floor(Math.random() * 60)) // * parseInt(index)
+      'DELAY': (Math.floor(Math.random() * 120)) // * parseInt(index)
     }
 
     generated.deploy = {
@@ -167,15 +167,15 @@ class Streamer extends EventEmitter {
         ]
       }
     }
-
-    console.log('generated: ', generated)
+    console.log(`Broadcaster ${index}, stream ${broadcaster.split('_')[2]}, Delay: ${generated.environment.DELAY}`)
+    // console.log('generated: ', generated)
     cb(null, generated)
   }
 
-  _generateStreamServices (broadcasters, sourceDir, input, cb) {
+  _generateStreamServices (broadcasters, sourceDir, input, multiplier, cb) {
     let output = {}
     each(broadcasters, (broadcaster, next) => {
-      let ids = getIds(input, 5)
+      let ids = getIds(input, multiplier)
       eachOf(ids, (id, i, n) => {
         this._generateService(`${broadcaster}_${i}`, sourceDir, input, `rtmp://${broadcaster}:1935/stream_${i}?manifestID=${id}`, (err, service) => {
           if (err) return next(err)
@@ -185,12 +185,12 @@ class Streamer extends EventEmitter {
       }, next)
     }, (err, result) => {
       if (err) throw err
-      console.log('output ', output)
+      // console.log('output ', output)
       cb(null, output)
     })
   }
 
-  generateComposeFile (broadcasters, sourceDir, input, outputPath, cb) {
+  generateComposeFile (broadcasters, sourceDir, input, outputPath, multiplier, cb) {
     let output = {
       version: '3.7',
       outputFolder: path.resolve(__dirname, outputPath),
@@ -214,10 +214,10 @@ class Streamer extends EventEmitter {
       // }
     }
 
-    this._generateStreamServices(broadcasters, sourceDir, input, (err, services) => {
+    this._generateStreamServices(broadcasters, sourceDir, input, multiplier, (err, services) => {
       if (err) throw err
       output.services = services
-      console.log('got services: ', services)
+      // console.log('got services: ', services)
       // this.nodes = output.services
       composefile(output, cb)
     })

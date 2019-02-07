@@ -500,7 +500,8 @@ class NetworkCreator extends EventEmitter {
     if (nodeType === 'transcoder' ) { //|| nodeType === 'orchestrator') {
       output.push('-transcoder')
     } else if (nodeType === 'orchestrator') {
-      output.push('-orchestrator')
+      output.push('-transcoder')
+      // output.push('-orchestrator')
     }
 
     switch (this.config.blockchain.name) {
