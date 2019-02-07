@@ -15,6 +15,7 @@ const { prettyPrintDeploymentInfo } = require('./helpers')
 
 const DIST_DIR = '../dist'
 const DEFAULT_MACHINES = 5
+const getOName = new RegExp('.*\/(orchestrator_\\d+):')
 
 class TestHarness {
   constructor () {
@@ -233,6 +234,8 @@ class TestHarness {
   }
 
   async standardSetup (config) {
+      let setupSuccess = true
+      const bnames = Array.from({length: config.nodes.broadcasters.instances}, (_, i) => `broadcaster_${i}`)
       const orchConf = {
         blockRewardCut: '10',
         feeShare: '5',
@@ -240,9 +243,36 @@ class TestHarness {
         amount: '500'
       }
       console.log('requesting tokens')
-      await this.api.requestTokens(['all'])
+      while (true) {
+        try {
+          await this.api.requestTokens(['all'])
+        } catch(e) {
+          await wait(2000)
+          continue
+        }
+        break
+      }
       console.log('Depositing....')
       await this.api.fundAndApproveSigners(['all'], '5000000000', '500000000000000000')
+      // check if deposit was successful
+      let tr = 0
+      while (true) {
+        let succeed = 0
+        for (let i = 0; i < bnames.length; i++) {
+          const senderInfo = await this.api.getSenderInfo(bnames[i])
+          if (senderInfo.Deposit) {
+            succeed++
+          }
+        }
+        if (succeed == bnames.length) {
+          break
+        }
+        if (tr++ > 12) {
+          console.log(chalk.red('Deposit was unsuccessful!'))
+          setupSuccess = false
+          break
+        }
+      }
       console.log('Initialize round...')
       await this.api.initializeRound(['orchestrator_0'])
       console.log('activating orchestrators...')
@@ -254,22 +284,29 @@ class TestHarness {
       const onames = Array.from({length: config.nodes.orchestrators.instances}, (_, i) => `orchestrator_${i}`)
       await Promise.all(onames.map(n => this.restartService(n)))
       console.log(`restarted ${onames.length} orchestrators`)
-      const bnames = Array.from({length: config.nodes.broadcasters.instances}, (_, i) => `broadcaster_${i}`)
       await Promise.all(bnames.map(n => this.restartService(n)))
       console.log(`restarted ${bnames.length} broadcasters`)
       await this.api.waitTillAlive('orchestrator_0')
       let orchsList = await this.api.getOrchestratorsList('orchestrator_0')
-      let tr = 0
+      tr = 0
       while (orchsList.length < onames.length) {
         await wait(2000, true)
+        const activatedOrchs = orchsList.map(r => {
+            const match = getOName.exec(r.ServiceURI)
+            if (match) {
+                return match[1]
+            }
+        })
         for (let i = 0; i < onames.length; i++) {
-          await this.api.activateOrchestrator([onames[i]], orchConf)
+          if (!activatedOrchs.includes(onames[i])) {
+            await this.api.activateOrchestrator([onames[i]], orchConf)
+          }
         }
         await Promise.all(onames.map(n => this.restartService(n)))
         await this.api.waitTillAlive('orchestrator_0')
         orchsList = await this.api.getOrchestratorsList('orchestrator_0')
         tr++
-        if (tr++ > 10) {
+        if (tr++ > 12) {
           console.log(chalk.red('After 10 tries archestrators still not activated, giving up!'))
           return false
         }
