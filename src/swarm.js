@@ -199,6 +199,7 @@ class Swarm {
         console.log(`not removing them. If you want to remove them, run`)
         console.log(`docker-machine rm -y -f ${runninMachines.join(' ')}`)
         await this.stopStack('livepeer')
+        await this.stopStack('streamer')
         while (true) {
           await wait(2000) // need to wait while instances gets shutdown
           try {

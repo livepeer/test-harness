@@ -11,7 +11,7 @@ const NODE_REGEX = {
   orchestrators: /orchestrator_/g,
   transcoders: /transcoder_/g
 }
-const MAX_CONCURRENCY = 5
+const MAX_CONCURRENCY = 3
 
 const BASE_URL = 'localhost'
 class Api {
@@ -167,7 +167,7 @@ class Api {
         if (res.data && res.data.Manifests) {
           return true
         }
-      } catch {
+      } catch (e) {
       }
       await wait(2000)
     }
@@ -197,7 +197,8 @@ class Api {
       const res = await axios.get(url)
       console.log('== got registeredOrchestrators data: ', res.data)
       return res.data ? res.data : []
-    } catch {
+    } catch (e) {
+      
     }
     return []
   }

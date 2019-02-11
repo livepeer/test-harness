@@ -299,6 +299,16 @@ class NetworkCreator extends EventEmitter {
             reservations: {
               cpus: '0.25',
               memory: '250M'
+            },
+            limits: {
+              cpus: '1.0'
+            }
+          }
+
+          if (type === 'broadcaster') {
+            generated.deploy.resources.limits = {
+              cpus: '0.2',
+              memory: '500M'
             }
           }
         }
@@ -486,10 +496,8 @@ class NetworkCreator extends EventEmitter {
       output.push('-monitorhost http://metrics:3000/api/events')
     }
 
-    if (nodeType === 'transcoder' ) { //|| nodeType === 'orchestrator') {
+    if (nodeType === 'transcoder' || nodeType === 'orchestrator') {
       output.push('-transcoder')
-    } else if (nodeType === 'orchestrator') {
-      output.push('-orchestrator')
     }
 
     switch (this.config.blockchain.name) {

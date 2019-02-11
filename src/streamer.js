@@ -3,9 +3,10 @@
 const { EventEmitter } = require('events')
 const { exec, spawn } = require('child_process')
 const composefile = require('composefile')
-const { each } = require('async')
+const { each, eachOf } = require('async')
 const { URL } = require('url')
 const path = require('path')
+const { getIds } = require('./utils/helpers')
 
 const DEFAULT_ARGS = '-vcodec libx264 -profile:v main -tune zerolatency -preset superfast -r 30 -g 4 -keyint_min 4 -sc_threshold 0 -b:v 2500k -maxrate 2500k -bufsize 2500k -acodec aac -strict -2 -b:a 96k -ar 48000 -ac 2 -f flv'
 
@@ -133,29 +134,63 @@ class Streamer extends EventEmitter {
     generated.logging = {
       driver: 'gcplogs',
       options: {
-        'gcp-project': 'test-harness-226018'
+        'gcp-project': 'test-harness-226018',
+        'gcp-log-cmd': 'true'
       }
     }
-    console.log('generated: ', generated)
+
+    generated.deploy = {
+      replicas: 1,
+      placement: {
+        constraints: ['node.role == worker']
+      }
+    }
+
+    generated.deploy.resources = {
+      reservations: {
+        cpus: '0.1',
+        memory: '100M'
+      }
+    }
+
+    let index = broadcaster.split('_')[1]
+    // console.log('broadcaster number ', index)
+    generated.environment = {
+      'DELAY': (Math.floor(Math.random() * 120)) // * parseInt(index)
+    }
+
+    generated.deploy = {
+      replicas: 1,
+      placement: {
+        constraints: [
+          'node.role == worker'
+        ]
+      }
+    }
+    console.log(`Broadcaster ${index}, stream ${broadcaster.split('_')[2]}, Delay: ${generated.environment.DELAY}`)
+    // console.log('generated: ', generated)
     cb(null, generated)
   }
 
-  _generateStreamServices (broadcasters, sourceDir, input, cb) {
+  _generateStreamServices (broadcasters, sourceDir, input, multiplier, cb) {
     let output = {}
     each(broadcasters, (broadcaster, next) => {
-      this._generateService(broadcaster, sourceDir, input, `rtmp://${broadcaster}:1935`, (err, service) => {
-        if (err) return next(err)
-        output[broadcaster] = service
-        next(null, service)
-      })
+      let ids = getIds(input, multiplier)
+      eachOf(ids, (id, i, n) => {
+        this._generateService(`${broadcaster}_${i}`, sourceDir, input, `rtmp://${broadcaster}:1935/stream_${i}/?manifestID=${id}`, (err, service) => {
+          if (err) return next(err)
+          output[`${broadcaster}_${i}`] = service
+          n(null, service)
+        })
+      }, next)
     }, (err, result) => {
       if (err) throw err
-      console.log('output ', output)
+      // console.log('output ', output)
       cb(null, output)
     })
   }
 
-  generateComposeFile (broadcasters, sourceDir, input, outputPath, cb) {
+  generateComposeFile (broadcasters, sourceDir, input, outputPath, multiplier, cb) {
     let output = {
       version: '3.7',
       outputFolder: path.resolve(__dirname, outputPath),
@@ -179,10 +214,10 @@ class Streamer extends EventEmitter {
       // }
     }
 
-    this._generateStreamServices(broadcasters, sourceDir, input, (err, services) => {
+    this._generateStreamServices(broadcasters, sourceDir, input, multiplier, (err, services) => {
       if (err) throw err
       output.services = services
-      console.log('got services: ', services)
+      // console.log('got services: ', services)
       // this.nodes = output.services
       composefile(output, cb)
     })

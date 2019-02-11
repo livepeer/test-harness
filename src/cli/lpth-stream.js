@@ -16,6 +16,7 @@ const CloudChecker = require('../cloudchecker')
 // const DIST_DIR = '../../dist'
 
 program
+  .option('-m --multiplier <n>', 'number of streams per broadcaster to simulate')
   .option('-r --remote', 'remote streamer mode. used with GCP test-harness')
   .option('-d --dir [DIR]', 'asset dir, must be absolute dir')
   .option('-f --file [FILE]', 'test mp4 file in the asset dir')
@@ -116,7 +117,7 @@ async function fromLocalStream() {
   }
 
   await Promise.all(tasks)
-  
+
   console.log('DONE streaming')
   if (cloudChecker) {
     const res = await cloudChecker.doChecks()
@@ -174,10 +175,13 @@ if (program.remote) {
   //     })
   //   })
   // })
+  console.log('program.multiplier', program.multiplier)
+  program.multiplier = program.multiplier || 1
+  console.log('program.multiplier', program.multiplier)
   console.log('generating compose')
-  st.generateComposeFile(broadcasters, program.dir, program.file, path.resolve(__dirname, `../../dist/${configName}`), (err, result) => {
+  st.generateComposeFile(broadcasters, program.dir, program.file, path.resolve(__dirname, `../../dist/${configName}`), program.multiplier, (err, result) => {
     if (err) throw err
-    console.log('done', result)
+    // console.log('done', result)
     swarm.scp(
       path.resolve(__dirname, `../../dist/${configName}/stream-stack.yml`),
       `${configName}-manager:/tmp/config/stream-stack.yml`, ``,
