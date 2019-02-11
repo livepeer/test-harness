@@ -177,7 +177,7 @@ class NetworkCreator extends EventEmitter {
   generateComposeFile (outputPath, cb) {
     const outputFolder = path.resolve(__dirname, outputPath)
     let output = {
-      version: '3',
+      version: '3.7',
       outputFolder,
       filename: 'docker-compose.yml',
       services: {},
@@ -300,10 +300,9 @@ class NetworkCreator extends EventEmitter {
               cpus: '0.25',
               memory: '250M'
             },
-            // limits: {
-            //   cpus: '0.9',
-            //   memory: '6G'
-            // }
+            limits: {
+              cpus: '1.0'
+            }
           }
 
           if (type === 'broadcaster') {
@@ -497,11 +496,8 @@ class NetworkCreator extends EventEmitter {
       output.push('-monitorhost http://metrics:3000/api/events')
     }
 
-    if (nodeType === 'transcoder' ) { //|| nodeType === 'orchestrator') {
+    if (nodeType === 'transcoder' || nodeType === 'orchestrator') {
       output.push('-transcoder')
-    } else if (nodeType === 'orchestrator') {
-      output.push('-transcoder')
-      // output.push('-orchestrator')
     }
 
     switch (this.config.blockchain.name) {

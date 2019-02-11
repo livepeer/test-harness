@@ -13,7 +13,7 @@ th.run({
   standardSetup: true, // request token, register orchestartors, etc...
   startMetricsServer: true,
   constrainResources: true,
-  name: 'y-gce',
+  name: 'gce',
   livepeerBinaryPath: null,
   blockchain: {
     name: 'lpTestNet',
@@ -21,7 +21,7 @@ th.run({
     controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982',
   },
   machines: {
-    num: 15,
+    num: 30,
     zone: 'us-east1-b',
     // zone: 'europe-west3-b',
     machineType: 'n1-highcpu-4',
@@ -39,10 +39,10 @@ th.run({
         -orchAddr https://orchestrator_0:8935 -orchSecret test'
     },
     orchestrators: {
-      instances: 8,
+      instances: 14,
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `-v 5 -initializeRound=true -gasPrice 200 -gasLimit 2000000 \
-      -currentManifest=true -transcoder `
+      -currentManifest=true`
     },
     broadcasters: {
       // uncomment to configure usage of Google Storage
@@ -50,7 +50,7 @@ th.run({
       //   bucket: 'lptest-fran',
       //   key: 'examples/test-harness-226018-e3a05729b733.json'
       // },
-      instances: 8,
+      instances: 16,
       flags: `-v 5 -gasPrice 200 -gasLimit 2000000 \
       -currentManifest=true`
     }

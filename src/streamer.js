@@ -177,7 +177,7 @@ class Streamer extends EventEmitter {
     each(broadcasters, (broadcaster, next) => {
       let ids = getIds(input, multiplier)
       eachOf(ids, (id, i, n) => {
-        this._generateService(`${broadcaster}_${i}`, sourceDir, input, `rtmp://${broadcaster}:1935/stream_${i}?manifestID=${id}`, (err, service) => {
+        this._generateService(`${broadcaster}_${i}`, sourceDir, input, `rtmp://${broadcaster}:1935/stream_${i}/?manifestID=${id}`, (err, service) => {
           if (err) return next(err)
           output[`${broadcaster}_${i}`] = service
           n(null, service)
