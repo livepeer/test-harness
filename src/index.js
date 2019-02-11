@@ -24,7 +24,7 @@ class TestHarness {
   }
 
   restartService (serviceName, cb) {
-    if (this._config.localBuild) {
+    if (this._config.local) {
       return dockercompose.restartOne(serviceName, {
         cwd: path.join(this.distDir, this._config.name),
         log: true
