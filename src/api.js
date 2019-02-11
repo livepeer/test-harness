@@ -174,6 +174,20 @@ class Api {
     return false
   }
 
+  async getSenderInfo (nodeName) {
+    const empty = {Deposit: 0, PenaltyEscrow: 0, WithdrawBlock: 0}
+    try {
+      const [port] = await this._getPortsArray([nodeName])
+      const url = `http://${this._baseUrl}:${port['7935']}/senderInfo`
+      console.log(`Contacting ${url}`)
+      const res = await axios.get(url)
+      console.log(`== got senderInfo for ${nodeName} data: `, res.data)
+      return res.data ? res.data : empty
+    } catch {
+    }
+    return empty
+  }
+
   async getOrchestratorsList (nodeName) {
     // resp, err := http.Get(fmt.Sprintf("http://%v:%v/registeredOrchestrators", w.host, w.httpPort))
     try {

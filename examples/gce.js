@@ -7,8 +7,8 @@ let th = new TestHarness()
 
 th.run({
   local: false,
-  localBuild: false, // binary will be taken from local image tagged `livepeerbinary:alpine`
-  // this image should be built locally using `docker build -t livepeerbinary:alpine -f Dockerfile.alpine .`
+  localBuild: true, // binary will be taken from local image tagged `livepeerbinary:debian`
+  // this image should be built locally using `docker build -t livepeerbinary:debian -f Dockerfile.debian .`
   // command in go-livepeer repo
   standardSetup: true, // request token, register orchestartors, etc...
   startMetricsServer: true,
