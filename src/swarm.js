@@ -61,9 +61,8 @@ class Swarm {
     //   --${driver}-machine-type ${opts.machineType || this._defaults.machineType} \
     //   --${driver}-tags ${opts.tags || this._defaults.tags} \
     //   --${driver}-project ${this._defaults.projectId}`, cb)
-    console.log('running docker-machine create')
 
-    let builder = spawn('docker-machine', [
+    let args = [
       'create',
       opts.name,
       '--driver',
@@ -76,7 +75,10 @@ class Swarm {
       opts.tags || this._defaults.tags,
       `--${driver}-project`,
       this._defaults.projectId
-    ])
+    ]
+
+    console.log('running docker-machine ', args.join(' '))
+    let builder = spawn('docker-machine', args)
     let stderr = ''
 
     builder.stdout.on('data', (data) => {
