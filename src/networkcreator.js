@@ -295,20 +295,23 @@ class NetworkCreator extends EventEmitter {
           }
         }
         if (this.config.constrainResources) {
-          generated.deploy.resources = {
-            reservations: {
-              cpus: '0.25',
-              memory: '250M'
-            },
-            limits: {
-              cpus: '1.0'
-            }
-          }
-
           if (type === 'broadcaster') {
-            generated.deploy.resources.limits = {
-              cpus: '0.2',
-              memory: '500M'
+            generated.deploy.resources = {
+              reservations: {
+                cpus: '0.1',
+                memory: '250M'
+              },
+              limits: {
+                cpus: '0.2',
+                memory: '500M'
+              }
+            }
+          } else {
+            generated.deploy.resources = {
+              reservations: {
+                cpus: '1.0',
+                memory: '500M'
+              }
             }
           }
         }

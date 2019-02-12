@@ -140,7 +140,7 @@ class Streamer extends EventEmitter {
     }
 
     generated.deploy = {
-      replicas: 1,
+      // replicas: 1,
       placement: {
         constraints: ['node.role == worker']
       }
@@ -148,8 +148,8 @@ class Streamer extends EventEmitter {
 
     generated.deploy.resources = {
       reservations: {
-        cpus: '0.1',
-        memory: '100M'
+        cpus: '0.2',
+        memory: '200M'
       }
     }
 
