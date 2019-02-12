@@ -41,7 +41,7 @@ th.run({
     orchestrators: {
       instances: 14,
       // TODO these are not complete, try adding the right orchestrator flags :)
-      flags: `-v 5 -initializeRound=true -gasPrice 200 -gasLimit 2000000 \
+      flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 \
       -currentManifest=true`
     },
     broadcasters: {
@@ -51,7 +51,7 @@ th.run({
       //   key: 'examples/test-harness-226018-e3a05729b733.json'
       // },
       instances: 16,
-      flags: `-v 5 -gasPrice 200 -gasLimit 2000000 \
+      flags: `-v 5 -gasPrice 20 -gasLimit 20000000 \
       -currentManifest=true`
     }
   }
