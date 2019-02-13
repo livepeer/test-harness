@@ -25,9 +25,9 @@ fi
 # sudo docker run -v "$PWD":/go -w /go/src/github.com/livepeer/go-livepeer golang:1.10.3-stretch go build -v ./cmd/livepeer
 cd /tmp/assets
 sudo chown docker-user:docker-user -R /tmp/assets && \
-sudo chmod +x /tmp/assets/livepeer && sudo cp /tmp/assets/livepeer /tmp/config/livepeer && \
-# sudo cp livepeer.tar.gz /tmp/config && cd /tmp/config && sudo tar -xvzf livepeer.tar.gz
-# sudo chmod +x /tmp/config/livepeer
+# sudo chmod +x /tmp/assets/livepeer && sudo cp /tmp/assets/livepeer /tmp/config/livepeer && \
+sudo cp livepeer.tar.gz /tmp/config && cd /tmp/config && sudo tar -xvzf livepeer.tar.gz
+sudo chmod +x /tmp/config/livepeer
 cp /tmp/config/livepeer /tmp/test-harness/containers/lpnode/binaries
 cd /tmp/test-harness/containers/lpnode
 sudo docker build -t localhost:5000/lpnode:latest -f Dockerfile . && \
