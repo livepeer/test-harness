@@ -9,6 +9,7 @@ const path = require('path')
 const { getIds } = require('./utils/helpers')
 
 const DEFAULT_ARGS = '-vcodec libx264 -profile:v main -tune zerolatency -preset superfast -r 30 -g 4 -keyint_min 4 -sc_threshold 0 -b:v 2500k -maxrate 2500k -bufsize 2500k -acodec aac -strict -2 -b:a 96k -ar 48000 -ac 2 -f flv'
+const LIGHT_ARGS = '-c:a copy -c:v copy'
 
 class Streamer extends EventEmitter {
   constructor (opts) {
@@ -172,6 +173,102 @@ class Streamer extends EventEmitter {
     cb(null, generated)
   }
 
+  _generateLightService (sourceDir, input, destinations, cb) {
+    let command = `-re -i /temp/${input} ${LIGHT_ARGS}`
+    // validate output
+    each(destinations, (destination, next) => {
+      let parsedOutput = null
+      try {
+        parsedOutput = new URL(destination)
+      } catch (e) {
+        next(e)
+      }
+
+      if (parsedOutput.protocol && parsedOutput.protocol !== 'rtmp:') {
+        console.log(parsedOutput)
+        return next(`streamer can only output to rtmp endpoints, ${parsedOutput.protocol} is not supported`)
+        // TODO throw error here.
+      }
+
+      command += ` -f flv ${parsedOutput.href}`
+      next(null, `-f flv ${parsedOutput.href}`)
+    }, (err, results) => {
+      if (err) throw err
+      console.log('command', command)
+      // command = `${command} ${results.join(' ')}`
+
+      let generated = {
+        image: 'localhost:5000/streamer:latest',
+        networks: {
+          testnet: {
+            aliases: [`streamer_broadcasters`]
+          }
+        },
+        command: command,
+        // volumes: [`assets:/temp/`]
+      }
+
+      generated.logging = {
+        driver: 'gcplogs',
+        options: {
+          'gcp-project': 'test-harness-226018',
+          'gcp-log-cmd': 'true'
+        }
+      }
+
+      generated.deploy = {
+        // replicas: 1,
+        placement: {
+          constraints: ['node.role == worker']
+        }
+      }
+
+      generated.deploy.resources = {
+        reservations: {
+          cpus: '0.5',
+          memory: '500M'
+        }
+      }
+
+      // console.log('broadcaster number ', index)
+      generated.environment = {
+        'DELAY': (Math.floor(Math.random() * 10)) // * parseInt(index)
+      }
+
+      generated.deploy = {
+        replicas: 1,
+        placement: {
+          constraints: [
+            'node.role == worker'
+          ]
+        }
+      }
+      console.log('generated: ', generated)
+      cb(null, generated)
+    })
+  }
+
+  _generateSingleService (broadcasters, sourceDir, input, multiplier, cb) {
+    let output = {}
+    let destinations = []
+    each(broadcasters, (broadcaster, next) => {
+      let ids = getIds(input, multiplier)
+      eachOf(ids, (id, i, n) => {
+        destinations.push(`rtmp://${broadcaster}:1935/stream_${i}/?manifestID=${id}`)
+        n(null)
+      }, next)
+    }, (err, result) => {
+      if (err) throw err
+      // console.log('output ', output)
+      console.log('destinations: ', destinations)
+      this._generateLightService(sourceDir, input, destinations, (err, service) => {
+        if (err) throw err
+        output[`streamer`] = service
+        cb(null, output)
+      })
+    })
+  }
+
   _generateStreamServices (broadcasters, sourceDir, input, multiplier, cb) {
     let output = {}
     each(broadcasters, (broadcaster, next) => {
@@ -214,7 +311,7 @@ class Streamer extends EventEmitter {
       // }
     }
 
-    this._generateStreamServices(broadcasters, sourceDir, input, multiplier, (err, services) => {
+    this._generateSingleService(broadcasters, sourceDir, input, multiplier, (err, services) => {
       if (err) throw err
       output.services = services
       // console.log('got services: ', services)

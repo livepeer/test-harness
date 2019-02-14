@@ -42,7 +42,7 @@ th.run({
       instances: 15,
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 \
-      -currentManifest=true`
+      -currentManifest=true -maxSessions 8`
     },
     broadcasters: {
       // uncomment to configure usage of Google Storage
