@@ -14,14 +14,14 @@ th.run({
   startMetricsServer: true,
   constrainResources: true,
   name: 'y-gce',
-  livepeerBinaryPath: null,
+  livepeerBinaryPath: '../livepeer',
   blockchain: {
     name: 'lpTestNet',
     networkId: 54321,
     controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982',
   },
   machines: {
-    num: 20,
+    num: 3,
     zone: 'us-east1-b',
     // zone: 'europe-west3-b',
     machineType: 'n1-highcpu-8',
@@ -39,7 +39,7 @@ th.run({
         -orchAddr https://orchestrator_0:8935 -orchSecret test'
     },
     orchestrators: {
-      instances: 15,
+      instances: 2,
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 \
       -currentManifest=true -maxSessions 8`
@@ -50,7 +50,7 @@ th.run({
       //   bucket: 'lptest-fran',
       //   key: 'examples/test-harness-226018-e3a05729b733.json'
       // },
-      instances: 15,
+      instances: 4,
       flags: `-v 5 -gasPrice 20 -gasLimit 20000000 \
       -currentManifest=true`
     }
