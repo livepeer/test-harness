@@ -3,6 +3,7 @@
 const { EventEmitter } = require('events')
 const { exec, spawn } = require('child_process')
 const path = require('path')
+const tar = require('tar')
 const fs = require('fs')
 const toml = require('toml')
 const composefile = require('composefile')
@@ -85,6 +86,34 @@ class NetworkCreator extends EventEmitter {
           cb(null, stdout)
         }
         resolve(stdout)
+      })
+    })
+  }
+
+  compressAndCopyBinaries (dist, cb) {
+    return new Promise((resolve, reject) => {
+      if (this.config.localBuild) {
+        resolve()
+        if (cb) {
+          cb()
+        }
+        return
+      }
+      tar.c({
+        gzip: true,
+        file: `${path.resolve(__dirname, this.config.livepeerBinaryPath)}.tar.gz`,
+        cwd: `${path.dirname(path.resolve(__dirname, this.config.livepeerBinaryPath))}`
+      }, [path.basename(path.resolve(__dirname, this.config.livepeerBinaryPath))]).then((_) => {
+        exec(`cp ${path.resolve(__dirname, this.config.livepeerBinaryPath)}.tar.gz ${path.resolve(__dirname, dist)}`,
+        (err, stdout, stderr) => {
+          if (err) throw err
+          console.log('stdout: ', stdout)
+          console.log('stderr: ', stderr)
+          if (cb) {
+            cb(null, stdout)
+          }
+          resolve(stdout)
+        })
       })
     })
   }
