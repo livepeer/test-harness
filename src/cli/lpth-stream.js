@@ -8,9 +8,8 @@ const Streamer = require('../streamer')
 const Swarm = require('../swarm')
 const Api = require('../api')
 const utils = require('../utils/helpers')
-const { wait } = require('../utils/helpers')
-const { parseConfigFromCommandLine,  } = require('./helpers')
-const { getPublicIPOfService } = require('../helpers')
+const { wait, getIds } = require('../utils/helpers')
+const { parseConfigFromCommandLine } = require('./helpers')
 const CloudChecker = require('../cloudchecker')
 
 // const DIST_DIR = '../../dist'
@@ -23,6 +22,7 @@ program
   // .option('-t --to-cloud', 'streams from local machine to cloud')
   .option('-s --streams <n>', 'maximum number of streams to stream', parseInt)
   .option('-t --time <n>', 'stream length, seconds', parseInt)
+  .option('-i --infinite', 'use inifinite stream') // don't use for now, ffmpeg sends packets too fast
   .option('-e --end-point [host:rtmpPort:mediaPort]', 'End point to stream to instead of streaming in config')
   .option('-g --google-check', 'check transcoded files in google cloud and print success rate')
   .description('starts stream simulator to deployed broadcasters. [WIP]')
@@ -42,7 +42,7 @@ const swarm = new Swarm(configName)
 
 async function getIP(name) {
   return parsedCompose.overrideBroadcasterHost ? parsedCompose.overrideBroadcasterHost :
-    parsedCompose.isLocal ? 'localhost' : await getPublicIPOfService(parsedCompose, name)
+    parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, name)
 }
 
 async function fromLocalStream() {
@@ -78,7 +78,7 @@ async function fromLocalStream() {
     const po = bPorts[i]
     const id = ids[i]
     const ip = await getIP(po.name)
-    const task = st.stream(program.dir, program.file, `rtmp://${ip}:${po['1935']}/anything?manifestID=${id}`, program.time)
+    const task = st.stream(program.dir, program.file, `rtmp://${ip}:${po['1935']}/anything?manifestID=${id}`, program.time, program.infinite)
     tasks.push(task)
   }
 
@@ -125,15 +125,6 @@ async function fromLocalStream() {
   }
 }
 
-function getIds(configName, num) {
-  let u = process.env.USER
-  if (u) {
-    u += '-'
-  }
-  const d = (+new Date() - 1500000000000)/1000|0
-  return Array.from({length: num}, (_, i) => `${u}${configName}-${d}-${i}`)
-}
-
 // let baseUrl = 'localhost'
 if (!program.dir) {
   program.file = 'BigBuckBunny.mp4'
@@ -159,7 +150,7 @@ if (!program.dir) {
 //   program.streams = s
 // }
 
-if (program.remote) {
+async function remoteStream() {
   // swarm.getPubIP(`${configName}-manager`, (err, ip) => {
   //   if (err) throw err
   //   baseUrl = ip.trim()
@@ -175,34 +166,40 @@ if (program.remote) {
   //     })
   //   })
   // })
+  // console.log(parsedCompose)
+  const runningMachines = await swarm.getRunningMachinesList(configName)
+  const runningWorkers = runningMachines.filter(mn => !mn.includes('-manager'))
+  runningWorkers.sort()
+  // console.log(broadcasters)
+  // console.log(runningMachines, runningWorkers)
+  const machines2use = parsedCompose.usedWorkers.length < runningWorkers.length ?
+    runningWorkers.filter(mn => !parsedCompose.usedWorkers.includes(mn)) : runningWorkers
+  // console.log('==== machines to use:', machines2use)
   console.log('program.multiplier', program.multiplier)
   program.multiplier = program.multiplier || 1
   console.log('program.multiplier', program.multiplier)
   console.log('generating compose')
-  st.generateComposeFile(broadcasters, program.dir, program.file, path.resolve(__dirname, `../../dist/${configName}`), program.multiplier, (err, result) => {
-    if (err) throw err
+  const configDir = path.resolve(__dirname, `../../dist/${configName}`)
+  await st.generateComposeFile(broadcasters, machines2use, program.dir, program.file, configDir, program.multiplier, program.infinite)
     // console.log('done', result)
-    swarm.scp(
-      path.resolve(__dirname, `../../dist/${configName}/stream-stack.yml`),
-      `${configName}-manager:/tmp/config/stream-stack.yml`, ``,
-      (err, output) => {
-        if (err) throw err
-        console.log('uploaded stream-stack.yml')
-        // TODO find and use proper zone
-        const zone = undefined
-        utils.remotelyExec(
-          `${configName}-manager`, zone,
-          `cd /tmp/config && sudo docker stack deploy -c stream-stack.yml streamer`,
-          (err, outputBuf) => {
-            if (err) throw err
-            console.log('stack deployed', (outputBuf) ? outputBuf.toString() : null)
-          })
-      }
-    )
-  })
-} else {
-  fromLocalStream().catch(console.error)
+  await swarm.scp(path.join(configDir, 'stream-stack.yml'),
+    `${configName}-manager:/tmp/stream-stack.yml`, ``)
+
+  console.log('uploaded stream-stack.yml')
+  const outputBuf = await utils.remotelyExec(`${configName}-manager`, parsedCompose.zone,
+    `cd /tmp && sudo docker stack deploy -c stream-stack.yml streamer`)
+  console.log('stack deployed', (outputBuf) ? outputBuf.toString() : null)
 }
+
+async function run() {
+  if (program.remote) {
+    return await remoteStream()
+  } else {
+    return await fromLocalStream()
+  }
+}
+
+run().catch(console.error)
 
 //
 //

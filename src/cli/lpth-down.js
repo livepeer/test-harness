@@ -22,6 +22,11 @@ async function run(parsedCompose) {
     console.log(`Removing VM instances for ${name}`)
     await swarm.tearDown(name)
     console.log(`experiment ${name} VM instances removed.`)
+    // todo: save email in docker compose and find back here
+    const config = {
+      name
+    }
+    await swarm.teardownGCEMonitoring(config)
   }
 }
 

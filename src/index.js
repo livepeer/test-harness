@@ -62,9 +62,10 @@ class TestHarness {
     } else {
       const parsedCompose = parseComposeAndGetAddresses(config.name)
       eachLimit(parsedCompose.addresses, 5, (address, cb) => {
-        utils.fundRemoteAccount(config.name, address, '1', `livepeer_geth`, cb)
+        utils.fundRemoteAccount(config.name, address, '1000', `livepeer_geth`, cb)
       }, (err) => {
         if (err) throw err
+        // todo: add check if funding really got through
         console.log('funding secured!!')
         this.swarm.getPubIP(`${config.name}-manager`, (err, pubIP) => {
           if (err) throw err
@@ -106,7 +107,6 @@ class TestHarness {
     this.networkCreator = new NetworkCreator(config)
     this.networkCreator.generateComposeFile(`${DIST_DIR}/${config.name}`, (err) => {
       if (err) return handleError(err)
-      // return
 
       if (config.local) {
         this.runLocal(config)
@@ -255,7 +255,9 @@ class TestHarness {
         }
         try {
           console.log('requesting tokens')
-          await this.api.requestTokens(['all'])
+          // await this.api.requestTokens(['all'])
+          await this.api.requestTokens(['orchestrators'])
+          await this.api.requestTokens(['broadcasters'])
         } catch(e) {
           console.log(e)
           await wait(2000)
@@ -264,7 +266,9 @@ class TestHarness {
         break
       }
       console.log('Depositing....')
-      await this.api.fundAndApproveSigners(['all'], '5000000000', '500000000000000000')
+      // await this.api.fundAndApproveSigners(['all'], '5000000000', '500000000000000000')
+      await this.api.fundAndApproveSigners(['orchestrators'], '5000000000', '500000000000000000')
+      await this.api.fundAndApproveSigners(['broadcasters'], '5000000000', '500000000000000000')
       // check if deposit was successful
       tr = 0
       while (true) {
@@ -291,6 +295,7 @@ class TestHarness {
       // await this.api.activateOrchestrator(['orchestrators'], orchConf)
       // bond
       const onames = Array.from({length: config.nodes.orchestrators.instances}, (_, i) => `orchestrator_${i}`)
+      const tnames = Array.from({length: config.nodes.transcoders.instances}, (_, i) => `transcoder_${i}`)
       // await Promise.all(onames.map(n => this.restartService(n)))
       // console.log(`restarted ${onames.length} orchestrators`)
       // await Promise.all(bnames.map(n => this.restartService(n)))
@@ -372,6 +377,7 @@ class TestHarness {
         break
       }
       await Promise.all(bnames.map(n => this.restartService(n)))
+      await Promise.all(tnames.map(n => this.restartService(n)))
       await this.api.waitTillAlive('broadcaster_0')
       return setupSuccess
   }
@@ -409,11 +415,19 @@ class TestHarness {
     // await this.networkCreator.buildLocalLpImage()
     await this.saveLocalDockerImage()
     const loadToWorkers = [this.loadLocalDockerImageToSwarm(managerName)]
+    /*
     for (let i = 0; i < config.machines.num - 1; i++) {
       const workerName = `${configName}-worker-${ i+1 }`
       loadToWorkers.push(this.loadLocalDockerImageToSwarm(workerName))
     }
+    */
     await Promise.all(loadToWorkers)
+    await utils.remotelyExec(managerName, config.machines.zone, 
+      `sudo docker tag lpnode:latest localhost:5000/lpnode:latest && sudo docker push localhost:5000/lpnode:latest &&
+       sudo docker pull darkdragon/test-streamer:latest &&
+       sudo docker tag darkdragon/test-streamer:latest localhost:5000/streamer:latest &&
+       sudo docker push localhost:5000/streamer:latest
+      `)
     console.log('docker image pushed')
     await this.swarm.deployComposeFile(this.getDockerComposePath(config), 'livepeer', managerName)
     const results = await this.fundAccounts(config)
