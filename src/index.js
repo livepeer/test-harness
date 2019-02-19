@@ -97,6 +97,10 @@ class TestHarness {
     // 13. pipe logs to bucket or download them.
     // 14. teardown the cluster.
     // 15. callback.
+    if (!config.name) {
+      console.log(chalk.red('Config name not specified.'))
+      process.exit(3)
+    }
     config.name = config.name || 'testharness'
     this.swarm = new Swarm(config.name)
 
