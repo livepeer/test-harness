@@ -165,7 +165,7 @@ class TestHarness {
     }
     await this.setupEnd(config, experiment)
     return experiment
-  } 
+  }
 
   async runSwarm(config) {
     // copy binaries to the manager instance.
@@ -186,6 +186,11 @@ class TestHarness {
 
     if (config.localBuild) {
       await this.networkCreator.buildLocalLpImage()
+    }
+
+    if (config.livepeerBinaryPath) {
+        // copy the binary to the experiment payload folder
+      await this.networkCreator.compressAndCopyBinaries(`${DIST_DIR}/${config.name}`)
     }
 
     const notCreatedNow = await this.swarm.createSwarm(config)

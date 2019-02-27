@@ -835,7 +835,7 @@ class Swarm {
               zone,
               `cd /tmp && \
                sudo rm -r -f config && \
-               sudo mv ${name} config && cd /tmp/config && /bin/sh manager_setup.sh && /bin/sh create_streamer_image.sh`,
+               sudo mv ${name} config && cd /tmp/config && /bin/sh manager_setup.sh ${(config.livepeerBinaryPath) ? 'binary' : null} && /bin/sh create_streamer_image.sh`,
               cb)
           }
         )

@@ -7,24 +7,24 @@ let th = new TestHarness()
 
 th.run({
   local: false,
-  localBuild: true, // binary will be taken from local image tagged `livepeerbinary:debian`
+  localBuild: false, // binary will be taken from local image tagged `livepeerbinary:debian`
   // this image should be built locally using `docker build -t livepeerbinary:debian -f Dockerfile.debian .`
   // command in go-livepeer repo
   standardSetup: true, // request token, register orchestartors, etc...
   startMetricsServer: true,
   constrainResources: true,
-  name: 'gce',
-  livepeerBinaryPath: null,
+  name: 'y-gce',
+  livepeerBinaryPath: '../livepeer',
   blockchain: {
     name: 'lpTestNet',
     networkId: 54321,
     controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982',
   },
   machines: {
-    num: 30,
+    num: 3,
     zone: 'us-east1-b',
     // zone: 'europe-west3-b',
-    machineType: 'n1-highcpu-4',
+    machineType: 'n1-highcpu-8',
     managerMachineType: 'n1-highmem-2'
     // machineType: 'n1-standard-2'
   },
@@ -39,10 +39,10 @@ th.run({
         -orchAddr https://orchestrator_0:8935 -orchSecret test'
     },
     orchestrators: {
-      instances: 14,
+      instances: 2,
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 \
-      -currentManifest=true`
+      -maxSessions 8`
     },
     broadcasters: {
       // uncomment to configure usage of Google Storage
@@ -50,7 +50,7 @@ th.run({
       //   bucket: 'lptest-fran',
       //   key: 'examples/test-harness-226018-e3a05729b733.json'
       // },
-      instances: 16,
+      instances: 4,
       flags: `-v 5 -gasPrice 20 -gasLimit 20000000 \
       -currentManifest=true`
     }
