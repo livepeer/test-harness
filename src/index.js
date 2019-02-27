@@ -62,9 +62,10 @@ class TestHarness {
     } else {
       const parsedCompose = parseComposeAndGetAddresses(config.name)
       eachLimit(parsedCompose.addresses, 5, (address, cb) => {
-        utils.fundRemoteAccount(config.name, address, '1', `livepeer_geth`, cb)
+        utils.fundRemoteAccount(config.name, address, '1000', `livepeer_geth`, cb)
       }, (err) => {
         if (err) throw err
+        // todo: add check if funding really got through
         console.log('funding secured!!')
         this.swarm.getPubIP(`${config.name}-manager`, (err, pubIP) => {
           if (err) throw err
@@ -96,6 +97,10 @@ class TestHarness {
     // 13. pipe logs to bucket or download them.
     // 14. teardown the cluster.
     // 15. callback.
+    if (!config.name) {
+      console.log(chalk.red('Config name not specified.'))
+      process.exit(3)
+    }
     config.name = config.name || 'testharness'
     this.swarm = new Swarm(config.name)
 
@@ -106,7 +111,6 @@ class TestHarness {
     this.networkCreator = new NetworkCreator(config)
     this.networkCreator.generateComposeFile(`${DIST_DIR}/${config.name}`, (err) => {
       if (err) return handleError(err)
-      // return
 
       if (config.local) {
         this.runLocal(config)
@@ -146,7 +150,10 @@ class TestHarness {
       cwd: path.resolve(__dirname, `${DIST_DIR}/${config.name}`),
       log: true
     })
-    console.warn('docker-compose warning: ', logs.err)
+    console.warn('docker-compose warning: >>>', logs.err, "<<<")
+    if ((logs.err+'').includes('Encountered errors while bringing up the project')) {
+      process.exit(11)
+    }
     console.log('all lpnodes are up: ', logs.out)
     // console.log('waiting 10s')
     this.api = new Api(parsedCompose)
@@ -238,6 +245,7 @@ class TestHarness {
     return res
   }
 
+
   async standardSetup (config) {
       let setupSuccess = true
       const bnames = Array.from({length: config.nodes.broadcasters.instances}, (_, i) => `broadcaster_${i}`)
@@ -247,20 +255,31 @@ class TestHarness {
         pricePerSegment: '1',
         amount: '500'
       }
-      console.log('requesting tokens')
+      
+      let tr = 0
       while (true) {
+        if (tr++ > 12) {
+          console.log(chalk.red(`Tried to request token ${tr} times, giving up.`))
+          return false
+        }
         try {
-          await this.api.requestTokens(['all'])
+          console.log('requesting tokens')
+          // await this.api.requestTokens(['all'])
+          await this.api.requestTokens(['orchestrators'])
+          await this.api.requestTokens(['broadcasters'])
         } catch(e) {
+          console.log(e)
           await wait(2000)
           continue
         }
         break
       }
       console.log('Depositing....')
-      await this.api.fundAndApproveSigners(['all'], '5000000000', '500000000000000000')
+      // await this.api.fundAndApproveSigners(['all'], '5000000000', '500000000000000000')
+      await this.api.fundAndApproveSigners(['orchestrators'], '5000000000', '500000000000000000')
+      await this.api.fundAndApproveSigners(['broadcasters'], '5000000000', '500000000000000000')
       // check if deposit was successful
-      let tr = 0
+      tr = 0
       while (true) {
         let succeed = 0
         for (let i = 0; i < bnames.length; i++) {
@@ -281,20 +300,19 @@ class TestHarness {
       console.log('Initialize round...')
       await this.api.initializeRound(['orchestrator_0'])
       console.log('activating orchestrators...')
-      await wait(2000)
-      await this.api.activateOrchestrator(['orchestrators'], orchConf)
+      // await wait(2000)
+      // await this.api.activateOrchestrator(['orchestrators'], orchConf)
       // bond
-      const o2b = this.assignBroadcasters2Orchs(config)
-      await Promise.all(Object.keys(o2b).map(oname => this.api.bond(o2b[oname], '5000', oname)))
       const onames = Array.from({length: config.nodes.orchestrators.instances}, (_, i) => `orchestrator_${i}`)
-      await Promise.all(onames.map(n => this.restartService(n)))
-      console.log(`restarted ${onames.length} orchestrators`)
-      await Promise.all(bnames.map(n => this.restartService(n)))
-      console.log(`restarted ${bnames.length} broadcasters`)
+      const tnames = Array.from({length: config.nodes.transcoders.instances}, (_, i) => `transcoder_${i}`)
+      // await Promise.all(onames.map(n => this.restartService(n)))
+      // console.log(`restarted ${onames.length} orchestrators`)
+      // await Promise.all(bnames.map(n => this.restartService(n)))
+      // console.log(`restarted ${bnames.length} broadcasters`)
       await this.api.waitTillAlive('orchestrator_0')
       let orchsList = await this.api.getOrchestratorsList('orchestrator_0')
       tr = 0
-      while (orchsList.length < onames.length) {
+      while (orchsList.length < onames.length-0) {
         await wait(2000, true)
         const activatedOrchs = orchsList.map(r => {
             const match = getOName.exec(r.ServiceURI)
@@ -302,14 +320,53 @@ class TestHarness {
                 return match[1]
             }
         })
-        for (let i = 0; i < onames.length; i++) {
-          if (!activatedOrchs.includes(onames[i])) {
-            await this.api.activateOrchestrator([onames[i]], orchConf)
-          }
+        const toActivate = onames.filter(name => !activatedOrchs.includes(name))
+        
+        try {
+          await this.api.activateOrchestrator(toActivate, orchConf)
+        } catch(e) {
+          console.log(e)
+          continue
         }
-        await Promise.all(onames.map(n => this.restartService(n)))
-        await this.api.waitTillAlive('orchestrator_0')
-        orchsList = await this.api.getOrchestratorsList('orchestrator_0')
+        
+       /*
+       let bad = false
+       for (let name of toActivate) {
+         try {
+            await this.api.activateOrchestrator([name], orchConf)
+            let orchsList = await this.api.getOrchestratorsList(name)
+            // console.log(orchsList)
+         } catch(e) {
+           console.log(e)
+           bad = true
+           break
+         }
+       }
+       if (bad) {
+         continue
+       }
+       */
+        // const reactivated = []
+        // for (let i = 0; i < onames.length-0; i++) {
+        //   if (!activatedOrchs.includes(onames[i])) {
+        //     try {
+        //     await this.api.activateOrchestrator([onames[i]], orchConf)
+        //     reactivated.push(onames[i])
+        //     } catch(e) {
+        //       console.log(e)
+        //     }
+        //   }
+        // }
+        // if (reactivated.length == 0) {
+        //   continue
+        // }
+        // await Promise.all(onames.map(n => this.restartService(n)))
+        // await Promise.all(reactivated.map(n => this.restartService(n)))
+        await Promise.all(toActivate.map(n => this.restartService(n)))
+        // await this.api.waitTillAlive('orchestrator_0')
+        await this.api.waitTillAlive(toActivate[0])
+        // orchsList = await this.api.getOrchestratorsList('orchestrator_0')
+        orchsList = await this.api.getOrchestratorsList(toActivate[0])
         tr++
         if (tr++ > 12) {
           console.log(chalk.red('After 10 tries archestrators still not activated, giving up!'))
@@ -318,7 +375,20 @@ class TestHarness {
       }
       await Promise.all(bnames.map(n => this.restartService(n)))
       await this.api.waitTillAlive('broadcaster_0')
-      return true
+      const o2b = this.assignBroadcasters2Orchs(config)
+      for (let i = 0; i < 10; i++) {
+        try {
+          await Promise.all(Object.keys(o2b).map(oname => this.api.bond(o2b[oname], '5000', oname)))
+        } catch(e) {
+          console.log(e)
+          continue
+        }
+        break
+      }
+      await Promise.all(bnames.map(n => this.restartService(n)))
+      await Promise.all(tnames.map(n => this.restartService(n)))
+      await this.api.waitTillAlive('broadcaster_0')
+      return setupSuccess
   }
 
   setupManager(config) {
@@ -354,11 +424,19 @@ class TestHarness {
     // await this.networkCreator.buildLocalLpImage()
     await this.saveLocalDockerImage()
     const loadToWorkers = [this.loadLocalDockerImageToSwarm(managerName)]
+    /*
     for (let i = 0; i < config.machines.num - 1; i++) {
       const workerName = `${configName}-worker-${ i+1 }`
       loadToWorkers.push(this.loadLocalDockerImageToSwarm(workerName))
     }
+    */
     await Promise.all(loadToWorkers)
+    await utils.remotelyExec(managerName, config.machines.zone, 
+      `sudo docker tag lpnode:latest localhost:5000/lpnode:latest && sudo docker push localhost:5000/lpnode:latest &&
+       sudo docker pull darkdragon/test-streamer:latest &&
+       sudo docker tag darkdragon/test-streamer:latest localhost:5000/streamer:latest &&
+       sudo docker push localhost:5000/streamer:latest
+      `)
     console.log('docker image pushed')
     await this.swarm.deployComposeFile(this.getDockerComposePath(config), 'livepeer', managerName)
     const results = await this.fundAccounts(config)
@@ -378,6 +456,20 @@ class TestHarness {
   }
 
   async loadLocalDockerImageToSwarm(managerName) {
+    let err = null
+    for (let i = 0; i < 10; i++) {
+      try {
+        await this._loadLocalDockerImageToSwarm(managerName)
+        return
+      } catch(e) {
+        console.log(e)
+        err = e
+      }
+    }
+    throw err
+  }
+
+  async _loadLocalDockerImageToSwarm(managerName) {
     console.log('Loading lpnode docker image into swarm ' + managerName)
     return new Promise((resolve, reject) => {
       this.swarm.setEnv(managerName, (err, env) => {

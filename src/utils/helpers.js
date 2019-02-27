@@ -21,32 +21,42 @@ function functionEncodedABI (name, params, values) {
 
 function remotelyExec (machineName, zone, command, cb) {
   // reference : https://stackoverflow.com/a/39104844
-  let args = [
-    'compute',
-    'ssh',
-    machineName,
-    '--zone',
-    zone || 'us-east1-b',
-    '--',
-  ]
+  return new Promise((resolve, reject) => {
+    let args = [
+      'compute',
+      'ssh',
+      machineName,
+      '--zone',
+      zone || 'us-east1-b',
+      '--',
+    ]
+    args.push(command)
 
-  args.push(command)
+    let builder = spawn('gcloud', args)
+    let output
 
-  let builder = spawn('gcloud', args)
-  let output
+    builder.stdout.on('data', (data) => {
+      console.log(`stdout: ${data}`)
+      output = data
+    })
 
-  builder.stdout.on('data', (data) => {
-    console.log(`stdout: ${data}`)
-    output = data
-  })
+    builder.stderr.on('data', (data) => {
+      console.log(`stderr: ${data}`)
+    })
 
-  builder.stderr.on('data', (data) => {
-    console.log(`stderr: ${data}`)
-  })
-
-  builder.on('close', (code) => {
-    console.log(`child process exited with code ${code}`)
-    setTimeout(() => { cb(null, output)}, 1)
+    builder.on('close', (code) => {
+      console.log(`child process exited with code ${code}`)
+      setTimeout(() => {
+        if (code) {
+          reject(code)
+        } else {
+          resolve(output)
+        }
+        if (cb) {
+          cb(null, output)
+        }
+      }, 1)
+    })
   })
 }
 
@@ -153,19 +163,44 @@ function parseComposeAndGetAddresses (configName) {
   parsedCompose.isLocal = parsedCompose.networks.testnet.driver === 'bridge'
   // console.log('is local:', parsedCompose.isLocal)
   parsedCompose.configName = configName
+  const g = parsedCompose.services.geth
+  if (g && g.labels && g.labels.zone) {
+    parsedCompose.zone = g.labels.zone 
+  }
+  const usedWorkers = new Set()
+  for (let sn of Object.keys(parsedCompose.services)) {
+    const cs = getConstrain(parsedCompose.services[sn])
+    if (cs) {
+      usedWorkers.add(cs)
+    }
+  }
+  parsedCompose.usedWorkers = Array.from(usedWorkers.values())
+  parsedCompose.usedWorkers.sort()
   return parsedCompose
 }
 
+function getConstrain(service) {
+  const cs = (((service.deploy||{}).placement||{}).constraints||[])
+    .filter(v => v.startsWith('node.hostname'))
+  if (cs.length) {
+    return cs[0].replace('node.hostname', '').replace('==', '').trim()
+  } 
+  return ''
+}
+
+
 function getIds (configName, num) {
+  // livepeer client doesn't like periods and slashes in ids
+  const n = configName.replace(new RegExp('[.\/]', 'g'), '')
   let u = process.env.USER
   if (u) {
     u += '-'
   }
   const d = (+new Date() - 1500000000000)/1000|0
-  return Array.from({length: num}, (_, i) => `${u}${configName}-${d}-${i}`)
+  return Array.from({length: num}, (_, i) => `${u}${n}-${d}-${i}`)
 }
 
 module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount,
   getNames, spread, wait, getServiceConstraints, parseComposeAndGetAddresses,
-  getIds
+  getIds, getConstrain
 }

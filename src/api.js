@@ -114,6 +114,21 @@ class Api {
     })
   }
 
+  async activateOrchestratorRaw (node, params, cb) {
+    let endpoint = `activateOrchestrator`
+    const [port] = await this._getPortsArray([node])
+    return new Promise((resolve, reject) => {
+      const p = {...params, serviceURI: `https://${port.name}:8935`}
+      this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, p, (err, res, body) => {
+        if (err) {
+          reject(err)
+        } else {
+          resolve(res)
+        }
+      })
+    })
+  }
+
   activateOrchestrator (nodes, params, cb) {
     return new Promise((resolve, reject) => {
       if (!nodes) {
@@ -136,7 +151,7 @@ class Api {
         eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
           // console.log('== artivate for port:', port, params)
           this.initializeRound([port.name], (err) => {
-            if (err) throw err
+            if (err) return next(err)
             const p = {...params, serviceURI: `https://${port.name}:8935`}
             this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, p, (err, res, body) => {
               next(err, res)
@@ -187,6 +202,46 @@ class Api {
     }
     return empty
   }
+
+  async getCurrentRound (nodeName) {
+    try {
+      const [port] = await this._getPortsArray([nodeName])
+      const url = `http://${this._baseUrl}:${port['7935']}/currentRound`
+      // console.log(`Contacting ${url}`)
+      const res = await axios.get(url)
+      // console.log(`== got currentRound for ${nodeName} data: `, res.data)
+      return res.data ? +res.data : 0
+    } catch {
+    }
+    return 0
+  }
+
+  async isRoundInitialized (nodeName) {
+    try {
+      const [port] = await this._getPortsArray([nodeName])
+      const url = `http://${this._baseUrl}:${port['7935']}/roundInitialized`
+      // console.log(`Contacting ${url}`)
+      const res = await axios.get(url)
+      // console.log(`== got currentRound for ${nodeName} data: `, res.data)
+      return res.data ? JSON.parse(res.data) : false
+    } catch {
+    }
+    return false
+  }
+
+  async isRoundLocked (nodeName) {
+    try {
+      const [port] = await this._getPortsArray([nodeName])
+      const url = `http://${this._baseUrl}:${port['7935']}/roundLocked`
+      // console.log(`Contacting ${url}`)
+      const res = await axios.get(url)
+      // console.log(`== got currentRound for ${nodeName} data: `, res.data)
+      return res.data ? JSON.parse(res.data) : false
+    } catch {
+    }
+    return false
+  }
+
 
   async getOrchestratorsList (nodeName) {
     // resp, err := http.Get(fmt.Sprintf("http://%v:%v/registeredOrchestrators", w.host, w.httpPort))

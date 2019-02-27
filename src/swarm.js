@@ -1,11 +1,19 @@
 'use strict'
 const path = require('path')
+const chalk = require('chalk')
 const { exec, spawn } = require('child_process')
 const { each, eachLimit, timesLimit, parallel } = require('async')
 const shortid = require('shortid')
+const Api = require('./api')
+const { PROJECT_ID } = require('./constants')
+const monitoring = require('@google-cloud/monitoring')
 const utils = require('./utils/helpers')
-const { wait } = require('./utils/helpers')
+const { wait, parseComposeAndGetAddresses, getConstrain } = require('./utils/helpers')
 const DIST_DIR = '../dist'
+
+// assume for a one run we only work with one config
+let service2IP = null
+let worker1IP = null
 
 class Swarm {
   constructor (name) {
@@ -15,7 +23,7 @@ class Swarm {
       machineType: 'n1-standard-1',
       managerMachineType: 'n1-standard-1',
       tags: 'swarm-cluster',
-      projectId: 'test-harness-226018'
+      projectId: PROJECT_ID,
     }
 
     this._managerName = `${name}-manager` || null
@@ -23,8 +31,10 @@ class Swarm {
   }
 
   createMachines (opts, cb) {
-    let machinesCount = opts.machines.num || 3
-    let name = opts.name || 'testharness-' + shortid.generate()
+    const machinesCount = opts.machines.num || 3
+    const name = opts.name || 'testharness-' + shortid.generate()
+    const machine2type = this.mapMachinesTypes(opts)
+    console.log(machine2type)
     parallel([
       (done) => {
         this.createMachine({
@@ -37,22 +47,239 @@ class Swarm {
       (done) => {
         timesLimit(machinesCount - 1, 20, (i, next) => {
           // create workers
+          const  mName = `${name}-worker-${i + 1}`
           this.createMachine({
-            name: `${name}-worker-${i + 1}`,
+            name: mName,
             zone: opts.machines.zone,
-            machineType: opts.machines.machineType,
+            machineType: machine2type.get(mName) || opts.machines.machineType,
             tags: opts.machines.tags || `${name}-cluster`
           }, next)
         }, done)
       }
     ], (err) => {
       if (err) return cb(err)
-      cb(null)
+      this.setupGCEMonitoring(opts).then(() => cb(null), cb)
     })
+  }
+
+  async setupGCEMonitoring(config) {
+    const zone = config.machines.zone || this._defaults.zone
+    const parsedCompose = parseComposeAndGetAddresses(config.name)
+
+    // const client = new monitoring.MetricServiceClient()
+    const gc = new monitoring.v3.GroupServiceClient({projectId: PROJECT_ID})
+    const formattedName = gc.projectPath(PROJECT_ID);
+    // console.log('Formatted name:', formattedName)
+    const [groups] = await gc.listGroups({name: formattedName})
+    console.log('====== groups:', groups)
+    // const group = await gc.getGroup({name: formattedName})
+    // console.log('====== group:', group)
+    if (!groups.find(g => g.displayName === config.name)) {
+      const cgreq = {
+        name: formattedName,
+        group: {
+          displayName: config.name,
+          filter: `resource.metadata.name=starts_with("${config.name}-")`
+        },
+      }
+      const [resp] = await gc.createGroup(cgreq)
+      console.log(`Group ${config.name} created:`, resp)
+    } else {
+      console.log(`Group ${config.name} already exists.`)
+    }
+    const api = new Api(parsedCompose)
+    // const oPorts = await api.getPortsArray(['all'])
+    const oPorts = await api.getPortsArray(['orchestrators'])
+    const bPorts = await api.getPortsArray(['broadcasters'])
+    const allPorts = oPorts.concat(bPorts)
+    // console.log(allPorts)
+    const ucClient = new monitoring.v3.UptimeCheckServiceClient()
+    const [checks] = await ucClient.listUptimeCheckConfigs({parent: formattedName})
+    // console.log('uptime chekcs:', JSON.stringify(checks, null, 2))
+    const servicesNames = Object.keys(parsedCompose.services).filter(sn => {
+      return sn.startsWith('orchestrator') || sn.startsWith('broadcaster') || sn === 'geth'
+    })
+    // console.log(servicesNames)
+    for (let sn of servicesNames) {
+      const isGeth = sn === 'geth'
+      const ip = await Swarm.getPublicIPOfService(parsedCompose, sn)
+      const [po] = allPorts.filter(o => o.name === sn)
+      console.log(`ip of ${sn} is ${ip} cli port: ${po && po['7935']}`)
+      const checkName = `${config.name}-${sn} status`
+      if (checks.find(c => c.displayName === checkName)) {
+        console.log(`Uptime check '${checkName} already exists.`)
+        continue
+      }
+      const port = isGeth ? 8545 : +po['7935'] 
+      const contentMatchers = isGeth ? undefined : [{ content: 'Manifests' }]
+      const [upResp] = await ucClient.createUptimeCheckConfig({
+        parent: formattedName,
+        uptimeCheckConfig: {
+          displayName: checkName,
+          monitoredResource: {
+            labels: {
+              project_id: PROJECT_ID,
+              host: ip
+            },
+            type: 'uptime_url'
+          },
+          httpCheck: {
+            useSsl: false,
+            path: '/status',
+            port
+          },
+          period: {
+            seconds: '300',
+            nanos: 0
+          },
+          contentMatchers,
+      }})
+      console.log(`Uptime check for service ${sn} created:`, upResp)
+    }
+    let nc = null
+    if (config.email) {
+      // configure aler policies
+      const ncClient = new monitoring.v3.NotificationChannelServiceClient()
+      const displayName = config.name + '-alerts' 
+      const [channels] = await ncClient.listNotificationChannels({name: formattedName})
+      console.log('Existing notification channels:', channels)
+      nc = channels.find(c => c.displayName === displayName)
+      if (!nc) {
+        [nc] = await ncClient.createNotificationChannel({
+          name: formattedName,
+          notificationChannel: {
+            type: 'email',
+            displayName,
+            labels: { email_address: config.email },
+            userLabels: {
+              config: config.name
+            }
+          }
+        })
+        console.log('Notification channel created:', nc)
+      }
+    }
+    const apClient = new monitoring.v3.AlertPolicyServiceClient()
+    const [alertPolicies] = await apClient.listAlertPolicies({name: formattedName})
+    // console.log('Existing alert policies:', JSON.stringify(alertPolicies, null, 2))
+    const [checks2] = await ucClient.listUptimeCheckConfigs({parent: formattedName})
+    // console.log(`Existing checks:`, JSON.stringify(checks2, null, 2))
+    // return
+    const chunked = chunk(servicesNames, 6)
+    for (let i = 0; i < chunked.length; i++) {
+      const apDisplayName = config.name + '-alert-group-' + i
+      if (!alertPolicies.find(ap => ap.displayName === apDisplayName)) {
+        const ch = chunked[i]
+        const alertPolicy = {
+          displayName: apDisplayName,
+          userLabels: {
+            config: config.name
+          },
+          combiner: 'OR',
+          conditions: ch.map(sn => {
+            const checkDisplayName = `${config.name}-${sn} status`
+            const ch = checks2.find(c => c.displayName === checkDisplayName)
+            if (!ch) {
+              throw 'Can\t find check for ' + checkDisplayName
+            }
+            const chnp = ch.name.split('/')
+            const checkName = chnp[chnp.length-1]
+            return {
+              displayName: `${sn} not responding`,
+              conditionThreshold: {
+                aggregations: [
+                  {
+                    groupByFields: ['resource.*'],
+                    alignmentPeriod: {
+                      seconds: '1200',
+                      nanos: 0
+                    },
+                    perSeriesAligner: 'ALIGN_NEXT_OLDER',
+                    crossSeriesReducer: 'REDUCE_COUNT_FALSE'
+                  }
+                ],
+                denominatorAggregations: [],
+                filter: `metric.type="monitoring.googleapis.com/uptime_check/check_passed" resource.type="uptime_url" metric.label."check_id"="${checkName}"`,
+                comparison: "COMPARISON_GT",
+                thresholdValue: 1,
+                duration: {
+                  seconds: '180',
+                  nanos: 0
+                },
+                trigger: {
+                  count: 1,
+                  type: 'count'
+                },
+                denominatorFilter: ''
+              },
+              condition: 'conditionThreshold'
+            }
+          })
+        }
+        if (nc) {
+          alertPolicy.notificationChannels = [nc.name]
+        }
+        const [ap] = await apClient.createAlertPolicy({
+          name: formattedName,
+          alertPolicy
+        })
+        console.log('Created alert policy', JSON.stringify(ap, null, 2))
+      }
+    }
+    // await utils.remotelyExec(
+    //   machine,
+    //   zone,
+    //   `sudo curl -sSO https://dl.google.com/cloudagents/install-monitoring-agent.sh && sudo bash install-monitoring-agent.sh`
+    // )
+  }
+
+  async teardownGCEMonitoring(config) {
+    const gc = new monitoring.v3.GroupServiceClient({projectId: PROJECT_ID})
+    const formattedName = gc.projectPath(PROJECT_ID);
+    // console.log('Formatted name:', formattedName)
+    const [groups] = await gc.listGroups({name: formattedName})
+    console.log('====== groups:', groups)
+    for (let group of groups) {
+      if (group.displayName === config.name) {
+        await gc.deleteGroup({name: group.name})
+        console.log(`Groupd ${group.name} deleted.`)
+      }
+    }
+    const ucClient = new monitoring.v3.UptimeCheckServiceClient()
+    const [checks] = await ucClient.listUptimeCheckConfigs({parent: formattedName})
+    for (let check of checks) {
+      if (check.displayName.startsWith(config.name + '-')) {
+        await ucClient.deleteUptimeCheckConfig({name: check.name})
+        console.log(`Uptime check ${check.name} deleted.`)
+      }
+    }
+    const apClient = new monitoring.v3.AlertPolicyServiceClient()
+    const [alertPolicies] = await apClient.listAlertPolicies({name: formattedName})
+    // console.log('Existing alert policies:', JSON.stringify(alertPolicies, null, 2))
+    for (let policy of alertPolicies) {
+      const apDisplayName = config.name + '-alert-group-'
+      if (policy.displayName.startsWith(apDisplayName)) {
+        await apClient.deleteAlertPolicy({name: policy.name})
+        console.log(`Alert policy ${policy.name} deleted.`)
+      }
+    }
+    if (config.email) {
+      // configure aler policies
+      const ncClient = new monitoring.v3.NotificationChannelServiceClient()
+      const displayName = config.name + '-alerts' 
+      const [channels] = await ncClient.listNotificationChannels({name: formattedName})
+      // console.log('Existing notification channels:', channels)
+      const nc = channels.find(c => c.displayName === displayName)
+      if (nc) {
+        await ncClient.deleteNotificationChannel({name: nc.name, force: true})
+        console.log(`Notification channel ${nc.name} deleted.`)
+      }
+    }
   }
 
 
   createMachine (opts, cb) {
+    const zone = opts.zone || this._defaults.zone
     let driver = opts.driver || this._defaults.driver
     // TODO sanitize user opts here
     // exec(`docker-machine create ${opts.name} \
@@ -68,7 +295,7 @@ class Swarm {
       '--driver',
       driver,
       `--${driver}-zone`,
-      opts.zone || this._defaults.zone,
+      zone,
       `--${driver}-machine-type`,
       opts.machineType || this._defaults.machineType,
       `--${driver}-tags`,
@@ -93,11 +320,18 @@ class Swarm {
     builder.on('close', (code) => {
       console.log(`child process exited with code ${code}`)
       if (code !== 0 && !stderr.match(/already exists/g) ) {
-         return cb(`child process exited with code ${code}`)
+        return cb(`child process exited with code ${code}`)
       }
-
-      cb(null)
+      this.setupMachine(opts.name, zone).then(() => cb(null)).catch(cb)
     })
+  }
+
+  async setupMachine(machine, zone) {
+    await utils.remotelyExec(
+      machine,
+      zone,
+      `sudo curl -sSO https://dl.google.com/cloudagents/install-monitoring-agent.sh && sudo bash install-monitoring-agent.sh`
+    )
   }
 
   createNetwork (networkName, name, cb) {
@@ -114,7 +348,18 @@ class Swarm {
   }
 
   scp (origin, destination, opts, cb) {
-    exec(`docker-machine scp ${opts} ${origin} ${destination}`, cb)
+    return new Promise((resolve, reject) => {
+      exec(`docker-machine scp ${opts} ${origin} ${destination}`, (err, res) => {
+        if (err) {
+          reject(err)
+        } else {
+          resolve(res)
+        }
+        if (cb) {
+          cb(err, res)
+        }
+      })
+    })
   }
 
   getPubIP (machineName, cb) {
@@ -197,7 +442,7 @@ class Swarm {
       ) {
         console.log(`Found already running machines: ${runninMachines}`)
         console.log(`not removing them. If you want to remove them, run`)
-        console.log(`docker-machine rm -y -f ${runninMachines.join(' ')}`)
+        console.log(chalk.inverse(`docker-machine rm -y -f ${runninMachines.join(' ')}`))
         await this.stopStack('livepeer')
         await this.stopStack('streamer')
         while (true) {
@@ -218,6 +463,29 @@ class Swarm {
     }
     await this.createSwarmCreateMachines(config)
     return false
+  }
+
+  mapMachinesTypes (config) {
+    const m = new Map()
+    const cm = config.machines
+    if (!cm.orchestartorsMachines || !cm.broadcastersMachines) {
+      for (let i = 0; i < cm.num-1; i++) {
+        m.set(`${config.name}-worker-${i+1}`, cm.machineType)
+      }
+    } else {
+      if (cm.orchestartorsMachines + cm.broadcastersMachines + 1 > cm.num) {
+        console.log(chalk.red('Error in config - total number of machines should be greater than number of orchestrator\'s and broadcaster\'s machines.'))
+        process.exit(11)
+      }
+      const bcs = cm.orchestartorsMachines
+      const sts = bcs + cm.broadcastersMachines
+      for (let i = 0; i < cm.num-1; i++) {
+        const mt = i >= sts ? cm.streamerMachineType :
+          i >= bcs ? cm.broadcasterMachineType : cm.machineType
+        m.set(`${config.name}-worker-${i+1}`, mt)
+      }
+    }
+    return m
   }
 
   createSwarmCreateMachines (config) {
@@ -635,6 +903,47 @@ class Swarm {
       })
     })
   }
+
+  static async getPublicIPOfService (parsedCompose, serviceName) {
+    const configName = parsedCompose.configName
+    if (!service2IP) {
+      const swarm = new Swarm(configName)
+      const ri = await swarm.getRunningMachinesList(configName)
+      console.log(`running machines: "${ri}"`)
+      ri.sort()
+      // ri.splice(0, 1)
+      const workersIPS = await Promise.all(ri.map(wn => swarm.getPubIP(wn)))
+      const worker2IP = ri.reduce((a, v, i) => a.set(v, workersIPS[i]), new Map())
+      worker1IP = workersIPS[0]
+      service2IP = new Map()
+      Object.keys(parsedCompose.services).forEach(sn => {
+        service2IP.set(sn, worker2IP.get(getConstrain(parsedCompose.services[sn])) || worker1IP)
+      })
+    }
+    return service2IP.get(serviceName)
+  }
+
 }
+
+function chunk(arr, n) {
+  return Array(Math.ceil(arr.length/n)).fill().map((_,i) => arr.slice(i*n,i*n+n))
+}
+
+async function test() {
+  const config = {
+    name: 'dark-week5s',
+    email: 'ivan@livepeer.org',
+    machines: {
+      num: 3,
+      zone: 'europe-west3-c',
+    }
+  }
+  const swarm = new Swarm(config.name)
+  await swarm.setupGCEMonitoring(config)
+  // await swarm.teardownGCEMonitoring(config)
+  return 'done'
+}
+
+// test().then(console.log, console.warn)
 
 module.exports = Swarm

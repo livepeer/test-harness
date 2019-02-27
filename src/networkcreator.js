@@ -12,6 +12,7 @@ const log = require('debug')('livepeer:test-harness:network')
 const spawnThread = require('threads').spawn
 const Pool = require('threads').Pool
 const { getNames, spread, getServiceConstraints } = require('./utils/helpers')
+const { PROJECT_ID } = require('./constants')
 
 const pool = new Pool()
 const thread = pool.run(function(input, done) {
@@ -54,8 +55,27 @@ class NetworkCreator extends EventEmitter {
     } else {
       const workers = getNames(`${config.name}-worker-`, config.machines.num-1, 1)
       const n = config.nodes
-      this._serviceConstraints = getServiceConstraints(workers, n.broadcasters.instances, n.orchestrators.instances, n.transcoders.instances)
+      this._serviceConstraints = 
+        config.machines.orchestartorsMachines ?
+          this.getServiceConstraintsNew(config) :
+          getServiceConstraints(workers, n.broadcasters.instances, n.orchestrators.instances, n.transcoders.instances)
     }
+  }
+
+  getServiceConstraintsNew (config) {
+    const workers = getNames(`${config.name}-worker-`, config.machines.num-1, 1)
+    const n = config.nodes
+    const bcs = config.machines.orchestartorsMachines
+    const sts = bcs + config.machines.broadcastersMachines
+    const broadcasters = getNames('broadcaster_', n.broadcasters.instances)
+    const orchestrators = getNames('orchestrator_', n.orchestrators.instances)
+    const transcoders = getNames('transcoder_', n.transcoders.instances)
+    const res = {
+      orchestrator: spread(orchestrators, workers.slice(0, bcs), true),
+      transcoder: spread(transcoders, workers.slice(0, bcs), true),
+      broadcaster: spread(broadcasters, workers.slice(bcs, sts), true),
+    }
+    return res
   }
 
   isPortUsed (port) {
@@ -264,13 +284,16 @@ class NetworkCreator extends EventEmitter {
     })
   }
 
-  getDependencies () {
+  getDependencies (type, i) {
     const deps = []
     if (this.hasGeth) {
       deps.push('geth')
     }
     if (this.hasMetrics) {
       deps.push('metrics')
+    }
+    if (type === 'transcoder') {
+      deps.push(`orchestrator_${i}`)
     }
     return deps
   }
@@ -280,15 +303,17 @@ class NetworkCreator extends EventEmitter {
     const nodes = this.config.nodes[`${type}s`]
     const vname = 'v_' + serviceName
     const generated = {
-      image: (this.config.local || this.config.localBuild) ? 'lpnode:latest' : 'localhost:5000/lpnode:latest',
+      // image: (this.config.local || this.config.localBuild) ? 'lpnode:latest' : 'localhost:5000/lpnode:latest',
+      image: this.config.local ? 'lpnode:latest' : 'localhost:5000/lpnode:latest',
+      // image: 'localhost:5000/lpnode:latest',
       ports: [
         `${getRandomPort(8935)}:8935`,
         `${getRandomPort(7935)}:7935`,
         `${getRandomPort(1935)}:1935`
       ],
       // TODO fix the serviceAddr issue
-      command: this.getNodeOptions(type, nodes),
-      depends_on: this.getDependencies(),
+      command: this.getNodeOptions(type, nodes, i),
+      depends_on: this.getDependencies(type, i),
       networks: {
         testnet: {
           aliases: [serviceName]
@@ -308,7 +333,7 @@ class NetworkCreator extends EventEmitter {
      generated.logging = {
         driver: 'gcplogs',
         options: {
-          'gcp-project': 'test-harness-226018',
+          'gcp-project': PROJECT_ID,
           'gcp-log-cmd': 'true',
           'labels': `type=${type},node=${type}_${i}`
         }
@@ -421,6 +446,16 @@ class NetworkCreator extends EventEmitter {
       },
       restart: 'unless-stopped'
     }
+    if (!this.config.local) {
+     mService.logging = {
+        driver: 'gcplogs',
+        options: {
+          'gcp-project': PROJECT_ID,
+          'gcp-log-cmd': 'true',
+          'labels': `type=mongodb`
+        }
+      }
+    }
     return mService
   }
 
@@ -441,6 +476,16 @@ class NetworkCreator extends EventEmitter {
       volumes: ['vmongo1:/data/db', 'vmongo2:/data/configdb']
       // networks: ['outside']
     }
+    if (!this.config.local) {
+     mService.logging = {
+        driver: 'gcplogs',
+        options: {
+          'gcp-project': PROJECT_ID,
+          'gcp-log-cmd': 'true',
+          'labels': `type=mongodb`
+        }
+      }
+    }
     volumes.vmongo1 = {}
     volumes.vmongo2 = {}
     return mService
@@ -460,14 +505,17 @@ class NetworkCreator extends EventEmitter {
           aliases: [`geth`]
         }
       },
-      restart: 'unless-stopped'
+      restart: 'unless-stopped',
+      labels: {
+        zone: this.config.machines.zone
+      }
     }
 
     if (!this.config.local) {
       gethService.logging = {
         driver: 'gcplogs',
         options: {
-          'gcp-project': 'test-harness-226018',
+          'gcp-project': PROJECT_ID,
           'gcp-log-cmd': 'true',
           'labels': `type=geth,node=geth`
         }
@@ -504,7 +552,7 @@ class NetworkCreator extends EventEmitter {
     }
   }
 
-  getNodeOptions (nodeType, nodes) {
+  getNodeOptions (nodeType, nodes, i) {
     const output = []
     const userFlags = nodes.flags
 
@@ -528,8 +576,12 @@ class NetworkCreator extends EventEmitter {
       output.push('-monitorhost http://metrics:3000/api/events')
     }
 
-    if (nodeType === 'transcoder' || nodeType === 'orchestrator') {
-      output.push('-transcoder')
+    // if (nodeType === 'orchestrator') {
+    //   output.push('-initializeRound=true')
+    // }
+    if (nodeType === 'transcoder') {
+      // output.push('-orchAddr', `https://orchestrator_${i}:8935`)
+      output.push('-orchAddr', `orchestrator_${i}:8935`)
     }
 
     switch (this.config.blockchain.name) {
