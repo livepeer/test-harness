@@ -10,7 +10,7 @@ RUN mkdir -p /lpData/mainnet/keystore && mkdir -p /lpData/rinkeby/keystore && mk
 # RUN apk add --no-cache gnutls-dev jq bash
 # RUN apk add --no-cache jq bash
 # RUN aptt update && apt -y install gnutls jq && apt clean
-RUN apt update && apt -y install libgnutls30 jq && apt clean
+# RUN apt update && apt -y install libgnutls30 jq && apt clean
 
 ENV JSON_KEY=$JSON_KEY
 COPY store_key.sh .

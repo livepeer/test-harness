@@ -245,14 +245,6 @@ class Swarm {
         console.log(`Groupd ${group.name} deleted.`)
       }
     }
-    const ucClient = new monitoring.v3.UptimeCheckServiceClient()
-    const [checks] = await ucClient.listUptimeCheckConfigs({parent: formattedName})
-    for (let check of checks) {
-      if (check.displayName.startsWith(config.name + '-')) {
-        await ucClient.deleteUptimeCheckConfig({name: check.name})
-        console.log(`Uptime check ${check.name} deleted.`)
-      }
-    }
     const apClient = new monitoring.v3.AlertPolicyServiceClient()
     const [alertPolicies] = await apClient.listAlertPolicies({name: formattedName})
     // console.log('Existing alert policies:', JSON.stringify(alertPolicies, null, 2))
@@ -261,6 +253,14 @@ class Swarm {
       if (policy.displayName.startsWith(apDisplayName)) {
         await apClient.deleteAlertPolicy({name: policy.name})
         console.log(`Alert policy ${policy.name} deleted.`)
+      }
+    }
+    const ucClient = new monitoring.v3.UptimeCheckServiceClient()
+    const [checks] = await ucClient.listUptimeCheckConfigs({parent: formattedName})
+    for (let check of checks) {
+      if (check.displayName.startsWith(config.name + '-')) {
+        await ucClient.deleteUptimeCheckConfig({name: check.name})
+        console.log(`Uptime check ${check.name} deleted.`)
       }
     }
     if (config.email) {
@@ -939,8 +939,8 @@ async function test() {
     }
   }
   const swarm = new Swarm(config.name)
-  await swarm.setupGCEMonitoring(config)
-  // await swarm.teardownGCEMonitoring(config)
+  // await swarm.setupGCEMonitoring(config)
+  await swarm.teardownGCEMonitoring(config)
   return 'done'
 }
 
