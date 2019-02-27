@@ -311,7 +311,7 @@ class Streamer extends EventEmitter {
       // }
     }
 
-    this._generateSingleService(broadcasters, sourceDir, input, multiplier, (err, services) => {
+    this._generateStreamServices(broadcasters, sourceDir, input, multiplier, (err, services) => {
       if (err) throw err
       output.services = services
       // console.log('got services: ', services)
