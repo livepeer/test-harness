@@ -10,11 +10,8 @@ const { getIds } = require('./utils/helpers')
 const { PROJECT_ID } = require('./constants')
 
 const DEFAULT_ARGS = '-vcodec libx264 -profile:v main -tune zerolatency -preset superfast -r 30 -g 4 -keyint_min 4 -sc_threshold 0 -b:v 2500k -maxrate 2500k -bufsize 2500k -acodec aac -strict -2 -b:a 96k -ar 48000 -ac 2 -f flv'
-<<<<<<< HEAD
 const LIGHT_ARGS = '-c:a copy -c:v copy'
-=======
 const INFINITE_ARGS = `-f lavfi -i sine=frequency=1000:sample_rate=48000 -f lavfi -i testsrc=size=1280x720:rate=30 -c:a aac -c:v libx264 -g 1 -x264-params keyint=60:min-keyint=60 -f flv`
->>>>>>> master
 
 class Streamer extends EventEmitter {
   constructor (opts) {
@@ -284,7 +281,7 @@ class Streamer extends EventEmitter {
     })
   }
 
-  _generateStreamServices (broadcasters, sourceDir, input, multiplier, cb) {
+  _generateStreamServices (broadcasters, machines2use, sourceDir, input, multiplier, infinite, cb) {
     let output = {}
     let mi = 0
     each(broadcasters, (broadcaster, next) => {

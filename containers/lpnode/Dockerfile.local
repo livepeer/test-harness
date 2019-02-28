@@ -19,7 +19,7 @@ COPY start.sh .
 RUN chmod +x start.sh
 RUN chmod +x store_key.sh
 RUN chmod +x wait-for-it.sh
-RUN /bin/bash start.sh
+# RUN /bin/bash start.sh
 
 EXPOSE 7935/tcp
 EXPOSE 8935/tcp

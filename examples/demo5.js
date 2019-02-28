@@ -22,7 +22,8 @@ th.run({
     num: 4,
     orchestartorsMachines: 2,
     broadcastersMachines: 1,
-    zone: 'europe-west3-c',
+    // zone: 'europe-west3-c',
+    zone: 'us-east1-b',
     // machineType: 'n1-highcpu-2',
     machineType: 'n1-highcpu-4',
     // machineType: 'n1-highmem-4',
@@ -42,12 +43,12 @@ th.run({
       // these are the livepeer binary flags, add them as you wish.
       // the test-harness overrides flags that has to do with directories or
       // ip/port bindings, these are automated.
-      flags: '-v 5  -standaloneTranscoder=true -orchSecret=deepsecret'
+      flags: '-v 5 -orchSecret=deepsecret'
     },
     orchestrators: {
       instances: 2,
       // TODO these are not complete, try adding the right orchestrator flags :)
-      flags: `-v 5 -orchestrator -initializeRound=true -gasPrice 20 -gasLimit 20000000 \
+      flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 \
       -currentManifest=true  -orchSecret=deepsecret -maxSessions 4 -transcoder`
     },
     broadcasters: {
