@@ -507,7 +507,7 @@ class NetworkCreator extends EventEmitter {
       },
       restart: 'unless-stopped',
       labels: {
-        zone: this.config.machines.zone
+        zone: this.config.machines && this.config.machines.zone || 'us-east1-b'
       }
     }
 
@@ -568,35 +568,47 @@ class NetworkCreator extends EventEmitter {
       output.push('/run/secrets/' + nodes.googleStorage.secretName)
     }
 
-    // default datadir
-    output.push(`-datadir /lpData`)
-
     if (this.hasMetrics) {
       output.push('-monitor=true')
-      output.push('-monitorhost http://metrics:3000/api/events')
+      output.push('-monUrl http://metrics:3000/api/events')
     }
 
     // if (nodeType === 'orchestrator') {
     //   output.push('-initializeRound=true')
     // }
-    if (nodeType === 'transcoder') {
-      // output.push('-orchAddr', `https://orchestrator_${i}:8935`)
-      output.push('-orchAddr', `orchestrator_${i}:8935`)
+    switch (nodeType) {
+      case 'transcoder':
+        // output.push('-orchAddr', `https://orchestrator_${i}:8935`)
+        output.push('-orchAddr', `orchestrator_${i}:8935`)
+        output.push('-transcoder')
+        break
+      case 'orchestrator':
+        output.push('-orchestrator')
+        break
+      case 'broadcaster':
+        output.push('-broadcaster')
+        break
     }
 
+    let ldir = ''
     switch (this.config.blockchain.name) {
       case 'rinkeby':
-        output.push('-rinkeby')
+        output.push('-network=rinkeby')
+        ldir = 'rinkeby'
         break
       case 'lpTestNet2':
       case 'lpTestNet':
-        output.push('-devenv')
+        output.push('-network=devenv')
         output.push(`-ethUrl ws://geth:8546`)
-        output.push(`-controllerAddr ${this.config.blockchain.controllerAddress}`)
+        output.push(`-ethController ${this.config.blockchain.controllerAddress}`)
+        ldir = 'devenv'
         break
       default:
         // output.push('-devenv')
     }
+
+    // default datadir
+    output.push(`-datadir /lpData/${ldir}`)
 
     // output.push(`-ethPassword ""`)
     output.push(userFlags)

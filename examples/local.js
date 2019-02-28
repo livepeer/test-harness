@@ -10,6 +10,7 @@ th.run({
   local: true,
   localBuild: true,
   startMetricsServer: true,
+  standardSetup: true, // request token, register orchestartors, etc...
   name: 'test123',
   livepeerBinaryPath: '../containers/lpnode/livepeer_linux/livepeer',
   blockchain: {
@@ -25,26 +26,23 @@ th.run({
       // these are the livepeer binary flags, add them as you wish.
       // the test-harness overrides flags that has to do with directories or
       // ip/port bindings, these are automated.
-      flags: '--v 4 -transcoder -initializeRound=true'
+      flags: '-v 5 -orchSecret=deepsecret'
     },
     orchestrators: {
       instances: 1,
-      // TODO these are not complete, try adding the right orchestrator flags :)
-      flags: `--v 4 -initializeRound=true \
-      -gasPrice 20 -gasLimit 20000000 \
-      -currentManifest=true -transcoder`
+      flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 \
+      -currentManifest=true  -orchSecret=deepsecret -maxSessions 4 -transcoder `
     },
     broadcasters: {
       instances: 2,
-      flags: `--v 4 \
-      -gasPrice 20 -gasLimit 20000000 \
-      -currentManifest=true`
+      flags: `-v 5 -gasPrice 20 -gasLimit 20000000  -currentManifest=true`
     }
   }
 }, (err, experiment) => {
   // experiment is a parsed compose file.
   if (err) throw err
   console.log('so far so good')
+  return
   // Now we have a running network.
   // lets get some tokens, do some deposits and activate transcoders
   let api = new Api(experiment.parsedCompose)
