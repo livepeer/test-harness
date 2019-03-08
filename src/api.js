@@ -198,7 +198,7 @@ class Api {
       const res = await axios.get(url)
       console.log(`== got senderInfo for ${nodeName} data: `, res.data)
       return res.data ? res.data : empty
-    } catch {
+    } catch (e) {
     }
     return empty
   }
@@ -211,7 +211,7 @@ class Api {
       const res = await axios.get(url)
       // console.log(`== got currentRound for ${nodeName} data: `, res.data)
       return res.data ? +res.data : 0
-    } catch {
+    } catch (e) {
     }
     return 0
   }
@@ -224,7 +224,7 @@ class Api {
       const res = await axios.get(url)
       // console.log(`== got currentRound for ${nodeName} data: `, res.data)
       return res.data ? JSON.parse(res.data) : false
-    } catch {
+    } catch (e) {
     }
     return false
   }
@@ -237,7 +237,7 @@ class Api {
       const res = await axios.get(url)
       // console.log(`== got currentRound for ${nodeName} data: `, res.data)
       return res.data ? JSON.parse(res.data) : false
-    } catch {
+    } catch (e) {
     }
     return false
   }
