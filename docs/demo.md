@@ -125,3 +125,38 @@ Options:
 ./test-harness stream -i y-demo
 
 ```
+
+-----------
+
+## modifying an existing deployment
+-----
+
+you can change any value in the experiment config and rerun it which
+will reuse instances and add new ones if needed.
+
+Currently the test-harness prunes docker volumes which means if you
+make a change to the config and rerun `node examples/demo5.js` it'll
+wipe the previous instances and redeploy.
+
+this also means endpoints (ports) will change, but the manager ip won't.
+
+**note** this behavior is going to change once [issue 35](https://github.com/livepeer/test-harness/issues/35) is closed.
+
+
+
+------------
+
+## Tearing down a deployment
+-----
+
+the easy way
+
+```bash
+./test-harness down <experiment_name>
+```
+
+the hard way **(wipe and delete all instances)**
+```bash
+docker-machine rm -y $(docker-machine ls -q)
+
+```
