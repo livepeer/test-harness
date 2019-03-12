@@ -64,6 +64,50 @@ docker image tagged `livepeerbinary:debian`. It should be build by running
 a docker cluster of 2 hosts, with livepeer containers and  `geth with protocol` ready to go
 
 
+----------
+
+## Config Options
+----
+
+- `local`: must be `true` for local test-harness runs
+- `localBuild`: build the livepeer binary locally or use the binary in the gcp bucket.
+- `standardSetup`: request token, register orchestartors, etc...
+- `startMetricsServer`: it will start `livepeer-metrics` container if `true`
+- `constrainResources`: flag to activate resource constraint within docker swarm
+- `name`: name of the configuration or experiment, must be unique for each deployment.
+- `livepeerBinaryPath`: relative path to the livepeer binary, set it to `null` to use
+the binary in the gcp bucket.
+
+- `blockchain`:
+  - `name`: network name, should be 'lpTestNet' for test networks,
+  - `networkId`:  network id, default `54321`,
+  - `controllerAddress`: address of the livepeer controller contract
+
+- `machines`: an object used for remote deployments configurations like number of
+host machines, zones, machine types and so on.
+  - `num`: number of host machines including the manager instance,
+  - `zone`: gcp zone defaults to 'us-east1-b'
+  - `machineType`: type of machine , ex: 'n1-highcpu-8',
+  - `managerMachineType`: type of the instance used as manager,
+
+- `nodes`: the object that plans the O/T/B within a deployment.
+  - `transcoders`: the transcoder group.
+    - `instances`: how many containers to run as transcoders.
+  ```
+      // these are the livepeer binary flags, add them as you wish.
+      // the test-harness overrides flags that has to do with directories or
+      // ip/port bindings, these are automated.
+  ```
+    - `flags`:the livepeer flags passed to the livepeer binary container.
+  - `orchestrators`: the orchestrator group.
+  - `broadcasters`: the broadcaster group.
+    - `googleStorage`: optional object if you would like to use google buckets as storage.
+      - `bucket`: bucket name,
+      - `key`: the path key to access the bucket. usually a JSON key
+    - `instances`: number of livepeer broadcaster containers
+
+------------
+
 ## Automating Livepeer `actions`
 ------
 
