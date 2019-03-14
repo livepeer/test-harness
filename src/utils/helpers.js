@@ -32,6 +32,7 @@ function remotelyExec (machineName, zone, command, cb) {
     ]
     args.push(command)
 
+    console.log(`Running remote command '${command}'`)
     let builder = spawn('gcloud', args)
     let output
 

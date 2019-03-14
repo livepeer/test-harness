@@ -5,7 +5,9 @@ let th = new TestHarness()
 
 th.run({
   local: false,
-  localBuild: true,
+  localBuild: false,
+  publicImage: true, // if true will be used 'livepeer/go-livepeer:edge' or can be set
+                     //  to any other publicly available image
   standardSetup: true, // request token, register orchestartors, etc...
   startMetricsServer: true,
   name: '', // specify unique config name here

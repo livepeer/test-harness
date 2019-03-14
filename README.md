@@ -44,6 +44,10 @@ will be a folder for this experiment, which will contain the docker-compose
 generated. this will have the port forwarding for each node and should be
 accessible at your dev machine's `localhost`
 
+### Using official docker image
+
+If flag `publicImage` is set to true in config, then image from Docker Hub will be used ([livepeer/go-livepeer:edge](https://cloud.docker.com/u/livepeer/repository/docker/livepeer/go-livepeer/general)). This image is built on Docker Hub from `master` branch of `go-livepeer` repository. Also `publicImage` could be set to name of any other public image, which in turn will be used.
+
 ### Local Build
 
 If flag `localBuild` is set to true in config, then livepeer binary will be taken from local

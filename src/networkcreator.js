@@ -88,7 +88,7 @@ class NetworkCreator extends EventEmitter {
 
   loadBinaries (dist, cb) {
     return new Promise((resolve, reject) => {
-      if (this.config.localBuild) {
+      if (this.config.localBuild || this.config.publicImage) {
         resolve()
         if (cb) {
           cb()
@@ -112,7 +112,7 @@ class NetworkCreator extends EventEmitter {
 
   compressAndCopyBinaries (dist, cb) {
     return new Promise((resolve, reject) => {
-      if (this.config.localBuild) {
+      if (this.config.localBuild || this.config.publicImage) {
         resolve()
         if (cb) {
           cb()
@@ -126,7 +126,10 @@ class NetworkCreator extends EventEmitter {
       }, [path.basename(path.resolve(__dirname, this.config.livepeerBinaryPath))]).then((_) => {
         exec(`cp ${path.resolve(__dirname, this.config.livepeerBinaryPath)}.tar.gz ${path.resolve(__dirname, dist)}`,
         (err, stdout, stderr) => {
-          if (err) throw err
+          if (err) {
+            process.exit('Error transferring binaries', err)
+            throw err
+          }
           console.log('stdout: ', stdout)
           console.log('stderr: ', stderr)
           if (cb) {
@@ -142,6 +145,13 @@ class NetworkCreator extends EventEmitter {
     return new Promise((resolve, reject) => {
       if (this.config.localBuild) {
         return this.buildLocalLpImage(cb).then(resolve, reject)
+      }
+      if (this.config.publicImage) {
+        resolve()
+        if (cb) {
+          cb()
+        }
+        return
       }
       console.log('building lpnode...')
       let builder = spawn('docker', [
@@ -184,12 +194,13 @@ class NetworkCreator extends EventEmitter {
     return new Promise((resolve, reject) => {
       const lpnodeDir = path.resolve(__dirname, '../containers/lpnode')
       const builder = spawn('docker', [
-        'build',
-        '-t',
-        'lpnode:latest',
-        '-f',
-        path.join(lpnodeDir, 'Dockerfile.local'),
-        lpnodeDir
+        'tag', 'livepeerbinary:debian', 'lpnode:latest',
+        // 'build',
+        // '-t',
+        // 'lpnode:latest',
+        // '-f',
+        // path.join(lpnodeDir, 'Dockerfile.local'),
+        // lpnodeDir
       ])
 
       builder.stdout.on('data', (data) => {
@@ -302,9 +313,14 @@ class NetworkCreator extends EventEmitter {
     const serviceName = `${type}_${i}`
     const nodes = this.config.nodes[`${type}s`]
     const vname = 'v_' + serviceName
+    let image = this.config.local ? 'lpnode:latest' : 'localhost:5000/lpnode:latest'
+    if (this.config.publicImage) {
+      image = (typeof this.config.publicImage === 'string') ? this.config.publicImage : 'livepeer/go-livepeer:edge'
+    }
     const generated = {
       // image: (this.config.local || this.config.localBuild) ? 'lpnode:latest' : 'localhost:5000/lpnode:latest',
-      image: this.config.local ? 'lpnode:latest' : 'localhost:5000/lpnode:latest',
+      // image: this.config.local ? 'lpnode:latest' : 'localhost:5000/lpnode:latest',
+      image,
       // image: 'localhost:5000/lpnode:latest',
       ports: [
         `${getRandomPort(8935)}:8935`,
@@ -320,7 +336,7 @@ class NetworkCreator extends EventEmitter {
         }
       },
       restart: 'unless-stopped',
-      volumes: [vname + ':/lpData']
+      volumes: [vname + ':/root/.lpData']
     }
     volumes[vname] = {}
     if (nodes.googleStorage) {
@@ -608,7 +624,7 @@ class NetworkCreator extends EventEmitter {
     }
 
     // default datadir
-    output.push(`-datadir /lpData/${ldir}`)
+    // output.push(`-datadir /lpData/${ldir}`)
 
     // output.push(`-ethPassword ""`)
     output.push(userFlags)
