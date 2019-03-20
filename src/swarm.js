@@ -374,9 +374,10 @@ class Swarm {
     await utils.remotelyExec(machine, zone,
       `sudo curl -sSO https://dl.google.com/cloudagents/install-monitoring-agent.sh && sudo bash install-monitoring-agent.sh`
     )
+    await utils.remotelyExec(machine, zone, `sudo apt-get update && sudo apt-get upgrade -y`)
+    console.log(`=============== apt updated`)
     await utils.remotelyExec(machine, zone,
-      `sudo apt-get update && sudo apt-get upgrade -y && \
-       sudo apt-get install -y python3-pip && apt autoremove -y && \
+       `sudo apt-get install -y python3-pip && sudo apt autoremove -y && \
        sudo pip3 install ansible && \
        ansible-galaxy install cloudalchemy.node-exporter && \
        cat <<-SHELL_SCREENRC > $HOME/nodepb.yml

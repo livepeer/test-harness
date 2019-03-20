@@ -10,10 +10,12 @@ th.run({
                      //  to any other publicly available image
   standardSetup: true, // request token, register orchestartors, etc...
   startMetricsServer: true,
+  prometheus: true,
   name: '', // specify unique config name here
   email: null, // email to send alerts to
   livepeerBinaryPath: null, // this will use the livepeer binary in the GCP bucket.
   // constrainResources: true,
+  noGCPLogging: false,
   blockchain: {
     name: 'lpTestNet',
     networkId: 54321,

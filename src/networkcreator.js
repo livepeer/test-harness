@@ -9,10 +9,11 @@ const toml = require('toml')
 const composefile = require('composefile')
 const { timesLimit, each, eachLimit } = require('async')
 const log = require('debug')('livepeer:test-harness:network')
-const spawnThread = require('threads').spawn
 const Pool = require('threads').Pool
 const { getNames, spread, getServiceConstraints } = require('./utils/helpers')
 const { PROJECT_ID } = require('./constants')
+const YAML = require('yaml')
+const mConfigs = require('./configs')
 
 const pool = new Pool()
 const thread = pool.run(function(input, done) {
@@ -50,6 +51,7 @@ class NetworkCreator extends EventEmitter {
     this.nodes = {}
     this.hasGeth = false
     this.hasMetrics = false
+    this.hasPrometheus = false
     if (config.local) {
 
     } else {
@@ -236,6 +238,9 @@ class NetworkCreator extends EventEmitter {
 
   generateComposeFile (outputPath, cb) {
     const outputFolder = path.resolve(__dirname, outputPath)
+    if (!fs.existsSync(outputFolder)) {
+      fs.mkdirSync(outputFolder, { recursive: true, mode: 484 })
+    }
     let output = {
       version: '3.7',
       outputFolder,
@@ -247,19 +252,44 @@ class NetworkCreator extends EventEmitter {
           external: this.config.local ? false : true
         }
       },
-      volumes: {}
+      volumes: {},
+      configs: {},
       // network_mode: 'host',
     }
 
     this.copySecrets(output, outputFolder)
 
-    this.generateServices((err, services, volumes) => {
+    this.generateServices(outputFolder, (err, services, volumes, configs) => {
       if (err) throw err
       output.services = services
       output.volumes = volumes
+      output.configs = configs
       this.nodes = output.services
+      if (this.config.local) {
+        this.mutateConfigsToVolumes(outputFolder, output)
+      }
       composefile(output, cb)
     })
+  }
+
+  mutateConfigsToVolumes(outputFolder, cf) {
+    for (let sn of Object.keys(cf.services)) {
+      const service = cf.services[sn]
+      for (let config of (service.configs||[])) {
+        const gConfig = cf.configs[config.source]
+        if (!gConfig) {
+          console.log(`Problem in config: ${config.source} not found in global config.`)
+          process.exit(12)
+        }
+        // const fp = path.join(outputFolder, gConfig.file)
+        if (!service.volumes) {
+          service.volumes = []
+        }
+        service.volumes.push(gConfig.file + ':' + config.target + ':ro')
+      }
+      delete service.configs
+    }
+    delete cf.configs
   }
 
   copySecrets (top, outputFolder) {
@@ -302,6 +332,9 @@ class NetworkCreator extends EventEmitter {
     }
     if (this.hasMetrics) {
       deps.push('metrics')
+    }
+    if (this.hasPrometheus) {
+      deps.push('prometheus')
     }
     if (type === 'transcoder') {
       deps.push(`orchestrator_${i}`)
@@ -346,12 +379,14 @@ class NetworkCreator extends EventEmitter {
     if (this.config.local) {
 
     } else {
-     generated.logging = {
-        driver: 'gcplogs',
-        options: {
-          'gcp-project': PROJECT_ID,
-          'gcp-log-cmd': 'true',
-          'labels': `type=${type},node=${type}_${i}`
+      if (!this.config.noGCPLogging) {
+        generated.logging = {
+          driver: 'gcplogs',
+          options: {
+            'gcp-project': PROJECT_ID,
+            'gcp-log-cmd': 'true',
+            'labels': `type=${type},node=${type}_${i}`
+          }
         }
       }
       if (type === 'orchestrator' || type == 'transcoder' || type == 'broadcaster') {
@@ -395,9 +430,10 @@ class NetworkCreator extends EventEmitter {
     })
   }
 
-  generateServices (cb) {
+  generateServices (outputFolder, cb) {
     const output = {}
     const volumes = {}
+    const configs = {}
 
     // if (this.config.blockchain && this.config.blockchain.controllerAddress === '') {
     // }
@@ -412,6 +448,13 @@ class NetworkCreator extends EventEmitter {
       output.mongodb = this.generateMongoService(volumes)
       output.metrics = this.generateMetricsService()
       this.hasMetrics = true
+    }
+    if (this.config.prometheus) {
+      output.prometheus = this.generatePrometheusService(outputFolder, volumes, configs)
+      output.cadvisor = this.generateCAdvisorService(volumes)
+      output.grafana = this.generateGrafanaService(outputFolder, volumes, configs)
+      output['node-exporter'] = this.generateNodeExporterService(volumes)
+      this.hasPrometheus = true
     }
 
     eachLimit(['transcoder', 'orchestrator', 'broadcaster'], 1, (type, callback) => {
@@ -439,16 +482,236 @@ class NetworkCreator extends EventEmitter {
       console.log('all nodes have been generated')
       pool.killAll()
       log('output:', output)
-      cb(null, output, volumes)
+      cb(null, output, volumes, configs)
     })
+  }
+
+  generatePrometheusService (outputFolder, volumes, configs) {
+    const service = {
+      image: 'prom/prometheus:latest',
+      command: ['--config.file=/etc/prometheus/prometheus.yml'],
+      depends_on: ['cadvisor', 'node-exporter'],
+      ports: ['9090:9090'],
+      networks: {
+        testnet: {
+          aliases: [`prometheus`]
+        }
+      },
+      deploy: {
+        placement: {
+          constraints: ['node.role == manager']
+        }
+      },
+      restart: 'unless-stopped',
+      configs: [{
+        source: 'promcfg',
+        target: '/etc/prometheus/prometheus.yml'
+      }]
+    }
+    if (!this.config.local && !this.config.noGCPLogging) {
+     service.logging = {
+        driver: 'gcplogs',
+        options: {
+          'gcp-project': PROJECT_ID,
+          'gcp-log-cmd': 'true',
+          'labels': `type=prometheus`
+        }
+      }
+    }
+    configs.promcfg = {
+      file: './prometheus.yml'
+    }
+    this.saveYaml(outputFolder, 'prometheus.yml', mConfigs.prometheus(this.config.local))
+    return service
+  }
+
+  saveYaml (outputFolder, name, content) {
+    // console.log(`===== saving ${name} into ${outputFolder}`)
+    // console.log(content)
+    fs.writeFileSync(path.join(outputFolder, name), YAML.stringify(content))
+  }
+ 
+  generateNodeExporterService (volumes) {
+    const service = {
+      image: 'prom/node-exporter:latest',
+      command: ['--config.file=/etc/prometheus/prometheus.yml'],
+      command: [
+        '--path.procfs=/host/proc',
+        '--path.sysfs=/host/sys',
+        '--path.rootfs=/host',
+        '--collector.filesystem.ignored-mount-points="^(/rootfs|/host|)/(sys|proc|dev|host|etc)($$|/)"',
+        '--collector.filesystem.ignored-fs-types="^(sys|proc|auto|cgroup|devpts|ns|au|fuse\.lxc|mqueue)(fs|)$$"'
+      ],
+      networks: {
+        testnet: {
+          // aliases: [`cadvisor`]
+        }
+      },
+      deploy: {
+        mode: 'global'
+        // placement: {
+        //   constraints: ['node.role == manager']
+        // }
+      },
+      restart: 'unless-stopped',
+      volumes: ['/proc:/host/proc:ro', '/sys:/host/sys:ro', '/:/rootfs:ro'] // '/etc/hostname:/etc/host_hostname']
+    }
+    if (this.config.local) {
+      service.networks.testnet.aliases = ['node-exporter']
+    }
+    if (!this.config.local && !this.config.noGCPLogging) {
+     service.logging = {
+        driver: 'gcplogs',
+        options: {
+          'gcp-project': PROJECT_ID,
+          'gcp-log-cmd': 'true',
+          'labels': `type=cadvisor`
+        }
+      }
+    }
+    return service
+  }
+
+  generateCAdvisorService (volumes) {
+    const service = {
+      image: 'google/cadvisor:latest',
+      ports: ['8080:8080'],
+      depends_on: ['geth'],
+      networks: {
+        testnet: {
+          // aliases: [`cadvisor`]
+        }
+      },
+      deploy: {
+        mode: 'global'
+        // placement: {
+        //   constraints: ['node.role == manager']
+        // }
+      },
+      restart: 'unless-stopped',
+      volumes: ['/:/rootfs:ro', '/var/run:/var/run:rw', '/sys:/sys:ro', '/var/lib/docker/:/var/lib/docker:ro',
+        '/dev/disk/:/dev/disk:ro', '/dev/kmsg:/dev/kmsg:ro'
+      ]
+    }
+    if (this.config.local) {
+      service.networks.testnet.aliases = ['cadvisor']
+    }
+    if (!this.config.local && !this.config.noGCPLogging) {
+     service.logging = {
+        driver: 'gcplogs',
+        options: {
+          'gcp-project': PROJECT_ID,
+          'gcp-log-cmd': 'true',
+          'labels': `type=cadvisor`
+        }
+      }
+    }
+    return service
+  }
+
+  generateGrafanaService (outputFolder, volumes, configs) {
+    const service = {
+      image: 'grafana/grafana',
+      // command: ['--config.file=/etc/prometheus/prometheus.yml'],
+      ports: ['3001:3000'],
+      depends_on: ['prometheus'],
+      networks: {
+        testnet: {
+          aliases: [`grafana`]
+        }
+      },
+      environment: {
+        GF_SECURITY_ADMIN_USER: 'admin',
+        GF_SECURITY_ADMIN_PASSWORD: 'admin1234',
+        GF_AUTH_ANONYMOUS_ENABLED: 'True',
+        GF_AUTH_ANONYMOUS_ORG_NAME: 'Main Org.',
+        GF_AUTH_ANONYMOUS_ORG_ROLE: 'Viewer',
+      },
+      deploy: {
+        placement: {
+          constraints: ['node.role == manager']
+        }
+      },
+      restart: 'unless-stopped',
+      volumes: ['grafana1:/var/lib/grafana'],
+      configs: [{
+        source: 'grafanaDrsc',
+        target: '/etc/grafana/provisioning/datasources/datasources.yml'
+      }, {
+        source: 'grafanaDashboards',
+        target: '/etc/grafana/provisioning/dashboards/dashboards.yml'
+      }, {
+        source: 'grafanaDashboards1',
+        target: '/var/lib/grafana/dashboards/1.json'
+      }, {
+        source: 'grafanaDashboards2',
+        target: '/var/lib/grafana/dashboards/2.json'
+      }, {
+        source: 'grafanaDashboards3',
+        target: '/var/lib/grafana/dashboards/3.json'
+      }]
+    }
+    if (!this.config.local && !this.config.noGCPLogging) {
+     service.logging = {
+        driver: 'gcplogs',
+        options: {
+          'gcp-project': PROJECT_ID,
+          'gcp-log-cmd': 'true',
+          'labels': `type=prometheus`
+        }
+      }
+    }
+    volumes.grafana1 = {}
+    configs.grafanaDrsc = {
+      file: './grafanaDatasources.yml'
+    }
+    configs.grafanaDashboards = {
+      file: './grafanaDashboards.yml'
+    }
+    configs.grafanaDashboards1 = {
+      file: './3662.json'
+    }
+    configs.grafanaDashboards2 = {
+      file: './179.json'
+    }
+    configs.grafanaDashboards3 = {
+      file: './1860.json'
+    }
+    // curl --fail --compressed https://grafana.com/api/dashboards/{{ item.dashboard_id }}/revisions/{{ item.revision_id }}/download -o /tmp/dashboards/{{ item.dashboard_id }}.json
+    // curl https://grafana.com/api/dashboards/3662/revisions/2/download -o 3662.json
+    // curl https://grafana.com/api/dashboards/4271/revisions/4/download -o 4271.json
+    // curl https://grafana.com/api/dashboards/179/revisions/7/download -o 179.json
+    // curl https://grafana.com/api/dashboards/1860/revisions/13/download -o 1860.json
+    /*
+    - dashboard_id: '3662' # Prometheus 2.0 overview
+      revision_id: '2'
+      datasource: '{{ grafana_datasources.0.name }}'
+    - dashboard_id: '4271' # Docker and system monitoring
+      revision_id: '4' # One requirement is to start a docker containers with a label named 'namespace'.
+      datasource: '{{ grafana_datasources.0.name }}'
+      // 893 - # Docker and system monitoring - original - bad
+      // 179 - # Docker and Host Monitoring w/ Prometheus
+      // 1860 -# Node Exporter Full
+    */
+
+    this.saveYaml(outputFolder, 'grafanaDatasources.yml', mConfigs.grafanaDatasources)
+    this.saveYaml(outputFolder, 'grafanaDashboards.yml', mConfigs.grafanaDashboards)
+    this.copyFileToOut('templates/grafana', outputFolder, '3662.json')
+    this.copyFileToOut('templates/grafana', outputFolder, '4271.json')
+    this.copyFileToOut('templates/grafana', outputFolder, '179.json')
+    this.copyFileToOut('templates/grafana', outputFolder, '1860.json')
+    return service
+  }
+
+  copyFileToOut(srcFolder, outputFolder, name) {
+    const srcPath = path.resolve(__dirname, srcFolder)
+    fs.copyFileSync(path.join(srcPath, name), path.join(outputFolder, name))
   }
 
   generateMetricsService () {
     const mService = {
       image: 'darkdragon/livepeermetrics:latest',
-      ports: [
-        '3000:3000',
-      ],
+      ports: ['3000:3000'],
       depends_on: ['mongodb'],
       networks: {
         testnet: {
@@ -462,7 +725,7 @@ class NetworkCreator extends EventEmitter {
       },
       restart: 'unless-stopped'
     }
-    if (!this.config.local) {
+    if (!this.config.local && !this.config.noGCPLogging) {
      mService.logging = {
         driver: 'gcplogs',
         options: {
@@ -492,7 +755,7 @@ class NetworkCreator extends EventEmitter {
       volumes: ['vmongo1:/data/db', 'vmongo2:/data/configdb']
       // networks: ['outside']
     }
-    if (!this.config.local) {
+    if (!this.config.local && !this.config.noGCPLogging) {
      mService.logging = {
         driver: 'gcplogs',
         options: {
@@ -527,7 +790,7 @@ class NetworkCreator extends EventEmitter {
       }
     }
 
-    if (!this.config.local) {
+    if (!this.config.local && !this.config.noGCPLogging) {
       gethService.logging = {
         driver: 'gcplogs',
         options: {
@@ -686,7 +949,7 @@ class NetworkCreator extends EventEmitter {
   }
 }
 
-let usedPorts = [8545, 8546, 30303]
+let usedPorts = [8545, 8546, 30303, 8080, 3000, 3001, 9090]
 function getRandomPort (origin) {
   // TODO, ugh, fix this terrible recursive logic, use an incrementer like a gentleman
   let port = origin + Math.floor(Math.random() * 999)

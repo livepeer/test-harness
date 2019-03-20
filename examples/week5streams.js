@@ -12,10 +12,12 @@ th.run({
   localBuild: true,
   standardSetup: true, // request token, register orchestartors, etc...
   startMetricsServer: true,
+  prometheus: true,
   name: 'week5s',
   // email: 'ivan@livepeer.org', // email to send alerts to
   livepeerBinaryPath: null, // this will use the livepeer binary in the GCP bucket.
   // constrainResources: true,
+  noGCPLogging: false,
   blockchain: {
     name: 'lpTestNet',
     networkId: 54321,
