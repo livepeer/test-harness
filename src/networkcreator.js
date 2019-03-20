@@ -194,7 +194,7 @@ class NetworkCreator extends EventEmitter {
   async buildLocalLpImage(cb) {
     console.log('building local lpnode...')
     return new Promise((resolve, reject) => {
-      const lpnodeDir = path.resolve(__dirname, '../containers/lpnode')
+      // const lpnodeDir = path.resolve(__dirname, '../containers/lpnode')
       const builder = spawn('docker', [
         'tag', 'livepeerbinary:debian', 'lpnode:latest',
         // 'build',

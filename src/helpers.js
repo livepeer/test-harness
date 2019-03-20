@@ -25,8 +25,18 @@ async function prettyPrintDeploymentInfo(parsedCompose) {
     console.log(`curl ` + c(`http://${ip}:${po['8935']}/stream/customManifestID.m3u8`))
     console.log(`RTMP ingest point: ` + c(`rtmp://${ip}:${po['1935']}/anything?manifestID=customManifestID`))
   }
-  const metricsIP = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, 'metrics')
-  console.log(`\nMetrics server: ` + c(`http://${metricsIP}:3000`))
+  if (parsedCompose.hasMetrics) {
+    const metricsIP = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, 'metrics')
+    if (metricsIP) {
+      console.log(`\nMetrics server: ` + c(`http://${metricsIP}:3000`))
+    }
+  }
+  if (parsedCompose.hasPrometheus) {
+    const ip = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, 'prometheus')
+    if (ip) {
+      console.log(`\nPrometheus (Grafana): ` + c(`http://${ip}:3001`))
+    }
+  }
 }
 
 module.exports = {
