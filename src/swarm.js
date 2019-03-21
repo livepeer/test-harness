@@ -2,7 +2,7 @@
 const path = require('path')
 const chalk = require('chalk')
 const { exec, spawn } = require('child_process')
-const { each, eachLimit, timesLimit, parallel } = require('async')
+const { each, eachLimit, eachOfLimit, timesLimit, parallel } = require('async')
 const shortid = require('shortid')
 const Api = require('./api')
 const { PROJECT_ID } = require('./constants')
@@ -35,31 +35,73 @@ class Swarm {
     const name = opts.name || 'testharness-' + shortid.generate()
     const machine2type = this.mapMachinesTypes(opts)
     console.log(machine2type)
-    parallel([
-      (done) => {
-        this.createMachine({
-          name: `${name}-manager`,
-          zone: opts.machines.zone,
-          machineType: opts.machines.managerMachineType,
+
+    if (Array.isArray(opts.machines.zones)) {
+      let numberOfZones = opts.machines.zones.length
+      let machinesPerGroup = Math.floor(machinesCount / numberOfZones)
+      let groups = {}
+      for (let i = 0, j = 0; i < machinesCount - 1; i++) {
+        if (!groups[opts.machines.zones[j]]) {
+          groups[opts.machines.zones[j]] = []
+        }
+
+        groups[opts.machines.zones[j]].push({
+          name: `${name}-worker-${i + 1}`,
+          zone: opts.machines.zones[j],
+          machineType: machine2type.get(`${name}-worker-${i + 1}`) || opts.machines.machineType,
           tags: opts.machines.tags || `${name}-cluster`
-        }, done)
-      },
-      (done) => {
-        timesLimit(machinesCount - 1, 20, (i, next) => {
-          // create workers
-          const  mName = `${name}-worker-${i + 1}`
-          this.createMachine({
-            name: mName,
-            zone: opts.machines.zone,
-            machineType: machine2type.get(mName) || opts.machines.machineType,
-            tags: opts.machines.tags || `${name}-cluster`
-          }, next)
-        }, done)
+        })
+
+        j = ++j % numberOfZones
       }
-    ], (err) => {
-      if (err) return cb(err)
-      this.setupGCEMonitoring(opts).then(() => cb(null), cb)
-    })
+      console.log('groups: ', groups)
+      parallel([
+        (done) => {
+          this.createMachine({
+            name: `${name}-manager`,
+            zone: opts.machines.zones[0],
+            machineType: opts.machines.managerMachineType,
+            tags: opts.machines.tags || `${name}-cluster`
+          }, done)
+        },
+        (done) => {
+          eachOfLimit(groups, 3, (machinesOpts, zone, next) => {
+            eachLimit(machinesOpts, 20, (machine, n) => {
+              this.createMachine(machine, n)
+            }, next)
+          }, done)
+        }
+      ], (err) => {
+        if (err) return cb(err)
+        this.setupGCEMonitoring(opts).then(() => cb(null), cb)
+      })
+    } else {
+      parallel([
+        (done) => {
+          this.createMachine({
+            name: `${name}-manager`,
+            zone: opts.machines.zone,
+            machineType: opts.machines.managerMachineType,
+            tags: opts.machines.tags || `${name}-cluster`
+          }, done)
+        },
+        (done) => {
+          timesLimit(machinesCount - 1, 20, (i, next) => {
+            // create workers
+            const  mName = `${name}-worker-${i + 1}`
+            this.createMachine({
+              name: mName,
+              zone: opts.machines.zone,
+              machineType: machine2type.get(mName) || opts.machines.machineType,
+              tags: opts.machines.tags || `${name}-cluster`
+            }, next)
+          }, done)
+        }
+      ], (err) => {
+        if (err) return cb(err)
+        this.setupGCEMonitoring(opts).then(() => cb(null), cb)
+      })
+    }
   }
 
   async setupGCEMonitoring(config) {
@@ -110,7 +152,7 @@ class Swarm {
         console.log(`Uptime check '${checkName} already exists.`)
         continue
       }
-      const port = isGeth ? 8545 : +po['7935'] 
+      const port = isGeth ? 8545 : +po['7935']
       const contentMatchers = isGeth ? undefined : [{ content: 'Manifests' }]
       const [upResp] = await ucClient.createUptimeCheckConfig({
         parent: formattedName,
@@ -140,7 +182,7 @@ class Swarm {
     if (config.email) {
       // configure aler policies
       const ncClient = new monitoring.v3.NotificationChannelServiceClient()
-      const displayName = config.name + '-alerts' 
+      const displayName = config.name + '-alerts'
       const [channels] = await ncClient.listNotificationChannels({name: formattedName})
       console.log('Existing notification channels:', channels)
       nc = channels.find(c => c.displayName === displayName)
@@ -266,7 +308,7 @@ class Swarm {
     if (config.email) {
       // configure aler policies
       const ncClient = new monitoring.v3.NotificationChannelServiceClient()
-      const displayName = config.name + '-alerts' 
+      const displayName = config.name + '-alerts'
       const [channels] = await ncClient.listNotificationChannels({name: formattedName})
       // console.log('Existing notification channels:', channels)
       const nc = channels.find(c => c.displayName === displayName)

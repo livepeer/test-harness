@@ -86,7 +86,9 @@ the binary in the gcp bucket.
 - `machines`: an object used for remote deployments configurations like number of
 host machines, zones, machine types and so on.
   - `num`: number of host machines including the manager instance,
-  - `zone`: gcp zone defaults to 'us-east1-b'
+
+  - `zone`: gcp zone defaults to 'us-east1-b' **OR** `zones`: an array of gcp zones for multi region support
+
   - `machineType`: type of machine , ex: 'n1-highcpu-8',
   - `managerMachineType`: type of the instance used as manager,
 
