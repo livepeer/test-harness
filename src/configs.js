@@ -1,6 +1,6 @@
 'use strict'
 
-const prometheus = (isLocal) => {
+const prometheus = (isLocal, servicesToMonitor) => {
   const cfg = {
     global: {
       scrape_interval: '15s', // # By default, scrape targets every 15 seconds.
@@ -22,6 +22,15 @@ const prometheus = (isLocal) => {
         targets: ['localhost:9090']
       }]
     }]
+  }
+  if (servicesToMonitor.length) {
+    cfg.scrape_configs.push({
+      job_name: 'livepeer-node',
+      scrape_interval: '5s',
+      static_configs: [{
+        targets: servicesToMonitor.map(sn => sn + ':7935')
+      }]
+    })
   }
   if (isLocal) {
     cfg.scrape_configs.push({

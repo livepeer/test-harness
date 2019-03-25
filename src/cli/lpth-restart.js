@@ -14,13 +14,13 @@ async function run(parsedCompose) {
       process.exit(14)
   }
   const networkCreator = new NetworkCreator({name, local: true})
-  console.log('Running docker-compose down...')
-  let logs = await dockercompose.execCompose('down', [], {
-    cwd: path.resolve(__dirname, `../../dist/${name}/`),
-    logs: true,
-  })
-  console.log(logs)
-  console.log(`experiment ${name} services stopped.`)
+  // console.log('Running docker-compose down...')
+  // let logs = await dockercompose.execCompose('down', [], {
+  //   cwd: path.resolve(__dirname, `../../dist/${name}/`),
+  //   logs: true,
+  // })
+  // console.log(logs)
+  // console.log(`experiment ${name} services stopped.`)
   await networkCreator.buildLocalLpImage()
   logs = await dockercompose.upAll({
     cwd: path.resolve(__dirname, `../../dist/${name}/`),

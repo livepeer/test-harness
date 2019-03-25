@@ -450,7 +450,7 @@ class NetworkCreator extends EventEmitter {
       this.hasMetrics = true
     }
     if (this.config.prometheus) {
-      output.prometheus = this.generatePrometheusService(outputFolder, volumes, configs)
+      // output.prometheus = this.generatePrometheusService(outputFolder, volumes, configs)
       output.cadvisor = this.generateCAdvisorService(volumes)
       output.grafana = this.generateGrafanaService(outputFolder, volumes, configs)
       output['node-exporter'] = this.generateNodeExporterService(volumes)
@@ -482,11 +482,12 @@ class NetworkCreator extends EventEmitter {
       console.log('all nodes have been generated')
       pool.killAll()
       log('output:', output)
+      output.prometheus = this.generatePrometheusService(outputFolder, Object.keys(output), volumes, configs)
       cb(null, output, volumes, configs)
     })
   }
 
-  generatePrometheusService (outputFolder, volumes, configs) {
+  generatePrometheusService (outputFolder, servicesNames, volumes, configs) {
     const service = {
       image: 'prom/prometheus:latest',
       command: ['--config.file=/etc/prometheus/prometheus.yml'],
@@ -521,7 +522,11 @@ class NetworkCreator extends EventEmitter {
     configs.promcfg = {
       file: './prometheus.yml'
     }
-    this.saveYaml(outputFolder, 'prometheus.yml', mConfigs.prometheus(this.config.local))
+    const servicesToMonitor = servicesNames.filter(sn => {
+      return sn.startsWith('orchestrator') || sn.startsWith('broadcaster') 
+      // || sn.startsWith('transcoder') - right now standalone transcoder does not expose CLI port
+    })
+    this.saveYaml(outputFolder, 'prometheus.yml', mConfigs.prometheus(this.config.local, servicesToMonitor))
     return service
   }
 
@@ -649,6 +654,9 @@ class NetworkCreator extends EventEmitter {
       }, {
         source: 'grafanaDashboards3',
         target: '/var/lib/grafana/dashboards/3.json'
+      }, {
+        source: 'grafanaDashboards4',
+        target: '/var/lib/grafana/dashboards/4.json'
       }]
     }
     if (!this.config.local && !this.config.noGCPLogging) {
@@ -677,6 +685,9 @@ class NetworkCreator extends EventEmitter {
     configs.grafanaDashboards3 = {
       file: './1860.json'
     }
+    configs.grafanaDashboards4 = {
+      file: './livepeer_overview.json'
+    }
     // curl --fail --compressed https://grafana.com/api/dashboards/{{ item.dashboard_id }}/revisions/{{ item.revision_id }}/download -o /tmp/dashboards/{{ item.dashboard_id }}.json
     // curl https://grafana.com/api/dashboards/3662/revisions/2/download -o 3662.json
     // curl https://grafana.com/api/dashboards/4271/revisions/4/download -o 4271.json
@@ -700,6 +711,7 @@ class NetworkCreator extends EventEmitter {
     this.copyFileToOut('templates/grafana', outputFolder, '4271.json')
     this.copyFileToOut('templates/grafana', outputFolder, '179.json')
     this.copyFileToOut('templates/grafana', outputFolder, '1860.json')
+    this.copyFileToOut('templates/grafana', outputFolder, 'livepeer_overview.json')
     return service
   }
 
