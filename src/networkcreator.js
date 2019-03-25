@@ -683,7 +683,7 @@ class NetworkCreator extends EventEmitter {
       file: './179.json'
     }
     configs.grafanaDashboards3 = {
-      file: './1860.json'
+      file: './1860c.json'
     }
     configs.grafanaDashboards4 = {
       file: './livepeer_overview.json'
@@ -710,7 +710,7 @@ class NetworkCreator extends EventEmitter {
     this.copyFileToOut('templates/grafana', outputFolder, '3662.json')
     this.copyFileToOut('templates/grafana', outputFolder, '4271.json')
     this.copyFileToOut('templates/grafana', outputFolder, '179.json')
-    this.copyFileToOut('templates/grafana', outputFolder, '1860.json')
+    this.copyFileToOut('templates/grafana', outputFolder, '1860c.json')
     this.copyFileToOut('templates/grafana', outputFolder, 'livepeer_overview.json')
     return service
   }
