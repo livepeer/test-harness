@@ -52,7 +52,7 @@ If flag `publicImage` is set to true in config, then image from Docker Hub will 
 
 If flag `localBuild` is set to true in config, then livepeer binary will be taken from local
 docker image tagged `livepeerbinary:debian`. It should be build by running
-`docker build -t livepeerbinary:debian -f Dockerfile.debian .`
+`make localdocker`
 
 ### GCP integrated Test-harness
 
