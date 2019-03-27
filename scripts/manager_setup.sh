@@ -3,14 +3,14 @@
 cd /tmp
 
 if [ ! -d /tmp/test-harness ]; then
-  git clone https://github.com/livepeer/test-harness.git
+  git clone -b it/officialimage https://github.com/livepeer/test-harness.git
 fi
 
-if [ ! -d /tmp/go-livepeer ]; then
-  git clone https://github.com/livepeer/go-livepeer.git
-  cd /tmp/go-livepeer
-  git fetch origin && git checkout -b fix/nasm-version origin/fix/nasm-version
-fi
+# if [ ! -d /tmp/go-livepeer ]; then
+#   git clone https://github.com/livepeer/go-livepeer.git
+#   cd /tmp/go-livepeer
+#   git fetch origin && git checkout -b fix/nasm-version origin/fix/nasm-version
+# fi
 
 # mkdir -p go/src/github.com/livepeer
 #cd go/src/github.com/livepeer

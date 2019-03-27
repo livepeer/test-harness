@@ -5,7 +5,7 @@ const { exec, spawn } = require('child_process')
 const { each, eachLimit, eachOfLimit, timesLimit, parallel } = require('async')
 const shortid = require('shortid')
 const Api = require('./api')
-const { PROJECT_ID } = require('./constants')
+const { PROJECT_ID, GCE_VM_IMAGE } = require('./constants')
 const monitoring = require('@google-cloud/monitoring')
 const utils = require('./utils/helpers')
 const { wait, parseComposeAndGetAddresses, getConstrain } = require('./utils/helpers')
@@ -343,7 +343,9 @@ class Swarm {
       `--${driver}-tags`,
       opts.tags || this._defaults.tags,
       `--${driver}-project`,
-      this._defaults.projectId
+      this._defaults.projectId,
+      `--${driver}-machine-image`,
+      GCE_VM_IMAGE
     ]
 
     console.log('running docker-machine ', args.join(' '))
@@ -369,10 +371,35 @@ class Swarm {
   }
 
   async setupMachine(machine, zone) {
-    await utils.remotelyExec(
-      machine,
-      zone,
+    await utils.remotelyExec(machine, zone,
       `sudo curl -sSO https://dl.google.com/cloudagents/install-monitoring-agent.sh && sudo bash install-monitoring-agent.sh`
+    )
+    await utils.remotelyExec(machine, zone, `sudo apt-get update && sudo apt-get upgrade -y`)
+    console.log(`=============== apt updated`)
+    await utils.remotelyExec(machine, zone,
+       `sudo apt-get install -y python3-pip && sudo apt autoremove -y && \
+       sudo pip3 install ansible && \
+       ansible-galaxy install cloudalchemy.node-exporter && \
+       cat <<-SHELL_SCREENRC > $HOME/nodepb.yml
+- hosts: 127.0.0.1
+  connection: local
+  become: yes
+  roles:
+    - cloudalchemy.node-exporter
+SHELL_SCREENRC`
+    )
+    await utils.remotelyExec(machine, zone, 'sudo ansible-playbook  nodepb.yml')
+  }
+
+  async setupMachine2(machine, zone) {
+    await utils.remotelyExec(machine, zone,
+       `cat <<-SHELL_SCREENRC > $HOME/nodepb.yml
+- hosts: 127.0.0.1
+  connection: local
+  become: yes
+  roles:
+    - cloudalchemy.node-exporter
+SHELL_SCREENRC`
     )
   }
 
@@ -877,7 +904,10 @@ class Swarm {
               zone,
               `cd /tmp && \
                sudo rm -r -f config && \
-               sudo mv ${name} config && cd /tmp/config && /bin/sh manager_setup.sh ${(config.livepeerBinaryPath) ? 'binary' : null} && /bin/sh create_streamer_image.sh`,
+               sudo mv ${name} config && \
+               sudo chown $USER:$USER -R config && \
+               cd /tmp/config && \
+               /bin/sh manager_setup.sh ${(config.livepeerBinaryPath) ? 'binary' : null} && /bin/sh create_streamer_image.sh`,
               cb)
           }
         )
@@ -973,16 +1003,18 @@ function chunk(arr, n) {
 
 async function test() {
   const config = {
-    name: 'dark-week5s',
+    name: 'ldark',
     email: 'ivan@livepeer.org',
     machines: {
       num: 3,
-      zone: 'europe-west3-c',
+      // zone: 'europe-west3-c',
+      zone: 'europe-west3-b',
     }
   }
   const swarm = new Swarm(config.name)
   // await swarm.setupGCEMonitoring(config)
-  await swarm.teardownGCEMonitoring(config)
+  // await swarm.teardownGCEMonitoring(config)
+  await swarm.setupMachine('ldark-worker-2', config.machines.zone)
   return 'done'
 }
 

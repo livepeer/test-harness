@@ -105,6 +105,10 @@ class TestHarness {
     this.swarm = new Swarm(config.name)
 
     this._config = config
+    if (config.localBuild && config.publicImage) {
+      console.log(chalk.red('Should specify either localBuild or publicImage'))
+      process.exit(2)
+    }
 
     // prettyPrintDeploymentInfo(config)
     // return
@@ -201,7 +205,7 @@ class TestHarness {
     // if (err) throw err
     // if (err) console.log('create registry error : ', err)
     let experiment
-    if (config.localBuild) {
+    if (config.localBuild || config.publicImage) {
       experiment = await this.finishSetup(config)
     } else {
       experiment = await this.setupManager(config)
@@ -422,18 +426,22 @@ class TestHarness {
     console.log('== finish setup ' + configName)
     const managerName = `${configName}-manager`
     // await this.networkCreator.buildLocalLpImage()
-    await this.saveLocalDockerImage()
-    const loadToWorkers = [this.loadLocalDockerImageToSwarm(managerName)]
-    /*
-    for (let i = 0; i < config.machines.num - 1; i++) {
-      const workerName = `${configName}-worker-${ i+1 }`
-      loadToWorkers.push(this.loadLocalDockerImageToSwarm(workerName))
+    let locTag = ''
+    if (config.localBuild) {
+      await this.saveLocalDockerImage()
+      const loadToWorkers = [this.loadLocalDockerImageToSwarm(managerName)]
+      /*
+      for (let i = 0; i < config.machines.num - 1; i++) {
+        const workerName = `${configName}-worker-${ i+1 }`
+        loadToWorkers.push(this.loadLocalDockerImageToSwarm(workerName))
+      }
+      */
+      await Promise.all(loadToWorkers)
+      locTag = `sudo docker tag lpnode:latest localhost:5000/lpnode:latest && sudo docker push localhost:5000/lpnode:latest &&`
     }
-    */
-    await Promise.all(loadToWorkers)
+
     await utils.remotelyExec(managerName, config.machines.zone, 
-      `sudo docker tag lpnode:latest localhost:5000/lpnode:latest && sudo docker push localhost:5000/lpnode:latest &&
-       sudo docker pull darkdragon/test-streamer:latest &&
+       locTag + `sudo docker pull darkdragon/test-streamer:latest &&
        sudo docker tag darkdragon/test-streamer:latest localhost:5000/streamer:latest &&
        sudo docker push localhost:5000/streamer:latest
       `)

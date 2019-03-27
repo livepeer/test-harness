@@ -9,6 +9,7 @@ let th = new TestHarness()
 th.run({
   local: true,
   localBuild: true,
+  prometheus: true,
   startMetricsServer: true,
   standardSetup: true, // request token, register orchestartors, etc...
   name: 'test123',

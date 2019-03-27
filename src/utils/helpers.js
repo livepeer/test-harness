@@ -32,6 +32,7 @@ function remotelyExec (machineName, zone, command, cb) {
     ]
     args.push(command)
 
+    console.log(`Running remote command '${command}'`)
     let builder = spawn('gcloud', args)
     let output
 
@@ -169,6 +170,12 @@ function parseComposeAndGetAddresses (configName) {
   }
   const usedWorkers = new Set()
   for (let sn of Object.keys(parsedCompose.services)) {
+    if (sn === 'metrics') {
+      parsedCompose.hasMetrics = true
+    }
+    if (sn === 'prometheus') {
+      parsedCompose.hasPrometheus = true
+    }
     const cs = getConstrain(parsedCompose.services[sn])
     if (cs) {
       usedWorkers.add(cs)

@@ -21,7 +21,7 @@
     "axios": "^0.18.0",
     "chalk": "^2.4.2",
     "commander": "^2.19.0",
-    "composefile": "github:darkdarkdragon/composefile#master",
+    "composefile": "darkdarkdragon/composefile#v0.3.0",
     "debug": "^4.1.1",
     "docker-compose": "github:darkdarkdragon/docker-compose#master",
     "ethereumjs-abi": "^0.6.5",

@@ -6,7 +6,7 @@ echo "storing keys.... $json_key"
 # echo $json_key | jq -r '.' > /lpData/keystore/key.json
 for chain in rinkeby mainnet devenv offchain
 do
-  echo $json_key | jq -r '.' > /lpData/$chain/keystore/key.json
+  echo $json_key | jq -r '.' > /root/.lpData/$chain/keystore/key.json
 done
 
 sleep 3
