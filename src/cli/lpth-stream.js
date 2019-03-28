@@ -78,7 +78,7 @@ async function fromLocalStream() {
     const po = bPorts[i]
     const id = ids[i]
     const ip = await getIP(po.name)
-    const task = st.stream(program.dir, program.file, `rtmp://${ip}:${po['1935']}/anything?manifestID=${id}`, program.time, program.infinite)
+    const task = st.stream(program.dir, program.file, `rtmp://${ip}:${po['1935']}/stream/${id}`, program.time, program.infinite)
     tasks.push(task)
   }
 

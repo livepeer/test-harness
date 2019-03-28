@@ -23,7 +23,7 @@ async function prettyPrintDeploymentInfo(parsedCompose) {
     console.log(`curl ` + c(`http://${ip}:${po['7935']}/status`))
     console.log(`curl ` + c(`http://${ip}:${po['8935']}/stream/current.m3u8`))
     console.log(`curl ` + c(`http://${ip}:${po['8935']}/stream/customManifestID.m3u8`))
-    console.log(`RTMP ingest point: ` + c(`rtmp://${ip}:${po['1935']}/anything?manifestID=customManifestID`))
+    console.log(`RTMP ingest point: ` + c(`rtmp://${ip}:${po['1935']}/stream/customManifestID`))
   }
   if (parsedCompose.hasMetrics) {
     const metricsIP = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, 'metrics')

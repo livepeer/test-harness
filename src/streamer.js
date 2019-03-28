@@ -266,7 +266,7 @@ class Streamer extends EventEmitter {
     each(broadcasters, (broadcaster, next) => {
       let ids = getIds(input, multiplier)
       eachOf(ids, (id, i, n) => {
-        destinations.push(`rtmp://${broadcaster}:1935/stream_${i}/?manifestID=${id}`)
+        destinations.push(`rtmp://${broadcaster}:1935/stream/${id}`)
         n(null)
       }, next)
     }, (err, result) => {
@@ -290,7 +290,7 @@ class Streamer extends EventEmitter {
       eachOf(ids, (id, i, n) => {
         const mu = machines2use[mi%machines2use.length]
         mi++
-        this._generateService(`${broadcaster}_${i}`, sourceDir, input, `rtmp://${broadcaster}:1935/stream_${i}/?manifestID=${id}`,
+        this._generateService(`${broadcaster}_${i}`, sourceDir, input, `rtmp://${broadcaster}:1935/stream}/${id}`,
           infinite ? !!(i%2) : false, mu,
           (err, service) => {
             if (err) return next(err)
