@@ -60,7 +60,7 @@
       },
       "targets": [
         {
-          "expr": "livepeer_current_sessions{node_type=\"orch\"} / livepeer_max_sessions{node_type=\"orch\"} * 100",
+          "expr": "livepeer_current_sessions_total{node_type=\"orch\"} / livepeer_max_sessions_total{node_type=\"orch\"} * 100",
           "format": "time_series",
           "instant": true,
           "intervalFactor": 1,
@@ -108,7 +108,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(livepeer_segment_transcoded_appeared) by (instance) / on (instance) livepeer_segment_source_emerged_with_profiles * 100\nand \nsum(rate(livepeer_segment_transcoded_appeared[1m])) by (instance) > 0.01",
+          "expr": "sum(livepeer_segment_transcoded_appeared_total) by (instance) / on (instance) livepeer_segment_source_emerged_with_profiles_total * 100\nand \nsum(rate(livepeer_segment_transcoded_appeared_total[1m])) by (instance) > 0.01",
           "format": "time_series",
           "intervalFactor": 1,
           "refId": "A"
@@ -216,7 +216,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "sum(livepeer_current_sessions{node_type=\"bctr\"})",
+          "expr": "sum(livepeer_current_sessions_total{node_type=\"bctr\"})",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "",
@@ -357,7 +357,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(rate(livepeer_segment_transcoded_appeared[1m])) / sum(rate(livepeer_segment_source_emerged_with_profiles[1m])) * 100",
+          "expr": "sum(rate(livepeer_segment_transcoded_appeared_total[1m])) / sum(rate(livepeer_segment_source_emerged_with_profiles_total[1m])) * 100",
           "format": "time_series",
           "intervalFactor": 1,
           "refId": "A"
@@ -441,7 +441,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(rate(livepeer_transcode_latency_sum{node_type=\"bctr\"}[1m])) by (instance) / sum(rate(livepeer_transcode_latency_count{node_type=\"bctr\"}[1m])) by (instance)",
+          "expr": "sum(rate(livepeer_transcode_latency_seconds_sum{node_type=\"bctr\"}[1m])) by (instance) / sum(rate(livepeer_transcode_latency_seconds_count{node_type=\"bctr\"}[1m])) by (instance)",
           "format": "time_series",
           "intervalFactor": 1,
           "refId": "A"
@@ -524,7 +524,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(livepeer_transcode_time_sum{node_type=\"orch\"}[1m]) / rate(livepeer_transcode_time_count{node_type=\"orch\"}[1m])",
+          "expr": "rate(livepeer_transcode_time_seconds_sum{node_type=\"orch\"}[1m]) / rate(livepeer_transcode_time_seconds_count{node_type=\"orch\"}[1m])",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "",
@@ -608,7 +608,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(increase(livepeer_segment_transcode_failed[1m])) by (error_code)",
+          "expr": "sum(increase(livepeer_segment_transcode_failed_total[1m])) by (error_code)",
           "format": "time_series",
           "instant": false,
           "intervalFactor": 1,
@@ -692,7 +692,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(increase(livepeer_segment_source_upload_failed[1m])) by (error_code)",
+          "expr": "sum(increase(livepeer_segment_source_upload_failed_total[1m])) by (error_code)",
           "format": "time_series",
           "intervalFactor": 1,
           "refId": "A"
@@ -775,7 +775,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(livepeer_segment_transcode_failed) by (instance, error_code)",
+          "expr": "sum(livepeer_segment_transcode_failed_total) by (instance, error_code)",
           "format": "time_series",
           "intervalFactor": 1,
           "refId": "A"
@@ -858,7 +858,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(livepeer_segment_source_upload_failed) by (instance, error_code)",
+          "expr": "sum(livepeer_segment_source_upload_failed_total) by (instance, error_code)",
           "format": "time_series",
           "intervalFactor": 1,
           "refId": "A"
