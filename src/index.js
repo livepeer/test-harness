@@ -457,7 +457,6 @@ class TestHarness {
       await Promise.all(loadToWorkers)
       locTag = `sudo docker tag lpnode:latest localhost:5000/lpnode:latest && sudo docker push localhost:5000/lpnode:latest &&`
     }
-
     await utils.remotelyExec(managerName, config.machines.zone, 
        locTag + `sudo docker pull darkdragon/test-streamer:latest &&
        sudo docker tag darkdragon/test-streamer:latest localhost:5000/streamer:latest &&
