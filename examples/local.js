@@ -10,6 +10,7 @@ th.run({
   local: true,
   localBuild: true,
   prometheus: true,
+  loki: true,
   startMetricsServer: true,
   standardSetup: true, // request token, register orchestartors, etc...
   name: 'test123',

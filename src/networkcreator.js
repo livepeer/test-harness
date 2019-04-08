@@ -52,6 +52,7 @@ class NetworkCreator extends EventEmitter {
     this.hasGeth = false
     this.hasMetrics = false
     this.hasPrometheus = false
+    this.hasLoki = false
     if (config.local) {
 
     } else {
@@ -336,6 +337,9 @@ class NetworkCreator extends EventEmitter {
     if (this.hasPrometheus) {
       deps.push('prometheus')
     }
+    if (this.hasLoki) {
+      deps.push('loki')
+    }
     if (type === 'transcoder') {
       deps.push(`orchestrator_${i}`)
     }
@@ -363,6 +367,7 @@ class NetworkCreator extends EventEmitter {
       // TODO fix the serviceAddr issue
       command: this.getNodeOptions(type, nodes, i),
       depends_on: this.getDependencies(type, i),
+      hostname: serviceName,
       networks: {
         testnet: {
           aliases: [serviceName]
@@ -456,6 +461,10 @@ class NetworkCreator extends EventEmitter {
       output['node-exporter'] = this.generateNodeExporterService(volumes)
       this.hasPrometheus = true
     }
+    if (this.config.loki) {
+      output.loki = this.generateLokiService(outputFolder, volumes, configs)
+      this.hasLoki = true
+    }
 
     eachLimit(['transcoder', 'orchestrator', 'broadcaster'], 1, (type, callback) => {
       console.log(`generating ${type} nodes ${this.config.nodes[`${type}s`].instances}`)
@@ -534,6 +543,45 @@ class NetworkCreator extends EventEmitter {
     // console.log(`===== saving ${name} into ${outputFolder}`)
     // console.log(content)
     fs.writeFileSync(path.join(outputFolder, name), YAML.stringify(content))
+  }
+
+  generateLokiService (outputFolder, volumes, configs) {
+    const service = {
+      image: 'grafana/loki:latest',
+      command: ['-config.file=/etc/loki/local-config.yaml'],
+      ports: ['3100:3100'],
+      networks: {
+        testnet: {
+          aliases: [`loki`]
+        }
+      },
+      deploy: {
+        placement: {
+          constraints: ['node.role == manager']
+        }
+      },
+      restart: 'unless-stopped',
+      configs: [{
+        source: 'lokiConfig',
+        target: '/etc/loki/local-config.yaml'
+      }]
+    }
+    if (!this.config.local && !this.config.noGCPLogging) {
+     service.logging = {
+        driver: 'gcplogs',
+        options: {
+          'gcp-project': PROJECT_ID,
+          'gcp-log-cmd': 'true',
+          'labels': `type=loki`
+        }
+      }
+    }
+    configs.lokiConfig = {
+      file: './loki.yml'
+    }
+    this.saveYaml(outputFolder, 'loki.yml', mConfigs.loki(this.config.local))
+    
+    return service
   }
  
   generateNodeExporterService (volumes) {
@@ -657,6 +705,9 @@ class NetworkCreator extends EventEmitter {
       }, {
         source: 'grafanaDashboards4',
         target: '/var/lib/grafana/dashboards/4.json'
+      }, {
+        source: 'grafanaDashboards5',
+        target: '/var/lib/grafana/dashboards/5.json'
       }]
     }
     if (!this.config.local && !this.config.noGCPLogging) {
@@ -688,6 +739,9 @@ class NetworkCreator extends EventEmitter {
     configs.grafanaDashboards4 = {
       file: './livepeer_overview.json'
     }
+    configs.grafanaDashboards5 = {
+      file: './goprocesses.json'
+    }
     // curl --fail --compressed https://grafana.com/api/dashboards/{{ item.dashboard_id }}/revisions/{{ item.revision_id }}/download -o /tmp/dashboards/{{ item.dashboard_id }}.json
     // curl https://grafana.com/api/dashboards/3662/revisions/2/download -o 3662.json
     // curl https://grafana.com/api/dashboards/4271/revisions/4/download -o 4271.json
@@ -705,13 +759,14 @@ class NetworkCreator extends EventEmitter {
       // 1860 -# Node Exporter Full
     */
 
-    this.saveYaml(outputFolder, 'grafanaDatasources.yml', mConfigs.grafanaDatasources)
+    this.saveYaml(outputFolder, 'grafanaDatasources.yml', mConfigs.grafanaDatasources(this.config.loki))
     this.saveYaml(outputFolder, 'grafanaDashboards.yml', mConfigs.grafanaDashboards)
     this.copyFileToOut('templates/grafana', outputFolder, '3662.json')
     this.copyFileToOut('templates/grafana', outputFolder, '4271.json')
     this.copyFileToOut('templates/grafana', outputFolder, '179.json')
     this.copyFileToOut('templates/grafana', outputFolder, '1860c.json')
     this.copyFileToOut('templates/grafana', outputFolder, 'livepeer_overview.json')
+    this.copyFileToOut('templates/grafana', outputFolder, 'goprocesses.json')
     return service
   }
 
@@ -811,7 +866,8 @@ class NetworkCreator extends EventEmitter {
           'labels': `type=geth,node=geth`
         }
       }
-
+    }
+    if (!this.config.local) {
       gethService.deploy = {
         replicas: 1,
         placement: {
@@ -862,6 +918,9 @@ class NetworkCreator extends EventEmitter {
     if (this.hasMetrics) {
       output.push('-monitor=true')
       output.push('-monUrl http://metrics:3000/api/events')
+    }
+    if (this.hasLoki) {
+      output.push('-lokiUrl http://loki:3100/api/prom/push')
     }
 
     // if (nodeType === 'orchestrator') {
