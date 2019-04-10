@@ -11,6 +11,7 @@ th.run({
   localBuild: true,
   prometheus: true,
   loki: true,
+  discordUserId: null, // id of Discord user to send alert from Prometheus to (use `Copy ID` on profile to get)
   startMetricsServer: true,
   standardSetup: true, // request token, register orchestartors, etc...
   name: 'dtest',

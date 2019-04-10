@@ -169,6 +169,23 @@ const loki = (isLocal) => {
 const alertManager = (isLocal, servicesToMonitor, name, discordUserId, ips) => {
   // ips - array of public ips, starting from manager machine
   const mention = discordUserId ? `<@${discordUserId}>:` : ''
+  const slack_configs = discordUserId ? [{
+        channel: "#prod-alerts",
+        username: 'Alert - deployment - ' + name,
+        send_resolved: true,
+        // api_url: 'https://discordapp.com/api/webhooks/563852076615073792/NuijhpwYle3T51fG0Lx2X9VjL2nrN9AxtfAz5D6bTvt4A4eZPhRibo2rBBc46b3l475i/slack'
+        api_url: 'https://discordapp.com/api/webhooks/564919423392284687/AyANSgwiSmsFBkSRSiCPoQJAuipqCdvLOWF01qacgCkgF4TKs_udpBbX87AoOuRxh-fm/slack',
+        title_link: isLocal || !ips ? '' :  `http://${ips[0]}:3001/`,
+        text: `${mention} {{ range .Alerts }}
+        *Alert:* {{ .Annotations.summary }} - \`{{ .Labels.severity }}\`
+       *Description:* {{ .Annotations.description }}
+       *Details:*
+       {{ range .Labels.SortedPairs }} • *{{ .Name }}:* \`{{ .Value }}\`
+       {{ end }}
+     {{ end }}`,
+
+      }] : []
+
   const cfg = {
     global: {
       // "smtp_smarthost": "localhost:25",
@@ -210,22 +227,7 @@ const alertManager = (isLocal, servicesToMonitor, name, discordUserId, ips) => {
     ],
     receivers: [{
       name: "discord-prod",
-      slack_configs: [{
-        channel: "#prod-alerts",
-        username: 'Alert - deployment - ' + name,
-        send_resolved: true,
-        // api_url: 'https://discordapp.com/api/webhooks/563852076615073792/NuijhpwYle3T51fG0Lx2X9VjL2nrN9AxtfAz5D6bTvt4A4eZPhRibo2rBBc46b3l475i/slack'
-        api_url: 'https://discordapp.com/api/webhooks/564919423392284687/AyANSgwiSmsFBkSRSiCPoQJAuipqCdvLOWF01qacgCkgF4TKs_udpBbX87AoOuRxh-fm/slack',
-        title_link: isLocal || !ips ? '' :  `http://${ips[0]}:3001/`,
-        text: `${mention} {{ range .Alerts }}
-        *Alert:* {{ .Annotations.summary }} - \`{{ .Labels.severity }}\`
-       *Description:* {{ .Annotations.description }}
-       *Details:*
-       {{ range .Labels.SortedPairs }} • *{{ .Name }}:* \`{{ .Value }}\`
-       {{ end }}
-     {{ end }}`,
-
-      }]
+      slack_configs
     },
     ]
   }
@@ -246,6 +248,61 @@ const alertRules = (isLocal, servicesToMonitor) => {
         annotations: {
           description: "`{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 5 minutes.`",
           summary: "`Instance {{ $labels.instance }} down`"
+        }
+      }, {
+        alert: "WarningOrchestratorUtilisation",
+        expr: `sum(livepeer_current_sessions_total{node_type="orch"}) / sum(livepeer_max_sessions_total{node_type="orch"}) > 0.8`,
+        for: "1m",
+        labels: {
+          severity: "warning"
+        },
+        annotations: {
+          description: "`{{ $labels.instance }} has more than 80% Orchestrator utilisation for more than 1 minute.`",
+          summary: "`Instance {{ $labels.instance }} - Warning Orchestrator utilisation`"
+        }
+      }, {
+        alert: "CriticalOrchestratorUtilisation",
+        expr: `sum(livepeer_current_sessions_total{node_type="orch"}) / sum(livepeer_max_sessions_total{node_type="orch"}) > 0.9`,
+        for: "1m",
+        labels: {
+          severity: "critical"
+        },
+        annotations: {
+          description: "`{{ $labels.instance }} has more than 90% Orchestrator utilisation for more than 1 minutes.`",
+          summary: "`Instance {{ $labels.instance }} - Critical Orchestrator utilisation`"
+        }
+      }, {
+        alert: "CriticalBroadcasterOverload",
+        expr: `sum(livepeer_current_sessions_total{node_type="bctr"}) - sum(livepeer_max_sessions_total{node_type="orch"}) > 0`,
+        for: "1m",
+        labels: {
+          severity: "critical"
+        },
+        annotations: {
+          description: "`{{ $labels.instance }} Broadcasters handling more streams than Orchestrator's capacity for more than 1 minutes.`",
+          summary: "`Instance {{ $labels.instance }} - Broadcaster Overload`"
+        }
+      }, {
+        alert: "WarningSuccessRate",
+        expr: `livepeer_success_rate < 0.95`,
+        for: "1m",
+        labels: {
+          severity: "warning"
+        },
+        annotations: {
+          description: "`{{ $labels.instance }} Success rate lower than 95% for more than 1 minutes.`",
+          summary: "`Instance {{ $labels.instance }} - Success Rate warning`"
+        }
+      }, {
+        alert: "CriticalSuccessRate",
+        expr: `livepeer_success_rate < 0.90`,
+        for: "1m",
+        labels: {
+          severity: "critical"
+        },
+        annotations: {
+          description: "`{{ $labels.instance }} Success rate lower than 90% for more than 1 minutes.`",
+          summary: "`Instance {{ $labels.instance }} - Critical Success Rate`"
         }
       }, {
         alert: "CriticalCPULoad",
