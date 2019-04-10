@@ -6,6 +6,14 @@ const prometheus = (isLocal, servicesToMonitor) => {
       scrape_interval: '15s', // # By default, scrape targets every 15 seconds.
       evaluation_interval: '15s', // # By default, scrape targets every 15 seconds.
     },
+    alerting: {
+      alertmanagers: [{
+        static_configs: [{
+          targets: ['alertmanager:9093']
+        }]
+      }]
+    },
+    rule_files: ['alert.rules'],
     //# scrape_timeout is set to the global default (10s).
 
     // # The labels to add to any time series or alerts when communicating with
@@ -20,6 +28,13 @@ const prometheus = (isLocal, servicesToMonitor) => {
       scrape_timeout: '10s',
       static_configs: [{
         targets: ['localhost:9090']
+      }]
+    }, {
+      job_name: 'alertmanager',
+      scrape_interval: '10s',
+      scrape_timeout: '10s',
+      static_configs: [{
+        targets: ['alertmanager:9093']
       }]
     }]
   }
@@ -151,10 +166,144 @@ const loki = (isLocal) => {
   }
   return cfg
 }
+const alertManager = (isLocal, servicesToMonitor, name, discordUserId, ips) => {
+  // ips - array of public ips, starting from manager machine
+  const mention = discordUserId ? `<@${discordUserId}>:` : ''
+  const cfg = {
+    global: {
+      // "smtp_smarthost": "localhost:25",
+      // "smtp_from": "alertmanager@example.org",
+      // "smtp_auth_username": "alertmanager",
+      // "smtp_auth_password": "password",
+      // "hipchat_auth_token": "1234556789",
+      // "hipchat_api_url": "https://hipchat.foobar.org/"
+    },
+    templates: [
+      "/etc/alert/template/*.tmpl"
+    ],
+    "route": {
+      "group_by": [
+        "alertname",
+        "cluster",
+        "service"
+      ],
+      "group_wait": "30s",
+      "group_interval": "5m",
+      "repeat_interval": "3h",
+      "receiver": "discord-prod",
+      "routes": []
+    },
+    "inhibit_rules": [
+      {
+        "source_match": {
+          "severity": "critical"
+        },
+        "target_match": {
+          "severity": "warning"
+        },
+        "equal": [
+          "alertname",
+          "cluster",
+          "service"
+        ]
+      }
+    ],
+    receivers: [{
+      name: "discord-prod",
+      slack_configs: [{
+        channel: "#prod-alerts",
+        username: 'Alert - deployment - ' + name,
+        send_resolved: true,
+        // api_url: 'https://discordapp.com/api/webhooks/563852076615073792/NuijhpwYle3T51fG0Lx2X9VjL2nrN9AxtfAz5D6bTvt4A4eZPhRibo2rBBc46b3l475i/slack'
+        api_url: 'https://discordapp.com/api/webhooks/564919423392284687/AyANSgwiSmsFBkSRSiCPoQJAuipqCdvLOWF01qacgCkgF4TKs_udpBbX87AoOuRxh-fm/slack',
+        title_link: isLocal || !ips ? '' :  `http://${ips[0]}:3001/`,
+        text: `${mention} {{ range .Alerts }}
+        *Alert:* {{ .Annotations.summary }} - \`{{ .Labels.severity }}\`
+       *Description:* {{ .Annotations.description }}
+       *Details:*
+       {{ range .Labels.SortedPairs }} • *{{ .Name }}:* \`{{ .Value }}\`
+       {{ end }}
+     {{ end }}`,
+
+      }]
+    },
+    ]
+  }
+  return cfg
+}
+
+const alertRules = (isLocal, servicesToMonitor) => {
+  const cfg = {
+    groups: [{
+      name: "my-group-name",
+      rules: [{
+        alert: "InstanceDown",
+        expr: "up == 0",
+        for: "5m",
+        labels: {
+          severity: "critical"
+        },
+        annotations: {
+          description: "`{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 5 minutes.`",
+          summary: "`Instance {{ $labels.instance }} down`"
+        }
+      }, {
+        alert: "CriticalCPULoad",
+        // expr: "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100) > 96",
+        expr: "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100) > 90",
+        for: "2m",
+        labels: {
+          severity: "critical"
+        },
+        annotations: {
+          description: "`{{ $labels.instance }} of job {{ $labels.job }} has Critical CPU load for more than 2 minutes.`",
+          summary: "`Instance {{ $labels.instance }} - Critical CPU load`"
+        }
+      }, {
+        alert: "CriticalRAMUsage",
+        expr: "(1 - ((node_memory_MemFree_bytes + node_memory_Buffers_bytes + node_memory_Cached_bytes) / node_memory_MemTotal_bytes)) * 100 > 98",
+        for: "5m",
+        labels: {
+          severity: "critical"
+        },
+        annotations: {
+          description: "`{{ $labels.instance }} has Critical Memory Usage more than 5 minutes.`",
+          summary: "`Instance {{ $labels.instance }} has Critical Memory Usage`"
+        }
+      }, {
+        alert: "CriticalDiskSpace",
+        expr: "node_filesystem_free_bytes{filesystem!~\"^/run(/|$)\"} / node_filesystem_size_bytes < 0.1",
+        for: "4m",
+        labels: {
+          severity: "critical"
+        },
+        annotations: {
+          description: "`{{ $labels.instance }} of job {{ $labels.job }} has less than 10% space remaining.`",
+          summary: "`Instance {{ $labels.instance }} - Critical disk space usage`"
+        }
+      }, {
+        alert: "RebootRequired",
+        expr: "node_reboot_required > 0",
+        labels: {
+          severity: "warning"
+        },
+        annotations: {
+          description: "`{{ $labels.instance }} requires a reboot.`",
+          summary: "`Instance {{ $labels.instance }} - reboot required`"
+        }
+      }]
+    }]
+  }
+  return cfg
+}
+
+
 
 module.exports = {
   prometheus,
   grafanaDatasources,
   grafanaDashboards,
   loki,
+  alertManager,
+  alertRules,
 }

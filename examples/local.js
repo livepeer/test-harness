@@ -13,8 +13,9 @@ th.run({
   loki: true,
   startMetricsServer: true,
   standardSetup: true, // request token, register orchestartors, etc...
-  name: 'test123',
+  name: 'dtest',
   livepeerBinaryPath: '../containers/lpnode/livepeer_linux/livepeer',
+  email: null, // email to send alerts to
   blockchain: {
     // keep these to run a private testnet.
     name: 'lpTestNet',

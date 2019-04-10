@@ -239,6 +239,7 @@ class NetworkCreator extends EventEmitter {
 
   generateComposeFile (outputPath, cb) {
     const outputFolder = path.resolve(__dirname, outputPath)
+    this._outputFolder = outputFolder
     if (!fs.existsSync(outputFolder)) {
       fs.mkdirSync(outputFolder, { recursive: true, mode: 484 })
     }
@@ -271,6 +272,14 @@ class NetworkCreator extends EventEmitter {
       }
       composefile(output, cb)
     })
+  }
+
+  machinesCreated(ips) {
+    // ips - array of public ips, starting from manager machine
+    if (this.config.prometheus && ips.length) {
+      this.saveYaml(this._outputFolder, 'alertmanager.yml', mConfigs.alertManager(this.config.local, [], this.config.name,
+        this.config.discordUserId, ips))
+    }
   }
 
   mutateConfigsToVolumes(outputFolder, cf) {
@@ -491,15 +500,61 @@ class NetworkCreator extends EventEmitter {
       console.log('all nodes have been generated')
       pool.killAll()
       log('output:', output)
-      output.prometheus = this.generatePrometheusService(outputFolder, Object.keys(output), volumes, configs)
+      if (this.config.prometheus) {
+        output.prometheus = this.generatePrometheusService(outputFolder, Object.keys(output), volumes, configs)
+        output.alertmanager = this.generateAlertManagerService(outputFolder, Object.keys(output), volumes, configs)
+      }
       cb(null, output, volumes, configs)
     })
+  }
+
+  generateAlertManagerService (outputFolder, servicesNames, volumes, configs) {
+    const service = {
+      image: 'prom/alertmanager:latest',
+      // image: 'localalert:latest',
+      command: ['--config.file=/etc/alert/alertmanager.yml', '--log.level=debug'],
+      ports: ['9093:9093'],
+      networks: {
+        testnet: {
+          aliases: [`alertmanager`]
+        }
+      },
+      deploy: {
+        placement: {
+          constraints: ['node.role == manager']
+        }
+      },
+      restart: 'unless-stopped',
+      configs: [{
+        source: 'alertcfg',
+        target: '/etc/alert/alertmanager.yml'
+      }]
+    }
+    if (!this.config.local && !this.config.noGCPLogging) {
+     service.logging = {
+        driver: 'gcplogs',
+        options: {
+          'gcp-project': PROJECT_ID,
+          'gcp-log-cmd': 'true',
+          'labels': `type=prometheus`
+        }
+      }
+    }
+    configs.alertcfg = {
+      file: './alertmanager.yml'
+    }
+    // const servicesToMonitor = servicesNames.filter(sn => {
+    //   return sn.startsWith('orchestrator') || sn.startsWith('broadcaster') 
+    //   // || sn.startsWith('transcoder') - right now standalone transcoder does not expose CLI port
+    // })
+    this.saveYaml(outputFolder, 'alertmanager.yml', mConfigs.alertManager(this.config.local, [], this.config.name, this.config.discordUserId))
+    return service
   }
 
   generatePrometheusService (outputFolder, servicesNames, volumes, configs) {
     const service = {
       image: 'prom/prometheus:latest',
-      command: ['--config.file=/etc/prometheus/prometheus.yml'],
+      command: ['--config.file=/etc/prometheus/prometheus.yml', '--storage.tsdb.retention.time=30d'],
       depends_on: ['cadvisor', 'node-exporter'],
       ports: ['9090:9090'],
       networks: {
@@ -516,6 +571,9 @@ class NetworkCreator extends EventEmitter {
       configs: [{
         source: 'promcfg',
         target: '/etc/prometheus/prometheus.yml'
+      }, {
+        source: 'alertrulescfg',
+        target: '/etc/prometheus/alert.rules'
       }]
     }
     if (!this.config.local && !this.config.noGCPLogging) {
@@ -531,11 +589,15 @@ class NetworkCreator extends EventEmitter {
     configs.promcfg = {
       file: './prometheus.yml'
     }
+    configs.alertrulescfg = {
+      file: './alert.rules'
+    }
     const servicesToMonitor = servicesNames.filter(sn => {
       return sn.startsWith('orchestrator') || sn.startsWith('broadcaster') 
       // || sn.startsWith('transcoder') - right now standalone transcoder does not expose CLI port
     })
     this.saveYaml(outputFolder, 'prometheus.yml', mConfigs.prometheus(this.config.local, servicesToMonitor))
+    this.saveYaml(outputFolder, 'alert.rules', mConfigs.alertRules(this.config.local, servicesToMonitor))
     return service
   }
 

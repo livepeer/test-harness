@@ -202,6 +202,15 @@ class TestHarness {
     if (!notCreatedNow) {
       await this.swarm.createRegistry()
     }
+    if (config.prometheus) {
+      const ri = await this.swarm.getRunningMachinesList(config.name)
+      console.log(`running machines: "${ri}"`)
+      ri.sort()
+      const workersIPS = await Promise.all(ri.map(wn => this.swarm.getPubIP(wn)))
+      console.log(`ips:`, workersIPS)
+      this.networkCreator.machinesCreated(workersIPS)
+    }
+
     // if (err) throw err
     // if (err) console.log('create registry error : ', err)
     let experiment
