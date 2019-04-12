@@ -11,7 +11,7 @@ th.run({
   standardSetup: true, // request token, register orchestartors, etc...
   startMetricsServer: true,
   prometheus: true,
-  name: '', // specify unique config name here
+  name: 'y-ngroups', // specify unique config name here
   email: null, // email to send alerts to
   livepeerBinaryPath: null, // this will use the livepeer binary in the GCP bucket.
   // constrainResources: true,
@@ -41,37 +41,37 @@ th.run({
     streamerMachineType: 'n1-highcpu-4',
   },
   nodes: {
-    transcoders_a: {
+    transcoder_a: {
       type: 'transcoder',
-      instances: 0,
+      instances: 1,
       // these are the livepeer binary flags, add them as you wish.
       // the test-harness overrides flags that has to do with directories or
       // ip/port bindings, these are automated.
       flags: '-v 5 -orchSecret=deepsecret'
     },
-    t_group_2: {
+    transcoder_2: {
       type: 'transcoder',
-      instances: 0,
+      instances: 2,
       // these are the livepeer binary flags, add them as you wish.
       // the test-harness overrides flags that has to do with directories or
       // ip/port bindings, these are automated.
       flags: '-v 5 -orchSecret=deepsecret2'
     },
-    orchestrators: {
+    orchestrator_a: {
       type: 'orchestrator',
       instances: 2,
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 \
       -currentManifest=true  -orchSecret=deepsecret -maxSessions 4 -transcoder`
     },
-    orchestrators2: {
+    orchestrator_2: {
       type: 'orchestrator',
       instances: 2,
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 \
       -currentManifest=true  -orchSecret=deepsecret2 -maxSessions 4 -transcoder`
     },
-    broadcasters: {
+    broadcaster_a: {
       type: 'broadcaster',
       // googleStorage: {
       //   bucket: 'lptest-fran',
