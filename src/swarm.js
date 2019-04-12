@@ -664,14 +664,41 @@ SHELL_SCREENRC`
           cb(err)
         }
         console.log(`running docker stack deploy on ${managerName} (using ${filePath})`)
-        exec(`docker stack deploy --compose-file ${filePath} ${prefix}`, {env: env}, (e, r) => {
-          if (cb) cb(e, r)
+        let builder = spawn('docker', ['stack', 'deploy', '--compose-file', filePath, prefix], {env: {...process.env, ...env}})
+        let stdout = ''
+        let stderr = ''
+
+        builder.stdout.on('data', (data) => {
+          console.log(data.toString().trimEnd())
+          stdout += data.toString()
+        })
+
+        builder.stderr.on('data', (data) => {
+          console.log(chalk.yellow(data.toString().trimEnd()))
+          stderr += data.toString()
+        })
+        builder.on('error', (err) => {
+          console.error(chalk.red(err))
+        })
+
+        builder.on('close', (code) => {
+          console.log(`child process exited with code ${code}`)
+          if (code !== 0 && !stderr.match(/already exists/g) ) {
+            return reject(`child process exited with code ${code}`)
+          }
+          resolve({stdout, stderr})
+        })
+
+        /*
+        exec(`docker stack deploy --compose-file ${filePath} ${prefix}`, {env: env}, (e, stdout, stderr) => {
+          if (cb) cb(e, stdout, stderr)
           if (e) {
             reject(e)
           } else {
-            resolve(r)
+            resolve({stdout, stderr})
           }
         })
+        */
       })
     })
   }

@@ -18,7 +18,7 @@ program
   .command('utils [options]', 'various utils for quick debugging')
   .command('info <config>', 'prints list of endpoints of deployed services')
   .command('down [name]', 'runs `docker-compose down` or removes VMs in cloud')
-  .command('restart [name]', 'runs `docker-compose down` and `docker-compose up` for local deployments')
+  .command('update [name]', 'runs `docker-compose down` and `docker-compose up` for local deployments\nor `docker stack deploy` for cloud deployment')
 
 program
   .command('port [name] [lpnode]')
