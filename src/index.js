@@ -199,6 +199,7 @@ class TestHarness {
 
     const notCreatedNow = await this.swarm.createSwarm(config)
     // result = {internalIp, token, networkId}
+    console.log('swarm created')
     if (!notCreatedNow) {
       await this.swarm.createRegistry()
     }
@@ -233,33 +234,102 @@ class TestHarness {
   }
 
   assignBroadcasters2Orchs (config) {
-    const numOrchs = config.nodes.orchestrators.instances
-    const numBroad = config.nodes.broadcasters.instances
+    const orchs = this.getTypeCountAndNames('orchestrator', config)
+    const broads = this.getTypeCountAndNames('broadcaster', config)
+
+    let broadNames = broads.matchedNames
+    let numOrchs = orchs.count
     const res = {}
-    const bnames = Array.from({length: numBroad}, (_, i) => `broadcaster_${i}`)
+    // const bnames = Array.from({length: numBroad}, (_, i) => `broadcaster_${i}`)
+    let bnames = []
+    let onames = []
+    for (let i = 0; i < broadNames.length; i++) {
+      bnames = bnames.concat(Array.from({length: config.nodes[broadNames[i]].instances}, (_, i) => `${broadNames[i]}_${i}`))
+    }
+    for (let i = 0; i < orchs.matchedNames.length; i++ ){
+      let count = config.nodes[orchs.matchedNames[i]].instances
+      let groupNames = Array.from({length: count}, (_, j) => `${orchs.matchedNames[i]}_${j}`)
+      onames = onames.concat(groupNames)
+    }
+
     for (let i = 0, oi = 0; i < bnames.length; i++) {
-      const oname = `orchestrator_${oi}`
+      const oname = `${onames[oi]}`
       if (!res[oname]) {
         res[oname] = []
       }
       res[oname].push(bnames[i])
+      console.log(`BE: i: ${i}, oi: ${oi}, numOrchs: ${numOrchs}`)
       oi = ++oi % numOrchs
+      console.log(`AF: i: ${i}, oi: ${oi}, numOrchs: ${numOrchs}`)
     }
     console.log(res)
     return res
   }
 
+  /**
+   * get the number of lp nodes and their group names based on type
+   * @param  {string} type   the type of livepeer node ['broadcaster', 'orchestrator', 'transcoder']
+   * @param  {Object} config the configuration object
+   * @return {int, array}        returns a count and an array of matched group names.
+   */
+  getTypeCountAndNames (type, config) {
+    let count = 0
+    let matchedNames = []
+    let groupNames = Object.keys(config.nodes)
+    console.log('groupNames, ', groupNames)
+    if (!groupNames) {
+      return { count, matchedNames }
+    }
+
+    groupNames.forEach((name, i) => {
+      if (name.startsWith(type)) {
+        console.log('got group ', name)
+        count += config.nodes[name].instances
+        matchedNames.push(name)
+      }
+    })
+    console.log('matchedNames ', matchedNames)
+    return { count, matchedNames, type }
+  }
 
   async standardSetup (config) {
       let setupSuccess = true
-      const bnames = Array.from({length: config.nodes.broadcasters.instances}, (_, i) => `broadcaster_${i}`)
+      let broads = this.getTypeCountAndNames('broadcaster', config)
+      console.log('numBroad', broads.count)
+      console.log('broadNames', broads.matchedNames)
+      let broadNames = broads.matchedNames
+      let bnames = []
+      for (let i = 0; i < broadNames.length; i++) {
+        bnames = bnames.concat(Array.from({length: config.nodes[broadNames[i]].instances}, (_, i) => `${broadNames[i]}_${i}`))
+      }
+
+      let onames = []
+      let tnames = []
+
+      let orchs = this.getTypeCountAndNames('orchestrator', config)
+      let transcoders = this.getTypeCountAndNames('transcoder', config)
+      let broadcasters = this.getTypeCountAndNames('broadcaster', config)
+      for (let i=0; i < orchs.matchedNames.length ;i++) {
+        let count = config.nodes[orchs.matchedNames[i]].instances
+        let groupNames = Array.from({length: count}, (_, j) => `${orchs.matchedNames[i]}_${j}`)
+        onames = onames.concat(groupNames)
+      }
+
+      for (let i=0; i < transcoders.matchedNames.length ;i++) {
+        let count = config.nodes[transcoders.matchedNames[i]].instances
+        let groupNames = Array.from({length: count}, (_, j) => `${transcoders.matchedNames[i]}_${j}`)
+        tnames = tnames.concat(groupNames)
+      }
+
+
+      // const bnames = Array.from({length: config.nodes.broadcasters.instances}, (_, i) => `broadcaster_${i}`)
       const orchConf = {
         blockRewardCut: '10',
         feeShare: '5',
         pricePerSegment: '1',
         amount: '500'
       }
-      
+
       let tr = 0
       while (true) {
         if (tr++ > 12) {
@@ -302,19 +372,18 @@ class TestHarness {
         }
       }
       console.log('Initialize round...')
-      await this.api.initializeRound(['orchestrator_0'])
+      await this.api.initializeRound([`${onames[0]}`])
       console.log('activating orchestrators...')
       // await wait(2000)
       // await this.api.activateOrchestrator(['orchestrators'], orchConf)
       // bond
-      const onames = Array.from({length: config.nodes.orchestrators.instances}, (_, i) => `orchestrator_${i}`)
-      const tnames = Array.from({length: config.nodes.transcoders.instances}, (_, i) => `transcoder_${i}`)
+
       // await Promise.all(onames.map(n => this.restartService(n)))
       // console.log(`restarted ${onames.length} orchestrators`)
       // await Promise.all(bnames.map(n => this.restartService(n)))
       // console.log(`restarted ${bnames.length} broadcasters`)
-      await this.api.waitTillAlive('orchestrator_0')
-      let orchsList = await this.api.getOrchestratorsList('orchestrator_0')
+      await this.api.waitTillAlive(`${orchs.matchedNames[0]}_0`)
+      let orchsList = await this.api.getOrchestratorsList(`${orchs.matchedNames[0]}_0`)
       tr = 0
       while (orchsList.length < onames.length-0) {
         await wait(2000, true)
@@ -325,14 +394,14 @@ class TestHarness {
             }
         })
         const toActivate = onames.filter(name => !activatedOrchs.includes(name))
-        
+
         try {
           await this.api.activateOrchestrator(toActivate, orchConf)
         } catch(e) {
           console.log(e)
           continue
         }
-        
+
        /*
        let bad = false
        for (let name of toActivate) {
@@ -378,7 +447,7 @@ class TestHarness {
         }
       }
       await Promise.all(bnames.map(n => this.restartService(n)))
-      await this.api.waitTillAlive('broadcaster_0')
+      await this.api.waitTillAlive(`${broadcasters.matchedNames[0]}_0`)
       const o2b = this.assignBroadcasters2Orchs(config)
       for (let i = 0; i < 10; i++) {
         try {
@@ -391,7 +460,7 @@ class TestHarness {
       }
       await Promise.all(bnames.map(n => this.restartService(n)))
       await Promise.all(tnames.map(n => this.restartService(n)))
-      await this.api.waitTillAlive('broadcaster_0')
+      await this.api.waitTillAlive(`${broadcasters.matchedNames[0]}_0`)
       return setupSuccess
   }
 
@@ -440,7 +509,7 @@ class TestHarness {
       locTag = `sudo docker tag lpnode:latest localhost:5000/lpnode:latest && sudo docker push localhost:5000/lpnode:latest &&`
     }
 
-    await utils.remotelyExec(managerName, config.machines.zone, 
+    await utils.remotelyExec(managerName, config.machines.zone,
        locTag + `sudo docker pull darkdragon/test-streamer:latest &&
        sudo docker tag darkdragon/test-streamer:latest localhost:5000/streamer:latest &&
        sudo docker push localhost:5000/streamer:latest

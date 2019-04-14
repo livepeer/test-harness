@@ -46,7 +46,7 @@ function remotelyExec (machineName, zone, command, cb) {
     })
 
     builder.on('close', (code) => {
-      console.log(`child process exited with code ${code}`)
+      console.log(`[remotelyExec] hild process exited with code ${code}`)
       setTimeout(() => {
         if (code) {
           reject(code)
@@ -166,7 +166,7 @@ function parseComposeAndGetAddresses (configName) {
   parsedCompose.configName = configName
   const g = parsedCompose.services.geth
   if (g && g.labels && g.labels.zone) {
-    parsedCompose.zone = g.labels.zone 
+    parsedCompose.zone = g.labels.zone
   }
   const usedWorkers = new Set()
   for (let sn of Object.keys(parsedCompose.services)) {
@@ -191,7 +191,7 @@ function getConstrain(service) {
     .filter(v => v.startsWith('node.hostname'))
   if (cs.length) {
     return cs[0].replace('node.hostname', '').replace('==', '').trim()
-  } 
+  }
   return ''
 }
 

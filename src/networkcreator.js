@@ -61,6 +61,8 @@ class NetworkCreator extends EventEmitter {
         config.machines.orchestartorsMachines ?
           this.getServiceConstraintsNew(config) :
           getServiceConstraints(workers, n.broadcasters.instances, n.orchestrators.instances, n.transcoders.instances)
+
+      console.log('_serviceConstraints: ', this._serviceConstraints)
     }
   }
 
@@ -77,13 +79,13 @@ class NetworkCreator extends EventEmitter {
       if (n[gname] && n[gname].type) {
         switch (n[gname].type) {
           case 'transcoder':
-            transcoders = transcoders.concat(getNames(gname, n[gname].instances))
+            transcoders = transcoders.concat(getNames(`${gname}_`, n[gname].instances))
             break
           case 'broadcaster':
-            broadcasters = broadcasters.concat(getNames(gname, n[gname].instances))
+            broadcasters = broadcasters.concat(getNames(`${gname}_`, n[gname].instances))
             break
           case 'orchestrator':
-            orchestrators = orchestrators.concat(getNames(gname, n[gname].instances))
+            orchestrators = orchestrators.concat(getNames(`${gname}_`, n[gname].instances))
             break
           default:
             throw new Error(`type: ${n[gname].type} isn't supported by the test-harness`)
@@ -485,13 +487,13 @@ class NetworkCreator extends EventEmitter {
       groups = ['broadcaster', 'orchestrator', 'transcoder']
     }
     eachLimit(groups, 1, (group, callback) => {
-      let type = this.config.nodes[`${group}`].type
+      let type = this.config.nodes[`${group}`].type || `${group}s`
       if (!type) {
         type = group
       }
       console.log(`generating group ${group} ${this.config.nodes[`${group}`].type} nodes ${this.config.nodes[`${group}`].instances}`)
       timesLimit(
-        this.config.nodes[`${type}s`].instances,
+        this.config.nodes[`${group}`].instances,
         5,
         (i, next) => {
           // generate separate services with the forwarded ports.
