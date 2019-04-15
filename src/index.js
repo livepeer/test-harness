@@ -1,5 +1,6 @@
 'use strict'
 
+const fs = require('fs')
 const path = require('path')
 const chalk = require('chalk')
 const { exec } = require('child_process')
@@ -101,6 +102,7 @@ class TestHarness {
       console.log(chalk.red('Config name not specified.'))
       process.exit(3)
     }
+
     config.name = config.name || 'testharness'
     this.swarm = new Swarm(config.name)
 
@@ -110,22 +112,38 @@ class TestHarness {
       process.exit(2)
     }
 
-    // prettyPrintDeploymentInfo(config)
-    // return
-    this.networkCreator = new NetworkCreator(config)
-    this.networkCreator.generateComposeFile(`${DIST_DIR}/${config.name}`, (err) => {
-      if (err) return handleError(err)
-
+    try {
+      fs.accessSync(path.resolve(__dirname, `${DIST_DIR}/${config.name}/docker-compose.yml`), fs.constants.F_OK)
+      // file exists
       if (config.local) {
         this.runLocal(config)
-          .then(r => cb(null, r))
-          .catch(cb)
+        .then(r => cb(null, r))
+        .catch(cb)
       } else {
         this.runSwarm(config)
+        .then(r => cb(null, r))
+        .catch(cb)
+      }
+    } catch (e) {
+      // file doesn't exist
+      // prettyPrintDeploymentInfo(config)
+      // return
+      this.networkCreator = new NetworkCreator(config)
+      this.networkCreator.generateComposeFile(`${DIST_DIR}/${config.name}`, (err) => {
+        if (err) return handleError(err)
+
+        if (config.local) {
+          this.runLocal(config)
           .then(r => cb(null, r))
           .catch(cb)
-      }
-    })
+        } else {
+          this.runSwarm(config)
+          .then(r => cb(null, r))
+          .catch(cb)
+        }
+      })
+    }
+
   }
 
   async runLocal(config) {
@@ -268,7 +286,7 @@ class TestHarness {
         pricePerSegment: '1',
         amount: '500'
       }
-      
+
       let tr = 0
       while (true) {
         if (tr++ > 12) {
@@ -334,14 +352,14 @@ class TestHarness {
             }
         })
         const toActivate = onames.filter(name => !activatedOrchs.includes(name))
-        
+
         try {
           await this.api.activateOrchestrator(toActivate, orchConf)
         } catch(e) {
           console.log(e)
           continue
         }
-        
+
        /*
        let bad = false
        for (let name of toActivate) {
@@ -448,7 +466,6 @@ class TestHarness {
       await Promise.all(loadToWorkers)
       locTag = `sudo docker tag lpnode:latest localhost:5000/lpnode:latest && sudo docker push localhost:5000/lpnode:latest &&`
     }
-
     await utils.remotelyExec(managerName, config.machines.zone, 
        locTag + `sudo docker pull darkdragon/test-streamer:latest &&
        sudo docker tag darkdragon/test-streamer:latest localhost:5000/streamer:latest &&
