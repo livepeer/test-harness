@@ -258,9 +258,7 @@ class TestHarness {
         res[oname] = []
       }
       res[oname].push(bnames[i])
-      console.log(`BE: i: ${i}, oi: ${oi}, numOrchs: ${numOrchs}`)
       oi = ++oi % numOrchs
-      console.log(`AF: i: ${i}, oi: ${oi}, numOrchs: ${numOrchs}`)
     }
     console.log(res)
     return res

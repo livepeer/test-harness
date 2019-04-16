@@ -369,14 +369,7 @@ class NetworkCreator extends EventEmitter {
   }
 
   _generateService (gname, type, i, volumes, cb) {
-    // let serviceName
-    // if (gname === `${type}s`) {
-    //   serviceName = `${type}_${i}`
-    // } else {
-    //   serviceName = `${gname}_${i}`
-    // }
     let serviceName = `${gname}_${i}`
-
     const nodes = this.config.nodes[`${gname}`]
     const vname = 'v_' + serviceName
     let image = this.config.local ? 'lpnode:latest' : 'localhost:5000/lpnode:latest'
