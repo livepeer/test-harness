@@ -46,18 +46,21 @@ th.run({
       // these are the livepeer binary flags, add them as you wish.
       // the test-harness overrides flags that has to do with directories or
       // ip/port bindings, these are automated.
+      type: 'transcoder',
       flags: '--v 4 -transcoder -initializeRound=true -standaloneTranscoder=true \
         -orchAddr https://orchestrator_0:8935 -orchSecret test'
     },
     orchestrators: {
       instances: 2,
       // TODO these are not complete, try adding the right orchestrator flags :)
+      type: 'orchestrator',
       flags: `--v 4 -initializeRound=true \
       -gasPrice 200 -gasLimit 2000000 \
       -monitor=false -currentManifest=true -orchestrator`
     },
     broadcasters: {
       instances: 10,
+      type: 'broadcaster',
       flags: `--v 4 \
       -gasPrice 200 -gasLimit 2000000 \
       -monitor=false -currentManifest=true`

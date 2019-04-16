@@ -11,7 +11,7 @@ th.run({
   standardSetup: true, // request token, register orchestartors, etc...
   startMetricsServer: true,
   prometheus: true,
-  name: 'y-ngroups', // specify unique config name here
+  name: '', // specify unique config name here
   email: null, // email to send alerts to
   livepeerBinaryPath: null, // this will use the livepeer binary in the GCP bucket.
   // constrainResources: true,

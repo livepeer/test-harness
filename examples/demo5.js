@@ -42,6 +42,7 @@ th.run({
   },
   nodes: {
     transcoders: {
+      type: 'transcoder',
       // how many containers to run as transcoders.
       instances: 0,
       // these are the livepeer binary flags, add them as you wish.
@@ -51,16 +52,18 @@ th.run({
     },
     orchestrators: {
       instances: 2,
+      type: 'orchestrator',
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 \
       -currentManifest=true  -orchSecret=deepsecret -maxSessions 4 -transcoder`
     },
     broadcasters: {
+      type: 'broadcaster',
       // googleStorage: {
       //   bucket: 'lptest-fran',
       //   key: 'examples/test-harness-226018-e3a05729b733.json'
       // },
-      instances: 2,
+      instances: 1,
       flags: `-v 5 -gasPrice 20 -gasLimit 20000000  -currentManifest=true`
     }
   }
@@ -68,4 +71,3 @@ th.run({
   if (err) throw err
   console.log('done!')
 })
-

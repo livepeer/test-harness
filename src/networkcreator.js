@@ -101,6 +101,7 @@ class NetworkCreator extends EventEmitter {
       transcoder: spread(transcoders, workers.slice(0, bcs), true),
       broadcaster: spread(broadcasters, workers.slice(bcs, sts), true)
     }
+    console.log('res: ', res)
     return res
   }
 
@@ -368,7 +369,14 @@ class NetworkCreator extends EventEmitter {
   }
 
   _generateService (gname, type, i, volumes, cb) {
-    const serviceName = `${gname}_${i}`
+    // let serviceName
+    // if (gname === `${type}s`) {
+    //   serviceName = `${type}_${i}`
+    // } else {
+    //   serviceName = `${gname}_${i}`
+    // }
+    let serviceName = `${gname}_${i}`
+
     const nodes = this.config.nodes[`${gname}`]
     const vname = 'v_' + serviceName
     let image = this.config.local ? 'lpnode:latest' : 'localhost:5000/lpnode:latest'
@@ -483,15 +491,15 @@ class NetworkCreator extends EventEmitter {
     }
 
     let groups = Object.keys(this.config.nodes)
-    if (!groups || groups.length < 1) {
-      groups = ['broadcaster', 'orchestrator', 'transcoder']
-    }
+    // if (!groups || groups.length < 1) {
+    //   groups = ['broadcaster', 'orchestrator', 'transcoder']
+    // }
     eachLimit(groups, 1, (group, callback) => {
-      let type = this.config.nodes[`${group}`].type || `${group}s`
-      if (!type) {
-        type = group
-      }
-      console.log(`generating group ${group} ${this.config.nodes[`${group}`].type} nodes ${this.config.nodes[`${group}`].instances}`)
+      let type = this.config.nodes[`${group}`].type
+      // if (!type) {
+      //   // type = group.slice(0, group.length - 1)
+      // }
+      console.log(`generating group ${group} type: ${type} nodes ${this.config.nodes[`${group}`].instances}`)
       timesLimit(
         this.config.nodes[`${group}`].instances,
         5,
