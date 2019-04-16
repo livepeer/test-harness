@@ -8,12 +8,18 @@ const TestHarness = require('../src/index')
 let th = new TestHarness()
 
 th.run({
+  name: 'week5s',
+  discordUserId: null, // id of Discord user to send alert from Prometheus to (use `Copy ID` on profile to get)
+                       // should be string
+
   local: false,
-  localBuild: true,
+  localBuild: false,
+  publicImage: true, // if true will be used 'livepeer/go-livepeer:edge' or can be set
+                     //  to any other publicly available image
   standardSetup: true, // request token, register orchestartors, etc...
   startMetricsServer: true,
   prometheus: true,
-  name: 'week5s',
+  loki: true,
   // email: 'ivan@livepeer.org', // email to send alerts to
   livepeerBinaryPath: null, // this will use the livepeer binary in the GCP bucket.
   // constrainResources: true,
