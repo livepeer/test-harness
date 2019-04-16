@@ -58,10 +58,12 @@ class NetworkCreator extends EventEmitter {
     } else {
       const workers = getNames(`${config.name}-worker-`, config.machines.num-1, 1)
       const n = config.nodes
-      this._serviceConstraints = 
+      this._serviceConstraints =
         config.machines.orchestartorsMachines ?
           this.getServiceConstraintsNew(config) :
           getServiceConstraints(workers, n.broadcasters.instances, n.orchestrators.instances, n.transcoders.instances)
+
+      console.log('_serviceConstraints: ', this._serviceConstraints)
     }
   }
 
@@ -70,14 +72,37 @@ class NetworkCreator extends EventEmitter {
     const n = config.nodes
     const bcs = config.machines.orchestartorsMachines
     const sts = bcs + config.machines.broadcastersMachines
-    const broadcasters = getNames('broadcaster_', n.broadcasters.instances)
-    const orchestrators = getNames('orchestrator_', n.orchestrators.instances)
-    const transcoders = getNames('transcoder_', n.transcoders.instances)
+    let groups = Object.keys(n)
+    let broadcasters = []
+    let orchestrators = []
+    let transcoders = []
+    groups.forEach((gname, i) => {
+      if (n[gname] && n[gname].type) {
+        switch (n[gname].type) {
+          case 'transcoder':
+            transcoders = transcoders.concat(getNames(`${gname}_`, n[gname].instances))
+            break
+          case 'broadcaster':
+            broadcasters = broadcasters.concat(getNames(`${gname}_`, n[gname].instances))
+            break
+          case 'orchestrator':
+            orchestrators = orchestrators.concat(getNames(`${gname}_`, n[gname].instances))
+            break
+          default:
+            throw new Error(`type: ${n[gname].type} isn't supported by the test-harness`)
+        }
+      } else {
+        broadcasters = getNames('broadcaster_', n.broadcasters.instances)
+        orchestrators = getNames('orchestrator_', n.orchestrators.instances)
+        transcoders = getNames('transcoder_', n.transcoders.instances)
+      }
+    })
     const res = {
       orchestrator: spread(orchestrators, workers.slice(0, bcs), true),
       transcoder: spread(transcoders, workers.slice(0, bcs), true),
-      broadcaster: spread(broadcasters, workers.slice(bcs, sts), true),
+      broadcaster: spread(broadcasters, workers.slice(bcs, sts), true)
     }
+    console.log('res: ', res)
     return res
   }
 
@@ -355,9 +380,9 @@ class NetworkCreator extends EventEmitter {
     return deps
   }
 
-  _generateService (type, i, volumes, cb) {
-    const serviceName = `${type}_${i}`
-    const nodes = this.config.nodes[`${type}s`]
+  _generateService (gname, type, i, volumes, cb) {
+    let serviceName = `${gname}_${i}`
+    const nodes = this.config.nodes[`${gname}`]
     const vname = 'v_' + serviceName
     let image = this.config.local ? 'lpnode:latest' : 'localhost:5000/lpnode:latest'
     if (this.config.publicImage) {
@@ -374,7 +399,7 @@ class NetworkCreator extends EventEmitter {
         `${getRandomPort(1935)}:1935`
       ],
       // TODO fix the serviceAddr issue
-      command: this.getNodeOptions(type, nodes, i),
+      command: this.getNodeOptions(gname, nodes, i),
       depends_on: this.getDependencies(type, i),
       hostname: serviceName,
       networks: {
@@ -399,11 +424,11 @@ class NetworkCreator extends EventEmitter {
           options: {
             'gcp-project': PROJECT_ID,
             'gcp-log-cmd': 'true',
-            'labels': `type=${type},node=${type}_${i}`
+            'labels': `type=${type},node=${type}_${i},lpgroup=${gname}`
           }
         }
       }
-      if (type === 'orchestrator' || type == 'transcoder' || type == 'broadcaster') {
+      if (type === 'orchestrator' || type === 'transcoder' || type === 'broadcaster') {
         generated.deploy = {
           replicas: 1,
           placement: {
@@ -475,21 +500,29 @@ class NetworkCreator extends EventEmitter {
       this.hasLoki = true
     }
 
-    eachLimit(['transcoder', 'orchestrator', 'broadcaster'], 1, (type, callback) => {
-      console.log(`generating ${type} nodes ${this.config.nodes[`${type}s`].instances}`)
+    let groups = Object.keys(this.config.nodes)
+    // if (!groups || groups.length < 1) {
+    //   groups = ['broadcaster', 'orchestrator', 'transcoder']
+    // }
+    eachLimit(groups, 1, (group, callback) => {
+      let type = this.config.nodes[`${group}`].type
+      // if (!type) {
+      //   // type = group.slice(0, group.length - 1)
+      // }
+      console.log(`generating group ${group} type: ${type} nodes ${this.config.nodes[`${group}`].instances}`)
       timesLimit(
-        this.config.nodes[`${type}s`].instances,
+        this.config.nodes[`${group}`].instances,
         5,
         (i, next) => {
           // generate separate services with the forwarded ports.
           // append it to output as output.<node_generate_id> = props
-          this._generateService(type, i, volumes, next)
+          this._generateService(group, type, i, volumes, next)
         },
         (err, nodes) => {
           if (err) throw err
           // console.log(`finished ${type}, ${JSON.stringify(nodes)}`)
           nodes.forEach((node, i) => {
-            output[`${type}_${i}`] = node
+            output[`${group}_${i}`] = node
           })
           // console.log('output', output)
           callback(null)
@@ -544,7 +577,7 @@ class NetworkCreator extends EventEmitter {
       file: './alertmanager.yml'
     }
     // const servicesToMonitor = servicesNames.filter(sn => {
-    //   return sn.startsWith('orchestrator') || sn.startsWith('broadcaster') 
+    //   return sn.startsWith('orchestrator') || sn.startsWith('broadcaster')
     //   // || sn.startsWith('transcoder') - right now standalone transcoder does not expose CLI port
     // })
     this.saveYaml(outputFolder, 'alertmanager.yml', mConfigs.alertManager(this.config.local, [], this.config.name, this.config.discordUserId))
@@ -593,7 +626,7 @@ class NetworkCreator extends EventEmitter {
       file: './alert.rules'
     }
     const servicesToMonitor = servicesNames.filter(sn => {
-      return sn.startsWith('orchestrator') || sn.startsWith('broadcaster') 
+      return sn.startsWith('orchestrator') || sn.startsWith('broadcaster')
       // || sn.startsWith('transcoder') - right now standalone transcoder does not expose CLI port
     })
     this.saveYaml(outputFolder, 'prometheus.yml', mConfigs.prometheus(this.config.local, servicesToMonitor))
@@ -642,10 +675,10 @@ class NetworkCreator extends EventEmitter {
       file: './loki.yml'
     }
     this.saveYaml(outputFolder, 'loki.yml', mConfigs.loki(this.config.local))
-    
+
     return service
   }
- 
+
   generateNodeExporterService (volumes) {
     const service = {
       image: 'prom/node-exporter:latest',
@@ -961,7 +994,7 @@ class NetworkCreator extends EventEmitter {
     }
   }
 
-  getNodeOptions (nodeType, nodes, i) {
+  getNodeOptions (gname, nodes, i) {
     const output = []
     const userFlags = nodes.flags
 
@@ -988,6 +1021,8 @@ class NetworkCreator extends EventEmitter {
     // if (nodeType === 'orchestrator') {
     //   output.push('-initializeRound=true')
     // }
+    let nodeType = this.config.nodes[gname].type || gname
+
     switch (nodeType) {
       case 'transcoder':
         // output.push('-orchAddr', `https://orchestrator_${i}:8935`)

@@ -7,9 +7,9 @@ const { wait } = require('./utils/helpers')
 
 const NODE_TYPES = ['broadcasters', 'transcoders', 'orchestrators']
 const NODE_REGEX = {
-  broadcasters: /broadcaster_/g,
-  orchestrators: /orchestrator_/g,
-  transcoders: /transcoder_/g
+  broadcasters: /broadcaster/g,
+  orchestrators: /orchestrator/g,
+  transcoders: /transcoder/g
 }
 const MAX_CONCURRENCY = 3
 
@@ -253,7 +253,7 @@ class Api {
       console.log('== got registeredOrchestrators data: ', res.data)
       return res.data ? res.data : []
     } catch (e) {
-      
+
     }
     return []
   }
@@ -656,7 +656,7 @@ class Api {
             n(null, results)
           })
         } else if (NODE_TYPES.indexOf(node) !== -1) {
-          // console.log('filtering ', node)
+          console.log('filtering ', node)
           filter(Object.keys(this._config.services), (service, next) => {
             next(null, service.match(NODE_REGEX[node]))
           }, (err, servicesNames) => {
@@ -671,6 +671,7 @@ class Api {
             })
           })
         } else {
+          console.log('getting ports for  ', node)
           let ports = this._getPorts(this._config.services[node].ports)
           ports.name = node
           n(null, [ports])

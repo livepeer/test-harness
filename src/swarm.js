@@ -132,21 +132,22 @@ class Swarm {
     const api = new Api(parsedCompose)
     // const oPorts = await api.getPortsArray(['all'])
     const oPorts = await api.getPortsArray(['orchestrators'])
+    const tPorts = await api.getPortsArray(['transcoders'])
     const bPorts = await api.getPortsArray(['broadcasters'])
-    const allPorts = oPorts.concat(bPorts)
+    const allPorts = oPorts.concat(bPorts).concat(tPorts)
     // console.log(allPorts)
     const ucClient = new monitoring.v3.UptimeCheckServiceClient()
     const [checks] = await ucClient.listUptimeCheckConfigs({parent: formattedName})
     // console.log('uptime chekcs:', JSON.stringify(checks, null, 2))
     const servicesNames = Object.keys(parsedCompose.services).filter(sn => {
-      return sn.startsWith('orchestrator') || sn.startsWith('broadcaster') || sn === 'geth'
+      return sn.startsWith('transcoder') || sn.startsWith('orchestrator') || sn.startsWith('broadcaster') || sn === 'geth'
     })
     // console.log(servicesNames)
     for (let sn of servicesNames) {
       const isGeth = sn === 'geth'
       const ip = await Swarm.getPublicIPOfService(parsedCompose, sn)
       const [po] = allPorts.filter(o => o.name === sn)
-      console.log(`ip of ${sn} is ${ip} cli port: ${po && po['7935']}`)
+      console.log(`ip of ${sn} is ${ip} cli port: ${po && po['7935']}, isGeth: ${isGeth}`)
       const checkName = `${config.name}-${sn} status`
       if (checks.find(c => c.displayName === checkName)) {
         console.log(`Uptime check '${checkName} already exists.`)
@@ -319,6 +320,52 @@ class Swarm {
     }
   }
 
+  async deleteAllStackDriverChecks (config) {
+    console.log('deleting unused checks.')
+    const reserved = ['shareddemo']
+    const gc = new monitoring.v3.GroupServiceClient({projectId: PROJECT_ID})
+    const formattedName = gc.projectPath(PROJECT_ID)
+    // console.log('Formatted name:', formattedName)
+    const [groups] = await gc.listGroups({name: formattedName})
+    console.log('====== groups:', groups)
+    for (let group of groups) {
+      if (reserved.indexOf(group.displayName) === -1) {
+        await gc.deleteGroup({name: group.name})
+        console.log(`Groupd ${group.name} deleted.`)
+      }
+    }
+    const apClient = new monitoring.v3.AlertPolicyServiceClient()
+    const [alertPolicies] = await apClient.listAlertPolicies({name: formattedName})
+    // console.log('Existing alert policies:', JSON.stringify(alertPolicies, null, 2))
+    for (let policy of alertPolicies) {
+      if (policy.displayName.startsWith(`shareddemo`)) {
+      } else {
+        await apClient.deleteAlertPolicy({name: policy.name})
+        console.log(`Alert policy ${policy.name} deleted.`)
+      }
+    }
+    const ucClient = new monitoring.v3.UptimeCheckServiceClient()
+    const [checks] = await ucClient.listUptimeCheckConfigs({parent: formattedName})
+    for (let check of checks) {
+      if (check.displayName.startsWith(`shareddemo`)) {
+      } else {
+        await ucClient.deleteUptimeCheckConfig({name: check.name})
+        console.log(`Uptime check ${check.name} deleted.`)
+      }
+    }
+    if (config.email) {
+      // configure aler policies
+      const ncClient = new monitoring.v3.NotificationChannelServiceClient()
+      const displayName = config.name + '-alerts'
+      const [channels] = await ncClient.listNotificationChannels({name: formattedName})
+      // console.log('Existing notification channels:', channels)
+      const nc = channels.find(c => c.displayName === displayName)
+      if (nc) {
+        await ncClient.deleteNotificationChannel({name: nc.name, force: true})
+        console.log(`Notification channel ${nc.name} deleted.`)
+      }
+    }
+  }
 
   createMachine (opts, cb) {
     const zone = opts.zone || this._defaults.zone
@@ -362,9 +409,9 @@ class Swarm {
     })
 
     builder.on('close', (code) => {
-      console.log(`child process exited with code ${code}`)
+      console.log(`[createMachine] child process exited with code ${code}`)
       if (code !== 0 && !stderr.match(/already exists/g) ) {
-        return cb(`child process exited with code ${code}`)
+        return cb(`[createMachine err] child process exited with code ${code}`)
       }
       this.setupMachine(opts.name, zone).then(() => cb(null)).catch(cb)
     })
@@ -512,8 +559,13 @@ SHELL_SCREENRC`
         console.log(`Found already running machines: ${runninMachines}`)
         console.log(`not removing them. If you want to remove them, run`)
         console.log(chalk.inverse(`docker-machine rm -y -f ${runninMachines.join(' ')}`))
-        await this.stopStack('livepeer')
-        await this.stopStack('streamer')
+        try {
+          await this.stopStack('livepeer')
+          await this.stopStack('streamer')
+        } catch (e) {
+          if (e) console.log('stopping stack error ', e)
+        }
+
         while (true) {
           await wait(2000) // need to wait while instances gets shutdown
           try {
@@ -948,7 +1000,8 @@ SHELL_SCREENRC`
     // 3. deploy new stack.
     // 4. profit.
     this.stopStack(`livepeer`, (err, resp) => {
-      if (err) throw err
+      // if (err) throw err
+      if (err) console.log('livepeer stack is not there.')
       cb()
     })
   }

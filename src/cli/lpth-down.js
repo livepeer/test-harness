@@ -8,6 +8,9 @@ const dockercompose = require('docker-compose')
 
 async function run(parsedCompose) {
   const name = parsedCompose.configName
+  const config = {
+    name
+  }
   if (parsedCompose.isLocal) {
     console.log('Running docker-compose down...')
     const logs = await dockercompose.execCompose('down', ['-v'], {
@@ -23,9 +26,7 @@ async function run(parsedCompose) {
     await swarm.tearDown(name)
     console.log(`experiment ${name} VM instances removed.`)
     // todo: save email in docker compose and find back here
-    const config = {
-      name
-    }
+
     await swarm.teardownGCEMonitoring(config)
   }
 }

@@ -35,11 +35,13 @@ th.run({
       // these are the livepeer binary flags, add them as you wish.
       // the test-harness overrides flags that has to do with directories or
       // ip/port bindings, these are automated.
+      type: 'transcoder',
       flags: '-v 5 -transcoder -initializeRound=true -standaloneTranscoder=true \
         -orchAddr https://orchestrator_0:8935 -orchSecret test'
     },
     orchestrators: {
       instances: 2,
+      type: 'orchestrator',
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 \
       -maxSessions 8`
@@ -50,6 +52,7 @@ th.run({
       //   bucket: 'lptest-fran',
       //   key: 'examples/test-harness-226018-e3a05729b733.json'
       // },
+      type: 'broadcaster',
       instances: 4,
       flags: `-v 5 -gasPrice 20 -gasLimit 20000000 \
       -currentManifest=true`
