@@ -41,7 +41,7 @@ th.run({
     streamerMachineType: 'n1-highcpu-4',
   },
   nodes: {
-    transcoder_a: {
+    t_a: {
       type: 'transcoder',
       instances: 1,
       // these are the livepeer binary flags, add them as you wish.
@@ -49,29 +49,29 @@ th.run({
       // ip/port bindings, these are automated.
       flags: '-v 5 -orchSecret=deepsecret'
     },
-    transcoder_2: {
+    t_b: {
       type: 'transcoder',
-      instances: 2,
+      instances: 1,
       // these are the livepeer binary flags, add them as you wish.
       // the test-harness overrides flags that has to do with directories or
       // ip/port bindings, these are automated.
       flags: '-v 5 -orchSecret=deepsecret2'
     },
-    orchestrator_a: {
+    o_a: {
       type: 'orchestrator',
-      instances: 2,
+      instances: 1,
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 \
       -currentManifest=true  -orchSecret=deepsecret -maxSessions 4 -transcoder`
     },
-    orchestrator_2: {
+    o_b: {
       type: 'orchestrator',
-      instances: 2,
+      instances: 1,
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 \
       -currentManifest=true  -orchSecret=deepsecret2 -maxSessions 4 -transcoder`
     },
-    broadcaster_a: {
+    b_a: {
       type: 'broadcaster',
       // googleStorage: {
       //   bucket: 'lptest-fran',
