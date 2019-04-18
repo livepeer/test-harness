@@ -640,7 +640,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "livepeer_success_rate * 100",
+          "expr": "livepeer_success_rate{node_type=\"bctr\"} and max_over_time(livepeer_current_sessions_total{node_type=\"bctr\"}[1m]) > 0",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "{{instance}}",
@@ -667,7 +667,7 @@
       },
       "yaxes": [
         {
-          "format": "percent",
+          "format": "percentunit",
           "label": null,
           "logBase": 1,
           "max": null,
@@ -1698,7 +1698,7 @@
     "list": []
   },
   "time": {
-    "from": "now-30m",
+    "from": "now-15m",
     "to": "now"
   },
   "timepicker": {
