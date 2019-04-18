@@ -35,6 +35,7 @@ class Api {
       if (!Array.isArray(nodes)) {
         nodes = [nodes]
       }
+      console.log('requesting tokens for ', nodes)
       this._getPortsArray(nodes, (err, ports) => {
         if (err) throw err
         eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
@@ -93,7 +94,7 @@ class Api {
       if (!Array.isArray(nodes)) {
         nodes = [nodes]
       }
-
+      console.log('getting ports for nodes: ', nodes)
       this._getPortsArray(nodes, (err, ports) => {
         if (err) throw err
         eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
@@ -253,7 +254,7 @@ class Api {
       console.log('== got registeredOrchestrators data: ', res.data)
       return res.data ? res.data : []
     } catch (e) {
-
+      if (e) throw e
     }
     return []
   }
@@ -658,7 +659,11 @@ class Api {
         } else if (NODE_TYPES.indexOf(node) !== -1) {
           console.log('filtering ', node)
           filter(Object.keys(this._config.services), (service, next) => {
-            next(null, service.match(NODE_REGEX[node]))
+            if (this._config.services[service].environment && this._config.services[service].environment.type) {
+              next(null, (node === `${this._config.services[service].environment.type}s`))
+            } else {
+              next(null)
+            }
           }, (err, servicesNames) => {
             if (err) throw err
             map(servicesNames, (nodeName, next) => {

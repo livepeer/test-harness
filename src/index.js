@@ -289,7 +289,7 @@ class TestHarness {
     }
 
     groupNames.forEach((name, i) => {
-      if (name.startsWith(type)) {
+      if (config.nodes[name].type === type) {
         console.log('got group ', name)
         count += config.nodes[name].instances
         matchedNames.push(name)
@@ -378,7 +378,7 @@ class TestHarness {
           break
         }
       }
-      console.log('Initialize round...')
+      console.log('Initialize round...', onames)
       await this.api.initializeRound([`${onames[0]}`])
       console.log('activating orchestrators...')
       // await wait(2000)
@@ -395,9 +395,10 @@ class TestHarness {
       while (orchsList.length < onames.length-0) {
         await wait(2000, true)
         const activatedOrchs = orchsList.map(r => {
-            const match = getOName.exec(r.ServiceURI)
-            if (match) {
-                return match[1]
+            const isNull = (!r.serviceURI || r.serviceURI === 'null')
+            // const match = getOName.exec(r.ServiceURI)
+            if (!isNull) {
+              return r.serviceURI
             }
         })
         const toActivate = onames.filter(name => !activatedOrchs.includes(name))

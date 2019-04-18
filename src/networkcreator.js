@@ -464,6 +464,7 @@ class NetworkCreator extends EventEmitter {
     // cb(null, generated)
     this.getEnvVars((err, envObj) => {
       if (err) throw err
+      envObj.type = type
       generated.environment = envObj
       cb(null, generated)
     })
