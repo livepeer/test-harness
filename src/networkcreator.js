@@ -373,6 +373,7 @@ class NetworkCreator extends EventEmitter {
     }
     if (this.hasLoki) {
       deps.push('loki')
+      deps.push('logspout')
     }
     if (type === 'transcoder') {
       deps.push(`orchestrator_${i}`)
@@ -381,7 +382,8 @@ class NetworkCreator extends EventEmitter {
   }
 
   _generateService (gname, type, i, volumes, cb) {
-    let serviceName = `${gname}_${i}`
+    let serviceName = this.config.isNewConfig ? `${gname}_${i}` : `${type}_${i}`
+    console.log(`generate service serviceName: ${serviceName}`)
     const nodes = this.config.nodes[`${gname}`]
     const vname = 'v_' + serviceName
     let image = this.config.local ? 'lpnode:latest' : 'localhost:5000/lpnode:latest'
@@ -498,6 +500,7 @@ class NetworkCreator extends EventEmitter {
     }
     if (this.config.loki) {
       output.loki = this.generateLokiService(outputFolder, volumes, configs)
+      output.logspout = this.generateLogspoutService(outputFolder, volumes, configs)
       this.hasLoki = true
     }
 
@@ -523,7 +526,11 @@ class NetworkCreator extends EventEmitter {
           if (err) throw err
           // console.log(`finished ${type}, ${JSON.stringify(nodes)}`)
           nodes.forEach((node, i) => {
-            output[`${group}_${i}`] = node
+            if (this.config.isNewConfig) {
+              output[`${group}_${i}`] = node
+            } else {
+              output[node.hostname] = node
+            }
           })
           // console.log('output', output)
           callback(null)
@@ -628,8 +635,6 @@ class NetworkCreator extends EventEmitter {
     }
     const servicesToMonitor = servicesNames.filter(sn => {
       return groups.find(g => sn.startsWith(g + '_'))
-      // return sn.startsWith('orchestrator') || sn.startsWith('broadcaster')
-      // || sn.startsWith('transcoder') - right now standalone transcoder does not expose CLI port
     })
     this.saveYaml(outputFolder, 'prometheus.yml', mConfigs.prometheus(this.config.local, servicesToMonitor))
     this.saveYaml(outputFolder, 'alert.rules', mConfigs.alertRules(this.config.local, servicesToMonitor))
@@ -640,6 +645,31 @@ class NetworkCreator extends EventEmitter {
     // console.log(`===== saving ${name} into ${outputFolder}`)
     // console.log(content)
     fs.writeFileSync(path.join(outputFolder, name), YAML.stringify(content))
+  }
+
+  generateLogspoutService (outputFolder, volumes, configs) {
+    const service = {
+      image: 'darkdragon/logspout-loki:latest',
+      command: ['/bin/logspout' ,'loki://loki:3100/api/prom/push?filter.sources=stdout%2Cstderr'],
+      // ports: ['3100:3100'],
+      networks: {
+        testnet: {
+        }
+      },
+      labels: {
+        'logspout.exclude': 'true',
+      },
+      environment: {
+        'EXCLUDE_LABEL': 'logspout.exclude',
+      },
+      deploy: {
+        mode: 'global',
+      },
+      restart: 'unless-stopped',
+      // volumes: ['/var/run/docker.sock:/var/run/docker.sock', '/etc/hostname:/etc/host_hostname:ro'],
+      volumes: ['/var/run/docker.sock:/var/run/docker.sock'],
+    }
+    return service
   }
 
   generateLokiService (outputFolder, volumes, configs) {
@@ -1015,9 +1045,6 @@ class NetworkCreator extends EventEmitter {
     if (this.hasMetrics) {
       output.push('-monitor=true')
       output.push('-monUrl http://metrics:3000/api/events')
-    }
-    if (this.hasLoki) {
-      output.push('-lokiUrl http://loki:3100/api/prom/push')
     }
 
     // if (nodeType === 'orchestrator') {

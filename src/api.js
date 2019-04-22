@@ -178,7 +178,7 @@ class Api {
     const url = `http://${this._baseUrl}:${port['7935']}/status`
     for(let i = 0; i < 30; i++) {
       try {
-        console.log(`Contacting ${url}`)
+        console.log(`Contacting waitTillAlive ${url}`)
         const res = await axios.get(url)
         console.log('== got /status data: ', res.data)
         if (res.data && res.data.Manifests) {
@@ -196,7 +196,7 @@ class Api {
     try {
       const [port] = await this._getPortsArray([nodeName])
       const url = `http://${this._baseUrl}:${port['7935']}/senderInfo`
-      console.log(`Contacting ${url}`)
+      console.log(`Contacting getSenderInfo ${url}`)
       const res = await axios.get(url)
       console.log(`== got senderInfo for ${nodeName} data: `, res.data)
       return res.data ? res.data : empty
@@ -250,7 +250,7 @@ class Api {
     try {
       const [port] = await this._getPortsArray([nodeName])
       const url = `http://${this._baseUrl}:${port['7935']}/registeredOrchestrators`
-      console.log(`Contacting ${url}`)
+      console.log(`Contacting getOrchestratorsList ${url}`)
       const res = await axios.get(url)
       console.log('== got registeredOrchestrators data: ', res.data)
       return res.data ? res.data : []
@@ -646,6 +646,8 @@ class Api {
           map(this._config.services, (service, next) => {
             if (service.image.startsWith('darkdragon/geth') ||
                 service.image.startsWith('darkdragon/livepeermetrics') ||
+                service.image.startsWith('darkdragon/loki') ||
+                service.image.startsWith('darkdragon/prometheus') ||
                 service.image.startsWith('mongo'))
             {
               return next()

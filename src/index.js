@@ -103,12 +103,27 @@ class TestHarness {
       process.exit(3)
     }
     config.name = config.name || 'testharness'
+    // config.isNewConfig = !!(config.machines||{}).orchestartorsMachines
+    config.isNewConfig = true
     this.swarm = new Swarm(config.name)
 
     this._config = config
     if (config.localBuild && config.publicImage) {
       console.log(chalk.red('Should specify either localBuild or publicImage'))
       process.exit(2)
+    }
+    if (!config.local) {
+      if (!config.machines.hasOwnProperty('orchestartorsMachines') ||
+          !config.machines.hasOwnProperty('broadcastersMachines')) {
+            console.log(chalk.red('Cloud deployments should have `orchestartorsMachines` and `broadcastersMachines` properties in config.'))
+            process.exit(3)
+          }
+    }
+    for (let groupName of Object.keys(config.nodes)) {
+      if (!config.nodes[groupName].type) {
+        console.log(chalk.red('Every node should specify `type`'))
+        process.exit(4)
+      }
     }
 
     // prettyPrintDeploymentInfo(config)
@@ -117,6 +132,7 @@ class TestHarness {
     this.networkCreator.generateComposeFile(`${DIST_DIR}/${config.name}`, (err) => {
       if (err) return handleError(err)
 
+      // process.exit(9)
       if (config.local) {
         this.runLocal(config)
           .then(r => cb(null, r))
@@ -408,6 +424,7 @@ class TestHarness {
         const toActivate = onames.filter(name => !activatedOrchs.includes(name))
 
         try {
+          console.log(`Calling activateOrchestrator ${toActivate}, ${orchConf} `)
           await this.api.activateOrchestrator(toActivate, orchConf)
         } catch(e) {
           console.log(e)
