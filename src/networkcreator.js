@@ -542,7 +542,7 @@ class NetworkCreator extends EventEmitter {
       pool.killAll()
       log('output:', output)
       if (this.config.prometheus) {
-        output.prometheus = this.generatePrometheusService(outputFolder, Object.keys(output), groups, volumes, configs)
+        output.prometheus = this.generatePrometheusService(outputFolder, Object.keys(output), this.config.nodes, volumes, configs)
         output.alertmanager = this.generateAlertManagerService(outputFolder, Object.keys(output), volumes, configs)
       }
       cb(null, output, volumes, configs)
@@ -592,7 +592,7 @@ class NetworkCreator extends EventEmitter {
     return service
   }
 
-  generatePrometheusService (outputFolder, servicesNames, groups, volumes, configs) {
+  generatePrometheusService (outputFolder, servicesNames, configNodes, volumes, configs) {
     const service = {
       image: 'prom/prometheus:latest',
       command: ['--config.file=/etc/prometheus/prometheus.yml', '--storage.tsdb.retention.time=30d'],
@@ -633,11 +633,19 @@ class NetworkCreator extends EventEmitter {
     configs.alertrulescfg = {
       file: './alert.rules'
     }
-    const servicesToMonitor = servicesNames.filter(sn => {
-      return groups.find(g => sn.startsWith(g + '_'))
-    })
-    this.saveYaml(outputFolder, 'prometheus.yml', mConfigs.prometheus(this.config.local, servicesToMonitor))
-    this.saveYaml(outputFolder, 'alert.rules', mConfigs.alertRules(this.config.local, servicesToMonitor))
+    const groups = Object.keys(configNodes)
+    const servicesToMonitorByType = new Map()
+    for (let sn of servicesNames) {
+      const group = groups.find(g => sn.startsWith(g + '_'))
+      if (group) {
+        const typ = configNodes[group].type
+        const cn = servicesToMonitorByType.get(typ)||[]
+        cn.push(sn)
+        servicesToMonitorByType.set(typ, cn)
+      }
+    }
+    this.saveYaml(outputFolder, 'prometheus.yml', mConfigs.prometheus(this.config.local, servicesToMonitorByType))
+    this.saveYaml(outputFolder, 'alert.rules', mConfigs.alertRules(this.config.local))
     return service
   }
 

@@ -1,6 +1,6 @@
 'use strict'
 
-const prometheus = (isLocal, servicesToMonitor) => {
+const prometheus = (isLocal, servicesToMonitorByType) => {
   const cfg = {
     global: {
       scrape_interval: '15s', // # By default, scrape targets every 15 seconds.
@@ -38,15 +38,20 @@ const prometheus = (isLocal, servicesToMonitor) => {
       }]
     }]
   }
-  if (servicesToMonitor.length) {
-    cfg.scrape_configs.push({
-      job_name: 'livepeer-node',
-      scrape_interval: '5s',
-      static_configs: [{
-        targets: servicesToMonitor.map(sn => sn + ':7935')
-      }]
+  const nodeCfg = {
+    job_name: 'livepeer-node',
+    scrape_interval: '5s',
+    static_configs: []
+  }
+  for (let typ of servicesToMonitorByType.keys()) {
+    nodeCfg.static_configs.push({
+      targets: servicesToMonitorByType.get(typ).map(sn => sn + ':7935'),
+      labels: {
+        'livepeer_node_type': typ,
+      }
     })
   }
+  cfg.scrape_configs.push(nodeCfg)
   if (isLocal) {
     cfg.scrape_configs.push({
       job_name: 'cadvisor',
@@ -234,7 +239,7 @@ const alertManager = (isLocal, servicesToMonitor, name, discordUserId, ips) => {
   return cfg
 }
 
-const alertRules = (isLocal, servicesToMonitor) => {
+const alertRules = (isLocal) => {
   const cfg = {
     groups: [{
       name: "my-group-name",
