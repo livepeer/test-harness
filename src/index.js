@@ -253,7 +253,7 @@ class TestHarness {
     let bnames = []
     let onames = []
     for (let i = 0; i < broadNames.length; i++) {
-      bnames = bnames.concat(Array.from({length: config.nodes[broadNames[i]].instances}, (_, i) => `${broadNames[i]}_${i}`))
+      bnames = bnames.concat(Array.from({length: config.nodes[broadNames[i]].instances}, (_, j) => `${broadNames[i]}_${j}`))
     }
     for (let i = 0; i < orchs.matchedNames.length; i++ ){
       let count = config.nodes[orchs.matchedNames[i]].instances
@@ -307,8 +307,9 @@ class TestHarness {
       let broadNames = broads.matchedNames
       let bnames = []
       for (let i = 0; i < broadNames.length; i++) {
-        bnames = bnames.concat(Array.from({length: config.nodes[broadNames[i]].instances}, (_, i) => `${broadNames[i]}_${i}`))
+        bnames = bnames.concat(Array.from({length: config.nodes[broadNames[i]].instances}, (_, j) => `${broadNames[i]}_${j}`))
       }
+      console.log(`bnames:`, bnames)
 
       let onames = []
       let tnames = []
