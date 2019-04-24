@@ -24,6 +24,7 @@ class TestHarness {
   }
 
   restartService (serviceName, cb) {
+    console.log(`TestHarness.restartService ${serviceName}`)
     if (this._config.local) {
       return dockercompose.restartOne(serviceName, {
         cwd: path.join(this.distDir, this._config.name),
@@ -269,7 +270,7 @@ class TestHarness {
       res[oname].push(bnames[i])
       oi = ++oi % numOrchs
     }
-    console.log(res)
+    console.log('assignBroadcasters2Orchs: ', res)
     return res
   }
 
@@ -296,6 +297,7 @@ class TestHarness {
       }
     })
     console.log('matchedNames ', matchedNames)
+    console.log({ count, matchedNames, type })
     return { count, matchedNames, type }
   }
 
@@ -392,6 +394,7 @@ class TestHarness {
       // console.log(`restarted ${bnames.length} broadcasters`)
       await this.api.waitTillAlive(`${orchs.matchedNames[0]}_0`)
       let orchsList = await this.api.getOrchestratorsList(`${orchs.matchedNames[0]}_0`)
+      console.log(`orchsList:`, orchsList)
       tr = 0
       while (orchsList.length < onames.length-0) {
         await wait(2000, true)
@@ -444,6 +447,7 @@ class TestHarness {
         // }
         // await Promise.all(onames.map(n => this.restartService(n)))
         // await Promise.all(reactivated.map(n => this.restartService(n)))
+        console.log(`standardSetup toActivate: ${toActivate}`)
         await Promise.all(toActivate.map(n => this.restartService(n)))
         // await this.api.waitTillAlive('orchestrator_0')
         await this.api.waitTillAlive(toActivate[0])
@@ -455,6 +459,7 @@ class TestHarness {
           return false
         }
       }
+      console.log(`standardsetup restart bnames: ${bnames}`)
       await Promise.all(bnames.map(n => this.restartService(n)))
       await this.api.waitTillAlive(`${broadcasters.matchedNames[0]}_0`)
       const o2b = this.assignBroadcasters2Orchs(config)
@@ -467,6 +472,7 @@ class TestHarness {
         }
         break
       }
+      console.log(`standardsetup restart bnames 2: ${bnames}`)
       await Promise.all(bnames.map(n => this.restartService(n)))
       await Promise.all(tnames.map(n => this.restartService(n)))
       await this.api.waitTillAlive(`${broadcasters.matchedNames[0]}_0`)

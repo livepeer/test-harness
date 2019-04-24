@@ -70,6 +70,7 @@ class Api {
     }
 
     this._getPortsArray(nodes, (err, ports) => {
+      console.log(`_getPortsArray`, nodes)
       if (err) throw err
       eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
         this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
@@ -94,7 +95,7 @@ class Api {
       if (!Array.isArray(nodes)) {
         nodes = [nodes]
       }
-      console.log('getting ports for nodes: ', nodes)
+      console.log('initializeRound getting ports for nodes: ', nodes)
       this._getPortsArray(nodes, (err, ports) => {
         if (err) throw err
         eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
@@ -676,7 +677,7 @@ class Api {
             })
           })
         } else {
-          console.log('getting ports for  ', node)
+          console.log('_getPortsArray getting ports for  ', node)
           let ports = this._getPorts(this._config.services[node].ports)
           ports.name = node
           n(null, [ports])

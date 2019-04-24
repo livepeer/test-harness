@@ -881,6 +881,7 @@ SHELL_SCREENRC`
   }
 
   restartService (serviceName, cb) {
+    console.log(`swarm.restartService ${serviceName}`)
     return new Promise((resolve, reject) => {
       this.setEnv(this._managerName, (err, env) => {
         if (err) {
@@ -908,6 +909,7 @@ SHELL_SCREENRC`
   }
 
   restartServices (services, cb) {
+    console.log(`swarm.restartServices ${services}`)
     this.setEnv(this._managerName, (err, env) => {
       if (err) throw err
       eachLimit(services, 3, (serviceName, next) => {
