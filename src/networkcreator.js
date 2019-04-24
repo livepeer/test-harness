@@ -535,7 +535,7 @@ class NetworkCreator extends EventEmitter {
       pool.killAll()
       log('output:', output)
       if (this.config.prometheus) {
-        output.prometheus = this.generatePrometheusService(outputFolder, Object.keys(output), volumes, configs)
+        output.prometheus = this.generatePrometheusService(outputFolder, Object.keys(output), groups, volumes, configs)
         output.alertmanager = this.generateAlertManagerService(outputFolder, Object.keys(output), volumes, configs)
       }
       cb(null, output, volumes, configs)
@@ -585,7 +585,7 @@ class NetworkCreator extends EventEmitter {
     return service
   }
 
-  generatePrometheusService (outputFolder, servicesNames, volumes, configs) {
+  generatePrometheusService (outputFolder, servicesNames, groups, volumes, configs) {
     const service = {
       image: 'prom/prometheus:latest',
       command: ['--config.file=/etc/prometheus/prometheus.yml', '--storage.tsdb.retention.time=30d'],
@@ -627,7 +627,8 @@ class NetworkCreator extends EventEmitter {
       file: './alert.rules'
     }
     const servicesToMonitor = servicesNames.filter(sn => {
-      return sn.startsWith('orchestrator') || sn.startsWith('broadcaster')
+      return groups.find(g => sn.startsWith(g + '_'))
+      // return sn.startsWith('orchestrator') || sn.startsWith('broadcaster')
       // || sn.startsWith('transcoder') - right now standalone transcoder does not expose CLI port
     })
     this.saveYaml(outputFolder, 'prometheus.yml', mConfigs.prometheus(this.config.local, servicesToMonitor))
