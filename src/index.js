@@ -125,6 +125,9 @@ class TestHarness {
         process.exit(4)
       }
     }
+    if (!config.local && config.loki) {
+      config.noGCPLogging = true
+    }
 
     // prettyPrintDeploymentInfo(config)
     // return
