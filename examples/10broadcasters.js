@@ -29,6 +29,9 @@ th.run({
   local: false,
   name: 'test321',
   livepeerBinaryPath: null, // this will use the livepeer binary in the GCP bucket.
+  metrics: true,
+  discordUserId: null, // id of Discord user to send alert from Prometheus to (use `Copy ID` on profile to get)
+                       // should be string
   blockchain: {
     name: 'lpTestNet',
     networkId: 54321,

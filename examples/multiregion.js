@@ -7,11 +7,12 @@ th.run({
   local: false,
   localBuild: true,
   standardSetup: true, // request token, register orchestartors, etc...
-  startMetricsServer: true,
+  metrics: true,
   name: 'mregion', // specify unique config name here
   email: null, // email to send alerts to
   livepeerBinaryPath: null, // this will use the livepeer binary in the GCP bucket.
-  // constrainResources: true,
+  discordUserId: null, // id of Discord user to send alert from Prometheus to (use `Copy ID` on profile to get)
+                       // should be string
   blockchain: {
     name: 'lpTestNet',
     networkId: 54321,
