@@ -660,7 +660,7 @@ class Api {
             n(null, results)
           })
         } else if (NODE_TYPES.indexOf(node) !== -1) {
-          console.log('filtering ', node)
+          // console.log('filtering ', node)
           filter(Object.keys(this._config.services), (service, next) => {
             if (this._config.services[service].environment && this._config.services[service].environment.type) {
               next(null, (node === `${this._config.services[service].environment.type}s`))

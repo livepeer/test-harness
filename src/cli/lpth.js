@@ -28,19 +28,8 @@ program
     // console.log(name, lpnode, env.type)
     parseDockerCompose(name, (err, experiment) => {
       if (err) throw err
-      let servicesNames = Object.keys(experiment.services)
-      let num = lpnode.split('_')[1]
       let port = null
-      let serviceName = null
-      if (lpnode.startsWith('b_')) {
-        serviceName = `broadcaster_${num}`
-      } else if (lpnode.startsWith('b_')) {
-        serviceName = `transcoder_${num}`
-      } else if (lpnode.startsWith('o_')) {
-        serviceName = `orchestrator_${num}`
-      } else {
-        serviceName = lpnode
-      }
+      let serviceName = lpnode
       // console.log('service name: ', serviceName)
       if (experiment.services[serviceName]) {
         switch (env.type) {

@@ -8,9 +8,16 @@ async function prettyPrintDeploymentInfo(parsedCompose) {
   const api = new Api(parsedCompose)
   const oPorts = await api.getPortsArray(['orchestrators'])
   const bPorts = await api.getPortsArray(['broadcasters'])
+  const tPorts = await api.getPortsArray(['transcoders'])
   const c = chalk.cyan
   console.log('==================================================================================')
   for (let po of oPorts) {
+    const ip = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, po.name)
+    console.log(`===== ${chalk.green(po.name)}:`)
+    console.log(`./livepeer_cli -host ${ip} -http ${po['7935']}`)
+  }
+
+  for (let po of tPorts) {
     const ip = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, po.name)
     console.log(`===== ${chalk.green(po.name)}:`)
     console.log(`./livepeer_cli -host ${ip} -http ${po['7935']}`)
