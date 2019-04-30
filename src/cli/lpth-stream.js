@@ -34,7 +34,12 @@ const { configName, parsedCompose } = parseConfigFromCommandLine(program)
 let servicesNames = Object.keys(parsedCompose.services)
 
 const broadcasters = servicesNames.filter((service) => {
-  return (service.match(/broadcaster_*/g))
+  // return (service.match(/broadcaster_*/g))
+  if (parsedCompose.services[service].environment && parsedCompose.services[service].environment.type) {
+    return (parsedCompose.services[service].environment.type === 'broadcaster')
+  } else {
+    return null
+  }
 })
 
 const st = new Streamer({})
