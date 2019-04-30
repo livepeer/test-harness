@@ -546,7 +546,7 @@ class NetworkCreator extends EventEmitter {
         output.alertmanager = this.generateAlertManagerService(outputFolder, Object.keys(output), volumes, configs)
       }
 
-      output.pumba = this.generatePumbaService()
+      // output.pumba = this.generatePumbaService()
 
       cb(null, output, volumes, configs)
     })
@@ -572,7 +572,7 @@ class NetworkCreator extends EventEmitter {
         `kill`,
         `--signal`,
         'SIGKILL',
-        're2:livepeer_o_*'
+        're2:livepeer_o_a*'
       ]
     }
 

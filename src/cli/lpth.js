@@ -4,6 +4,7 @@ const program = require('commander')
 const fs = require('fs')
 const path = require('path')
 const YAML = require('yaml')
+const utils = require('../utils/helpers')
 
 function parsePath (val) {
   console.log(`parsing ${path.resolve(val)} config:`)
@@ -52,6 +53,30 @@ program
       process.exit()
     })
   })
+
+program
+  .command('disrupt [name] [group]')
+  .description('uses pumba to kill containers in a specified livepeer group randomly')
+  .option('-i --interval <interval>', 'recurrent interval for chaos command; use with optional unit suffix: \'ms/s/m/h\'')
+  .action((name, group, env) => {
+    parseDockerCompose(name, async (err, experiment) => {
+      if (err) throw err
+      const outputBuf = await utils.remotelyExec(`${name}-manager`, experiment.services.geth.labels.zone || 'us-east-1b',
+        `sudo docker service create \
+          --name pumba --network testnet \
+          --mode global \
+          --mount type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock \
+          gaiaadm/pumba:latest \
+          --interval ${env.interval || '20s'} \
+          --random \
+          stop \
+          re2:livepeer_${group}_*`)
+      console.log('pumba deployed', (outputBuf) ? outputBuf.toString() : null)
+      process.exit()
+    })
+  })
+// disrupt orchs in group o_b
+
 
 function parseDockerCompose (name, cb) {
   let parsedCompose = null
