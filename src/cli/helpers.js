@@ -21,9 +21,14 @@ module.exports.parseConfigFromCommandLine = function (program) {
             `${epp[2]}:8935`,
             `${epp[1]}:1935`,
             '7935:7935'
-          ]
+          ],
+          environment: {
+            type: 'broadcaster'
+          }
         }
-      }
+      },
+      isLocal: true,
+      isFake: true
     }
     return {
       configName: 'fake',

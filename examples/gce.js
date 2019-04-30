@@ -11,10 +11,12 @@ th.run({
   // this image should be built locally using `docker build -t livepeerbinary:debian -f Dockerfile.debian .`
   // command in go-livepeer repo
   standardSetup: true, // request token, register orchestartors, etc...
-  startMetricsServer: true,
   constrainResources: true,
+  metrics: true,
   name: 'y-gce',
   livepeerBinaryPath: '../livepeer',
+  discordUserId: null, // id of Discord user to send alert from Prometheus to (use `Copy ID` on profile to get)
+                       // should be string
   blockchain: {
     name: 'lpTestNet',
     networkId: 54321,

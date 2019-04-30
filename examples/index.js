@@ -29,6 +29,7 @@ th.run({
   local: false,
   name: 'test321',
   livepeerBinaryPath: null, // this will use the livepeer binary in the GCP bucket.
+  metrics: true,
   blockchain: {
     name: 'lpTestNet',
     networkId: 54321,
