@@ -48,11 +48,15 @@ async function getIP(name) {
 async function fromLocalStream() {
   const api = new Api(parsedCompose)
   const bPorts = await api.getPortsArray(['broadcasters'])
+  const multiplier = program.multiplier || 1
+  let maxStreams = bPorts.length * multiplier
   if (program.streams && program.streams < bPorts.length) {
     bPorts.splice(program.streams, bPorts.length - program.streams)
+    maxStreams = program.streams
   }
   const lm = parsedCompose.isLocal ? 'on localhost' : 'in cloud'
   console.log(`Streaming ${program.file} to ${bPorts.length} broadcasters ${lm}, config ${configName}`)
+  console.log(`bports:`, bPorts)
 
   const ids = getIds(configName, bPorts.length)
   const checkURLs = []
@@ -75,11 +79,20 @@ async function fromLocalStream() {
 
   const tasks = []
   for (let i = 0; i < bPorts.length; i++) {
-    const po = bPorts[i]
-    const id = ids[i]
-    const ip = await getIP(po.name)
-    const task = st.stream(program.dir, program.file, `rtmp://${ip}:${po['1935']}/stream/${id}`, program.time, program.infinite)
-    tasks.push(task)
+    for (let j = 0; j < multiplier; j++) {
+      const po = bPorts[i]
+      const id = j === 0 ? ids[i] : ids[i] + '-' + j
+      const ip = await getIP(po.name)
+      const task = st.stream(program.dir, program.file, `rtmp://${ip}:${po['1935']}/stream/${id}`, program.time,
+        program.infinite, parsedCompose.isFake)
+      tasks.push(task)
+      if (tasks.length >= maxStreams) {
+        break
+      }
+    }
+    if (tasks.length >= maxStreams) {
+      break
+    }
   }
 
   if (cloudChecker) {
