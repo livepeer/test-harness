@@ -54,6 +54,7 @@ program
     })
   })
 
+// disrupt orchs in group o_b
 program
   .command('disrupt [name] [group]')
   .description('uses pumba to kill containers in a specified livepeer group randomly')
@@ -65,6 +66,7 @@ program
         `sudo docker service create \
           --name pumba --network testnet \
           --mode global \
+          --detach=false \
           --mount type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock \
           gaiaadm/pumba:latest \
           --interval ${env.interval || '20s'} \
@@ -75,7 +77,35 @@ program
       process.exit()
     })
   })
-// disrupt orchs in group o_b
+
+program
+  .command('delay [name] [group]')
+  .description('uses pumba to kill containers in a specified livepeer group randomly')
+  .option('-i --interval <interval>', 'recurrent interval for chaos command; use with optional unit suffix: \'ms/s/m/h\'')
+  .option('-d --duration <duration>', ' network emulation duration; should be smaller than recurrent interval; use with optional unit suffix: \'ms/s/m/h\'')
+  .action((name, group, env) => {
+    parseDockerCompose(name, async (err, experiment) => {
+      if (err) throw err
+      if (env.interval < env.duration) {
+        throw new Error(`interval ${env.interval} must be bigger than duration ${env.duration}`)
+      }
+
+      const outputBuf = await utils.remotelyExec(`${name}-manager`, experiment.services.geth.labels.zone || 'us-east-1b',
+        `sudo docker service create \
+          --name pumba_net --network testnet \
+          --mode global \
+          --mount type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock \
+          --detach=false \
+          gaiaadm/pumba:latest \
+          --interval ${env.interval || '20s'} \
+          netem delay \
+          -d ${env.duration} \
+          re2:livepeer_${group}_*`)
+      console.log('pumba net deployed', (outputBuf) ? outputBuf.toString() : null)
+      process.exit()
+    })
+  })
+
 
 
 function parseDockerCompose (name, cb) {
