@@ -125,8 +125,13 @@ class TestHarness {
         process.exit(4)
       }
     }
-    if (!config.local && config.loki) {
-      config.noGCPLogging = true
+    if (config.metrics) {
+      if (!config.local) {
+        config.noGCPLogging = true
+      }
+      config.prometheus = true
+      config.startMetricsServer = true
+      config.loki = true
     }
 
     // prettyPrintDeploymentInfo(config)

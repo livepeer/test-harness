@@ -9,12 +9,10 @@ let th = new TestHarness()
 th.run({
   local: true,
   localBuild: true,
-  prometheus: true,
-  loki: true,
+  metrics: true,
   discordUserId: null, // id of Discord user to send alert from Prometheus to (use `Copy ID` on profile to get)
-  startMetricsServer: true,
   standardSetup: true, // request token, register orchestartors, etc...
-  name: 'dtest',
+  name: 'test123',
   livepeerBinaryPath: '../containers/lpnode/livepeer_linux/livepeer',
   email: null, // email to send alerts to
   blockchain: {

@@ -9,13 +9,12 @@ th.run({
   publicImage: true, // if true will be used 'livepeer/go-livepeer:edge' or can be set
                      //  to any other publicly available image
   standardSetup: true, // request token, register orchestartors, etc...
-  startMetricsServer: true,
-  prometheus: true,
-  name: 'y-100streams', // specify unique config name here
-  email: null, // email to send alerts to
-  livepeerBinaryPath: null, // this will use the livepeer binary in the GCP bucket.
-  // constrainResources: true,
-  noGCPLogging: false,
+  metrics: true,
+  constrainResources: true,
+  name: '100streams',
+  livepeerBinaryPath: null,
+  discordUserId: null, // id of Discord user to send alert from Prometheus to (use `Copy ID` on profile to get)
+                       // should be string
   blockchain: {
     name: 'lpTestNet',
     networkId: 54321,

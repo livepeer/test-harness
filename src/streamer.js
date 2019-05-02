@@ -49,18 +49,19 @@ class Streamer extends EventEmitter {
 
   // @cutByTime - how long to stream, seconds
   // (should be less than movie length)
-  stream (dir, input, output, cutByTime = 0, infinite = false) {
+  stream (dir, input, output, cutByTime = 0, infinite = false, useHostFmmpeg = false) {
     return new Promise((resolve, reject) => {
-      let args = [
+      let argsBase = [
         'run',
         '--rm',
         '-v',
         `${dir}:/temp/`,
         '--net=host',
         'jrottenberg/ffmpeg:4.1-alpine',
-        '-re',
+        // '-re',
         // path.resolve(input)
       ]
+      let args = ['-re']
       if (cutByTime) {
         const measuredTime = new Date(null)
         measuredTime.setSeconds(cutByTime) // specify value of SECONDS
@@ -68,7 +69,11 @@ class Streamer extends EventEmitter {
         args.push('-t', MHSTime)
       }
       if (!infinite) {
-        args.push('-i', `/temp/${input}`)
+        if (useHostFmmpeg) {
+          args.push('-i', path.join(dir, input))
+        } else {
+          args.push('-i', `/temp/${input}`)
+        }
         args = args.concat(DEFAULT_ARGS.split(' '))
       } else {
         // ffmpeg -re -f lavfi -i "sine=frequency=1000:sample_rate=48000"  -f lavfi -i "testsrc=size=1280x720:rate=30" -c:a aac -c:v libx264 -g 1 -x264-params "keyint=60:min-keyint=60" -f flv rtmp://localhost:1935/streams/new
@@ -93,7 +98,11 @@ class Streamer extends EventEmitter {
       args.push(output)
       console.log('running:')
       console.log('docker', args.join(' '))
-      this.streams[output] = spawn('docker', args)
+      if (useHostFmmpeg) {
+        this.streams[output] = spawn('ffmpeg', args)
+      } else {
+        this.streams[output] = spawn('docker', argsBase.concat(args))
+      }
 
       this.streams[output].stdout.on('data', (data) => {
         console.log(`stdout: ${data}`)

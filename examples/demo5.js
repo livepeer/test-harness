@@ -13,13 +13,10 @@ th.run({
   local: false,
   localBuild: false,
   standardSetup: true, // request token, register orchestartors, etc...
-  startMetricsServer: true,
-  prometheus: true,
-  loki: true,
   email: null, // email to send alerts to
+  metrics: true,
   livepeerBinaryPath: null, // this will use the livepeer binary in the GCP bucket.
   // constrainResources: true,
-  noGCPLogging: false,
   blockchain: {
     name: 'lpTestNet',
     networkId: 54321,
