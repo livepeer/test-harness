@@ -79,6 +79,19 @@ program
   })
 
 program
+  .command('disrupt-stop [name]')
+  .description('stops pumba service')
+  .action((name, env) => {
+    parseDockerCompose(name, async (err, experiment) => {
+      if (err) throw err
+      const outputBuf = await utils.remotelyExec(`${name}-manager`, experiment.services.geth.labels.zone || 'us-east-1b',
+        `sudo docker service rm pumba`)
+      console.log('pumba stopped', (outputBuf) ? outputBuf.toString() : null)
+      process.exit()
+    })
+  })
+
+program
   .command('delay [name] [group]')
   .description('uses pumba to kill containers in a specified livepeer group randomly')
   .option('-i --interval <interval>', 'recurrent interval for chaos command; use with optional unit suffix: \'ms/s/m/h\'')
@@ -102,6 +115,19 @@ program
           -d ${env.duration} \
           re2:livepeer_${group}_*`)
       console.log('pumba net deployed', (outputBuf) ? outputBuf.toString() : null)
+      process.exit()
+    })
+  })
+
+program
+  .command('delay-stop [name]')
+  .description('stops pumba_net service')
+  .action((name, env) => {
+    parseDockerCompose(name, async (err, experiment) => {
+      if (err) throw err
+      const outputBuf = await utils.remotelyExec(`${name}-manager`, experiment.services.geth.labels.zone || 'us-east-1b',
+        `sudo docker service rm pumba_net`)
+      console.log('pumba stopped', (outputBuf) ? outputBuf.toString() : null)
       process.exit()
     })
   })
