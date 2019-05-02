@@ -120,3 +120,51 @@ host machines, zones, machine types and so on.
 this isn't complete yet. but it's functioning .
 checkout [this example](https://github.com/livepeer/test-harness/blob/b1f8b12d849e43c33da31b3349bfbac2a488d3a3/examples/local.js#L50-L67) along with the comments in the code to get an
 idea of how to use it.
+
+
+----------
+
+## Pumba (Chaos Monkey) support
+----
+
+### stopping a random container within a livepeer group
+
+```bash
+$ ./test-harness disrupt -h
+Usage: disrupt [options] [name] [group]                                                                         
+
+uses pumba to kill containers in a specified livepeer group randomly                                            
+
+Options:                                                                                                        
+  -i --interval <interval>  recurrent interval for chaos command; use with optional unit suffix: 'ms/s/m/h'     
+  -h, --help                output usage information                                                            
+example: ./test-harness disrupt -i 30s my-deployment o_a
+# Kill a random livepeer container in group o_a every 30 seconds
+```
+
+To stop an ongoing disruption
+
+```bash
+./test-harness disrupt-stop my-deployment
+```
+
+### simulating network delays
+
+```bash
+$ ./test-harness delay -h                                                                         
+Usage: delay [options] [name] [group]                                                                                                         
+
+uses pumba to cause network delays for a livepeer group                                                                                       
+
+Options:                                                                                                                                      
+  -i --interval <interval>  recurrent interval for chaos command; use with optional unit suffix: 'ms/s/m/h'                                   
+  -d --duration <duration>   network emulation duration; should be smaller than recurrent interval; use with optional unit suffix: 'ms/s/m/h'
+  -h, --help                output usage information                                                                                          
+
+```
+
+to stop a network delay run the following command
+
+```bash
+./test-harness delay-stop my-deployment
+```

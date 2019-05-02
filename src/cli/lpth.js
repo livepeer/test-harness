@@ -93,7 +93,7 @@ program
 
 program
   .command('delay [name] [group]')
-  .description('uses pumba to kill containers in a specified livepeer group randomly')
+  .description('uses pumba to cause network delays for a livepeer group')
   .option('-i --interval <interval>', 'recurrent interval for chaos command; use with optional unit suffix: \'ms/s/m/h\'')
   .option('-d --duration <duration>', ' network emulation duration; should be smaller than recurrent interval; use with optional unit suffix: \'ms/s/m/h\'')
   .action((name, group, env) => {
