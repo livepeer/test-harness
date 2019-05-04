@@ -545,8 +545,38 @@ class NetworkCreator extends EventEmitter {
         output.prometheus = this.generatePrometheusService(outputFolder, Object.keys(output), this.config.nodes, volumes, configs)
         output.alertmanager = this.generateAlertManagerService(outputFolder, Object.keys(output), volumes, configs)
       }
+
+      // output.pumba = this.generatePumbaService()
+
       cb(null, output, volumes, configs)
     })
+  }
+
+  generatePumbaService () {
+    const service = {
+      image: 'gaiaadm/pumba:latest',
+      volumes: ['/var/run/docker.sock:/var/run/docker.sock'],
+      networks: {
+        testnet: {
+          aliases: [`pumba`]
+        }
+      },
+      deploy: {
+        mode: 'global'
+      },
+      restart: 'unless-stopped',
+      command: [
+        `--interval`,
+        '10s',
+        `--random`,
+        `kill`,
+        `--signal`,
+        'SIGKILL',
+        're2:livepeer_o_a*'
+      ]
+    }
+
+    return service
   }
 
   generateAlertManagerService (outputFolder, servicesNames, volumes, configs) {
