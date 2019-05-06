@@ -10,7 +10,8 @@ th.run({
                      //  to any other publicly available image
   standardSetup: true, // request token, register orchestartors, etc...
   metrics: true,
-  name: '', // specify unique config name here
+  loki: false,
+  name: 'y-streamlink', // specify unique config name here
   email: null, // email to send alerts to
   discordUserId: null, // id of Discord user to send alert from Prometheus to (use `Copy ID` on profile to get)
   livepeerBinaryPath: null, // this will use the livepeer binary in the GCP bucket.
@@ -42,33 +43,35 @@ th.run({
   nodes: {
     t_a: {
       type: 'transcoder',
-      instances: 1,
+      instances: 2,
       // these are the livepeer binary flags, add them as you wish.
       // the test-harness overrides flags that has to do with directories or
       // ip/port bindings, these are automated.
-      flags: '-v 5 -orchSecret=deepsecret'
+      flags: '-v 5'
     },
     t_b: {
       type: 'transcoder',
-      instances: 1,
+      instances: 2,
       // these are the livepeer binary flags, add them as you wish.
       // the test-harness overrides flags that has to do with directories or
       // ip/port bindings, these are automated.
-      flags: '-v 5 -orchSecret=deepsecret2'
+      flags: '-v 5'
     },
     o_a: {
       type: 'orchestrator',
       instances: 1,
+      orchSecret: 'o1',
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 \
-      -currentManifest=true  -orchSecret=deepsecret -maxSessions 4 -transcoder`
+      -currentManifest=true -maxSessions 4`
     },
     o_b: {
       type: 'orchestrator',
       instances: 1,
+      orchSecret: 'o2',
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 \
-      -currentManifest=true  -orchSecret=deepsecret2 -maxSessions 4 -transcoder`
+      -currentManifest=true -maxSessions 4`
     },
     b_a: {
       type: 'broadcaster',

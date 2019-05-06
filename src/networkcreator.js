@@ -1093,7 +1093,12 @@ class NetworkCreator extends EventEmitter {
     switch (nodeType) {
       case 'transcoder':
         // output.push('-orchAddr', `https://orchestrator_${i}:8935`)
-        output.push('-orchAddr', `orchestrator_${i}:8935`)
+        output.push('-orchAddr', `${this.config.o2t[`${gname}_${i}`]}:8935`)
+        let oName = this.config.o2t[`${gname}_${i}`]
+        let oGroup = oName.split('_')
+        oGroup = oGroup.slice(0, oGroup.length - 1).join('_')
+        console.log('o_group: ', oGroup)
+        output.push('-orchSecret', `${this.config.nodes[oGroup].orchSecret}`)
         output.push('-transcoder')
         break
       case 'orchestrator':
