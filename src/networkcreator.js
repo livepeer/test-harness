@@ -1102,6 +1102,7 @@ class NetworkCreator extends EventEmitter {
         output.push('-transcoder')
         break
       case 'orchestrator':
+        output.push('-orchSecret', this.config.nodes[gname].orchSecret)
         output.push('-orchestrator')
         break
       case 'broadcaster':
