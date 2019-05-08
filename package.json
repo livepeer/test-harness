@@ -15,8 +15,8 @@
   "author": "M Yahya <yahya@livepeer.org>",
   "license": "MIT",
   "dependencies": {
-    "@google-cloud/monitoring": "^0.7.0",
-    "@google-cloud/storage": "^2.4.1",
+    "@google-cloud/monitoring": "^0.7.1",
+    "@google-cloud/storage": "^2.5.0",
     "async": "^2.6.2",
     "axios": "^0.18.0",
     "chalk": "^2.4.2",
@@ -27,6 +27,7 @@
     "ethereumjs-abi": "^0.6.5",
     "ethereumjs-util": "^6.0.0",
     "ethers": "^4.0.20",
+    "google-gax": "^0.26.0",
     "m3u8-parser": "^4.3.0",
     "request": "^2.88.0",
     "shortid": "^2.2.14",

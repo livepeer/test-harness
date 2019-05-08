@@ -1085,18 +1085,28 @@ function chunk(arr, n) {
 
 async function test() {
   const config = {
-    name: 'ldark',
+    name: 'darkswa',
     email: 'ivan@livepeer.org',
     machines: {
-      num: 3,
+      num: 1,
       // zone: 'europe-west3-c',
       zone: 'europe-west3-b',
+      machineType: 'n1-standard-1',
     }
   }
   const swarm = new Swarm(config.name)
   // await swarm.setupGCEMonitoring(config)
   // await swarm.teardownGCEMonitoring(config)
-  await swarm.setupMachine('ldark-worker-2', config.machines.zone)
+  // await swarm.setupMachine('ldark-worker-2', config.machines.zone)
+  swarm.createMachine({
+    name: 'dark-test',
+    zone: config.machines.zone,
+    machineType: config.machines.machineType,
+    tags: config.machines.tags || `${config.name}-cluster`
+  }, (err, res) => {
+    console.log('machin created, err:', err)
+  })
+
   return 'done'
 }
 
