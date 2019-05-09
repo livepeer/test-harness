@@ -10,8 +10,8 @@ th.run({
                      //  to any other publicly available image
   standardSetup: true, // request token, register orchestartors, etc...
   metrics: true,
-  loki: false,
-  name: 'y-streamlink', // specify unique config name here
+  loki: true,
+  name: '', // specify unique config name here
   email: null, // email to send alerts to
   discordUserId: null, // id of Discord user to send alert from Prometheus to (use `Copy ID` on profile to get)
   livepeerBinaryPath: null, // this will use the livepeer binary in the GCP bucket.
