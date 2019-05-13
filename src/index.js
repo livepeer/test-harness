@@ -136,6 +136,8 @@ class TestHarness {
 
     // prettyPrintDeploymentInfo(config)
     // return
+    let o2t = this.assignTranscoders2Orchs(config)
+    config.o2t = o2t
     this.networkCreator = new NetworkCreator(config)
     this.networkCreator.generateComposeFile(`${DIST_DIR}/${config.name}`, (err) => {
       if (err) return handleError(err)
@@ -296,6 +298,40 @@ class TestHarness {
     }
     console.log('assignBroadcasters2Orchs: ', res)
     return res
+  }
+
+  assignTranscoders2Orchs (config) {
+    const orchs = this.getTypeCountAndNames('orchestrator', config)
+    const transcoders = this.getTypeCountAndNames('transcoder', config)
+
+    let transcoderNames = transcoders.matchedNames
+    let numOrchs = orchs.count
+    const res = {}
+    const tres = {}
+    // const bnames = Array.from({length: numBroad}, (_, i) => `broadcaster_${i}`)
+    let tnames = []
+    let onames = []
+    for (let i = 0; i < transcoderNames.length; i++) {
+      tnames = tnames.concat(Array.from({length: config.nodes[transcoderNames[i]].instances}, (_, j) => `${transcoderNames[i]}_${j}`))
+    }
+
+    for (let i = 0; i < orchs.matchedNames.length; i++) {
+      let count = config.nodes[orchs.matchedNames[i]].instances
+      let groupNames = Array.from({length: count}, (_, j) => `${orchs.matchedNames[i]}_${j}`)
+      onames = onames.concat(groupNames)
+    }
+
+    for (let i = 0, oi = 0; i < tnames.length; i++) {
+      const oname = `${onames[oi]}`
+      if (!res[oname]) {
+        res[oname] = []
+      }
+      res[oname].push(tnames[i])
+      tres[tnames[i]] = oname
+      oi = ++oi % numOrchs
+    }
+    console.log('assignTranscoders2Orchs: ', tres)
+    return tres
   }
 
   /**

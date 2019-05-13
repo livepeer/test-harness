@@ -726,8 +726,10 @@ SHELL_SCREENRC`
         })
 
         builder.stderr.on('data', (data) => {
-          console.log(chalk.yellow(data.toString().trimEnd()))
-          stderr += data.toString()
+          if (data && data.toString()) {
+            console.log(chalk.yellow(data.toString().trimEnd()))
+            stderr += data.toString()
+          }
         })
         builder.on('error', (err) => {
           console.error(chalk.red(err))
