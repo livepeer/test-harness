@@ -10,8 +10,9 @@ th.run({
                      //  to any other publicly available image
   standardSetup: true, // request token, register orchestartors, etc...
   metrics: true,
+  loki: true,
   constrainResources: true,
-  name: '100streams',
+  name: 'y-100streams',
   livepeerBinaryPath: null,
   discordUserId: null, // id of Discord user to send alert from Prometheus to (use `Copy ID` on profile to get)
                        // should be string
@@ -22,18 +23,18 @@ th.run({
   },
 
   machines: {
-    num: 20,
+    num: 25,
     zone: 'us-east1-b',
     // zone: 'europe-west3-b',
     machineType: 'n1-highcpu-8',
     managerMachineType: 'n1-highmem-2',
     // machineType: 'n1-standard-2'
     orchestartorsMachines: 15,
-    broadcastersMachines: 3,
+    broadcastersMachines: 6,
     // zone: 'europe-west3-c',
     broadcasterMachineType: 'n1-highcpu-8',
     // streamerMachineType: 'n1-standard-2'
-    streamerMachineType: 'n1-highcpu-8',
+    streamerMachineType: 'n1-highcpu-8'
   },
   nodes: {
     t_a: {
@@ -47,9 +48,10 @@ th.run({
     o_a: {
       type: 'orchestrator',
       instances: 15,
+      orchSecret: 'deepsecret',
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 \
-      -currentManifest=true  -orchSecret=deepsecret -maxSessions 10 -transcoder`
+      -currentManifest=true  -maxSessions 8 -transcoder`
     },
     b_a: {
       type: 'broadcaster',

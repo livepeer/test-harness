@@ -508,28 +508,33 @@ SHELL_SCREENRC`
 
   setEnv (machineName, cb) {
     exec(`docker-machine env ${machineName}`, (err, stdout) => {
-      if (err) throw err
-      // get all the values in the double quotes
-      // example env output
-      // export DOCKER_TLS_VERIFY="1"
-      // export DOCKER_HOST="tcp://12.345.678.90:2376"
-      // export DOCKER_CERT_PATH="/machine/machines/swarm-manager"
-      // export DOCKER_MACHINE_NAME="swarm-manager"
-      // # Run this command to configure your shell:
-      // # eval $(docker-machine env swarm-manager)
+      // if (err) throw err
+      if (err) {
+        console.error(err, `\nRetrying setEnv ${machineName}`)
+        this.setEnv(machineName, cb)
+      } else {
+        // get all the values in the double quotes
+        // example env output
+        // export DOCKER_TLS_VERIFY="1"
+        // export DOCKER_HOST="tcp://12.345.678.90:2376"
+        // export DOCKER_CERT_PATH="/machine/machines/swarm-manager"
+        // export DOCKER_MACHINE_NAME="swarm-manager"
+        // # Run this command to configure your shell:
+        // # eval $(docker-machine env swarm-manager)
 
-      let parsed = stdout.match(/(["'])(?:(?=(\\?))\2.)*?\1/g)
-      if (parsed.length !== 4) {
-        throw new Error('env parsing mismatch!')
-      }
-      let env = {
-        DOCKER_TLS_VERIFY: parsed[0].substr(1,parsed[0].length -2),
-        DOCKER_HOST: parsed[1].substr(1, parsed[1].length-2),
-        DOCKER_CERT_PATH: parsed[2].substr(1, parsed[2].length-2),
-        DOCKER_MACHINE_NAME: parsed[3].substr(1, parsed[3].length-2)
-      }
+        let parsed = stdout.match(/(["'])(?:(?=(\\?))\2.)*?\1/g)
+        if (parsed.length !== 4) {
+          throw new Error('env parsing mismatch!')
+        }
+        let env = {
+          DOCKER_TLS_VERIFY: parsed[0].substr(1,parsed[0].length -2),
+          DOCKER_HOST: parsed[1].substr(1, parsed[1].length-2),
+          DOCKER_CERT_PATH: parsed[2].substr(1, parsed[2].length-2),
+          DOCKER_MACHINE_NAME: parsed[3].substr(1, parsed[3].length-2)
+        }
 
-      cb(null, env)
+        cb(null, env)
+      }
     })
   }
 
@@ -816,7 +821,7 @@ SHELL_SCREENRC`
       if (conts.trim()) {
         await this._runDocker(mn, `rm -f ${conts.trim().split('\n').join(' ')}`)
       }
-      await wait(1000)
+      await wait(100)
       const out2 = await this._runDocker(mn, 'volume prune -f')
       console.log(out2)
     }
@@ -1068,7 +1073,12 @@ SHELL_SCREENRC`
       console.log(`running machines: "${ri}"`)
       ri.sort()
       // ri.splice(0, 1)
-      const workersIPS = await Promise.all(ri.map(wn => swarm.getPubIP(wn)))
+      let workersIPS
+      try {
+        workersIPS = await Promise.all(ri.map(wn => swarm.getPubIP(wn)))
+      } catch (e) {
+        console.log('getPublicIPOfService Error: ', e)
+      }
       const worker2IP = ri.reduce((a, v, i) => a.set(v, workersIPS[i]), new Map())
       worker1IP = workersIPS[0]
       service2IP = new Map()

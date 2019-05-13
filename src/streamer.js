@@ -167,29 +167,30 @@ class Streamer extends EventEmitter {
       }
     }
 
-    generated.deploy.resources = {
-      reservations: {
-        cpus: '0.2',
-        memory: '200M'
-      }
-    }
+    // generated.deploy.resources = {
+    //   reservations: {
+    //     cpus: '0.2',
+    //     memory: '200M'
+    //   }
+    // }
 
     let index = broadcaster.split('_')[1]
     // console.log('broadcaster number ', index)
     generated.environment = {
-      'DELAY': (Math.floor(Math.random() * 120)) // * parseInt(index)
+      'DELAY': (Math.floor(Math.random() * 10)) // * parseInt(index)
     }
 
     generated.deploy = {
       replicas: 1,
+      endpoint_mode: 'dnsrr',
       placement: {
         constraints: [
           'node.role == worker',
-          'node.hostname == ' + machine2use
+          // 'node.hostname == ' + machine2use
         ]
       }
     }
-    console.log(`Broadcaster ${index}, stream ${broadcaster.split('_')[2]}, Delay: ${generated.environment.DELAY}`)
+    console.log(`Broadcaster ${broadcaster}, stream ${broadcaster.split('_')[2]}, Delay: ${generated.environment.DELAY}, ingress: ${parsedOutput}`)
     // console.log('generated: ', generated)
     cb(null, generated)
   }
@@ -244,12 +245,12 @@ class Streamer extends EventEmitter {
         }
       }
 
-      generated.deploy.resources = {
-        reservations: {
-          cpus: '0.5',
-          memory: '500M'
-        }
-      }
+      // generated.deploy.resources = {
+      //   reservations: {
+      //     cpus: '0.5',
+      //     memory: '500M'
+      //   }
+      // }
 
       // console.log('broadcaster number ', index)
       generated.environment = {
@@ -275,7 +276,7 @@ class Streamer extends EventEmitter {
     each(broadcasters, (broadcaster, next) => {
       let ids = getIds(input, multiplier)
       eachOf(ids, (id, i, n) => {
-        destinations.push(`rtmp://${broadcaster}:1935/stream/${id}`)
+        destinations.push(`rtmp://${broadcaster}:1935/${id}`)
         n(null)
       }, next)
     }, (err, result) => {
@@ -299,7 +300,7 @@ class Streamer extends EventEmitter {
       eachOf(ids, (id, i, n) => {
         const mu = machines2use[mi%machines2use.length]
         mi++
-        this._generateService(`${broadcaster}_${i}`, sourceDir, input, `rtmp://${broadcaster}:1935/stream}/${id}`,
+        this._generateService(`${broadcaster}_${i}`, sourceDir, input, `rtmp://${broadcaster}:1935/${id}`,
           infinite ? !!(i%2) : false, mu,
           (err, service) => {
             if (err) return next(err)
