@@ -23,14 +23,14 @@ th.run({
   },
 
   machines: {
-    num: 25,
+    num: 46,
     zone: 'us-east1-b',
     // zone: 'europe-west3-b',
     machineType: 'n1-highcpu-8',
-    managerMachineType: 'n1-highmem-2',
+    managerMachineType: 'n1-highcpu-8',
     // machineType: 'n1-standard-2'
-    orchestartorsMachines: 15,
-    broadcastersMachines: 6,
+    orchestartorsMachines: 30,
+    broadcastersMachines: 10,
     // zone: 'europe-west3-c',
     broadcasterMachineType: 'n1-highcpu-8',
     // streamerMachineType: 'n1-standard-2'
@@ -47,7 +47,7 @@ th.run({
     },
     o_a: {
       type: 'orchestrator',
-      instances: 15,
+      instances: 30,
       orchSecret: 'deepsecret',
       // TODO these are not complete, try adding the right orchestrator flags :)
       flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 \

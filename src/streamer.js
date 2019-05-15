@@ -177,7 +177,7 @@ class Streamer extends EventEmitter {
     let index = broadcaster.split('_')[1]
     // console.log('broadcaster number ', index)
     generated.environment = {
-      'DELAY': (Math.floor(Math.random() * 10)) // * parseInt(index)
+      'DELAY': 0 // (Math.floor(Math.random() * 60)) // * parseInt(index)
     }
 
     generated.deploy = {

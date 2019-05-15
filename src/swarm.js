@@ -28,6 +28,7 @@ class Swarm {
 
     this._managerName = `${name}-manager` || null
     this._name = name
+    this._machines = null
   }
 
   createMachines (opts, cb) {
@@ -66,7 +67,7 @@ class Swarm {
         },
         (done) => {
           eachOfLimit(groups, 3, (machinesOpts, zone, next) => {
-            eachLimit(machinesOpts, 20, (machine, n) => {
+            eachLimit(machinesOpts, 50, (machine, n) => {
               this.createMachine(machine, n)
             }, next)
           }, done)
@@ -86,7 +87,7 @@ class Swarm {
           }, done)
         },
         (done) => {
-          timesLimit(machinesCount - 1, 20, (i, next) => {
+          timesLimit(machinesCount - 1, 50, (i, next) => {
             // create workers
             const  mName = `${name}-worker-${i + 1}`
             this.createMachine({
@@ -454,7 +455,7 @@ SHELL_SCREENRC`
     this.setEnv(this._managerName, (err, env) => {
       console.log('env before network: ', env)
       if (err) return cb(err)
-      exec(`docker network create -d overlay ${networkName}`, {
+      exec(`docker network create -d overlay --subnet=10.0.0.0/16 --gateway=10.0.0.1 ${networkName}`, {
         env: env
       }, (err, output) => {
         if (err) console.error('create network err: ', err)
@@ -572,7 +573,7 @@ SHELL_SCREENRC`
         }
 
         while (true) {
-          await wait(2000) // need to wait while instances gets shutdown
+          await wait(1000) // need to wait while instances gets shutdown
           try {
             await this.pruneLocalVolumes(config.name)
           } catch (e) {
@@ -1050,18 +1051,23 @@ SHELL_SCREENRC`
 
   getRunningMachinesList(name) {
     return new Promise((resolve, reject) => {
-      const cmd = `docker-machine ls -q --filter "name=${name}-([a-z]+)" -filter "state=Running"`
-      // console.log(cmd)
-      exec(cmd, (err, output) => {
-        if (err) {
-          reject(err)
-        } else {
-          const tr = output.trim()
-          const machines = tr ? tr.split('\n') : []
-          // console.log('found running machines: ', machines)
-          resolve(machines)
-        }
-      })
+      if (this._machines) {
+        resolve(this._machines)
+      } else {
+        const cmd = `docker-machine ls -q --filter "name=${name}-([a-z]+)" -filter "state=Running"`
+        // console.log(cmd)
+        exec(cmd, (err, output) => {
+          if (err) {
+            reject(err)
+          } else {
+            const tr = output.trim()
+            const machines = tr ? tr.split('\n') : []
+            // console.log('found running machines: ', machines)
+            this._machines = machines
+            resolve(this._machines)
+          }
+        })
+      }
     })
   }
 
