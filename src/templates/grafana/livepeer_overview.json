@@ -268,6 +268,88 @@
       "valueName": "avg"
     },
     {
+      "cacheTimeout": null,
+      "colorBackground": false,
+      "colorValue": false,
+      "colors": [
+        "#299c46",
+        "rgba(237, 129, 40, 0.89)",
+        "#d44a3a"
+      ],
+      "description": "Total number of segments emerged from segmenter.",
+      "format": "none",
+      "gauge": {
+        "maxValue": 100,
+        "minValue": 0,
+        "show": false,
+        "thresholdLabels": false,
+        "thresholdMarkers": true
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 12,
+        "y": 0
+      },
+      "id": 46,
+      "interval": null,
+      "links": [],
+      "mappingType": 1,
+      "mappingTypes": [
+        {
+          "name": "value to text",
+          "value": 1
+        },
+        {
+          "name": "range to text",
+          "value": 2
+        }
+      ],
+      "maxDataPoints": 100,
+      "nullPointMode": "connected",
+      "nullText": null,
+      "postfix": "",
+      "postfixFontSize": "50%",
+      "prefix": "",
+      "prefixFontSize": "50%",
+      "rangeMaps": [
+        {
+          "from": "null",
+          "text": "N/A",
+          "to": "null"
+        }
+      ],
+      "sparkline": {
+        "fillColor": "rgba(31, 118, 189, 0.18)",
+        "full": false,
+        "lineColor": "rgb(31, 120, 193)",
+        "show": false
+      },
+      "tableColumn": "",
+      "targets": [
+        {
+          "expr": "sum(livepeer_segment_source_emerged_unprocessed_total)",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "refId": "A"
+        }
+      ],
+      "thresholds": "",
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Emerged segments",
+      "type": "singlestat",
+      "valueFontSize": "80%",
+      "valueMaps": [
+        {
+          "op": "=",
+          "text": "N/A",
+          "value": "null"
+        }
+      ],
+      "valueName": "current"
+    },
+    {
       "aliasColors": {},
       "bars": false,
       "dashLength": 10,
@@ -276,8 +358,8 @@
       "fill": 1,
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
+        "w": 7,
+        "x": 17,
         "y": 0
       },
       "id": 14,
@@ -602,6 +684,89 @@
         }
       ],
       "valueName": "avg"
+    },
+    {
+      "cacheTimeout": null,
+      "colorBackground": false,
+      "colorValue": false,
+      "colors": [
+        "#299c46",
+        "rgba(237, 129, 40, 0.89)",
+        "#d44a3a"
+      ],
+      "description": "Total number of transcoded segments.",
+      "format": "none",
+      "gauge": {
+        "maxValue": 100,
+        "minValue": 0,
+        "show": false,
+        "thresholdLabels": false,
+        "thresholdMarkers": true
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 12,
+        "y": 4
+      },
+      "id": 44,
+      "interval": null,
+      "links": [],
+      "mappingType": 1,
+      "mappingTypes": [
+        {
+          "name": "value to text",
+          "value": 1
+        },
+        {
+          "name": "range to text",
+          "value": 2
+        }
+      ],
+      "maxDataPoints": 100,
+      "nullPointMode": "connected",
+      "nullText": null,
+      "postfix": "",
+      "postfixFontSize": "50%",
+      "prefix": "",
+      "prefixFontSize": "50%",
+      "rangeMaps": [
+        {
+          "from": "null",
+          "text": "N/A",
+          "to": "null"
+        }
+      ],
+      "sparkline": {
+        "fillColor": "rgba(31, 118, 189, 0.18)",
+        "full": false,
+        "lineColor": "rgb(31, 120, 193)",
+        "show": false
+      },
+      "tableColumn": "",
+      "targets": [
+        {
+          "expr": "sum(livepeer_segment_transcoded_unprocessed_total)",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "thresholds": "",
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Transcoded Segments",
+      "type": "singlestat",
+      "valueFontSize": "80%",
+      "valueMaps": [
+        {
+          "op": "=",
+          "text": "N/A",
+          "value": "null"
+        }
+      ],
+      "valueName": "current"
     },
     {
       "aliasColors": {},
@@ -1536,10 +1701,10 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(livepeer_segment_transcode_failed_total) by (instance, error_code)",
+          "expr": "sum(livepeer_segment_transcode_failed_total) by (error_code)",
           "format": "time_series",
           "intervalFactor": 1,
-          "legendFormat": "{{instance}} {{error_code}}",
+          "legendFormat": "{{error_code}}",
           "refId": "A"
         }
       ],
@@ -1679,6 +1844,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "description": "Total number of segments emerged from segmenter and total number of segments transcoded",
       "fill": 1,
       "gridPos": {
         "h": 8,
@@ -1711,21 +1877,14 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(livepeer_segment_source_appeared_total)",
+          "expr": "sum(livepeer_segment_source_emerged_unprocessed_total)",
           "format": "time_series",
           "intervalFactor": 1,
-          "legendFormat": "appeared",
+          "legendFormat": "emerged",
           "refId": "A"
         },
         {
-          "expr": "sum(livepeer_segment_source_uploaded_total)",
-          "format": "time_series",
-          "intervalFactor": 1,
-          "legendFormat": "uploaded",
-          "refId": "B"
-        },
-        {
-          "expr": "sum(livepeer_segment_transcoded_all_appeared_total)",
+          "expr": "sum(livepeer_segment_transcoded_unprocessed_total)",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "transcoded",
@@ -1774,7 +1933,7 @@
       }
     }
   ],
-  "refresh": "10s",
+  "refresh": false,
   "schemaVersion": 18,
   "style": "dark",
   "tags": [],
@@ -1782,8 +1941,8 @@
     "list": []
   },
   "time": {
-    "from": "now-15m",
-    "to": "now"
+    "from": "2019-05-16T15:10:37.488Z",
+    "to": "2019-05-16T15:20:23.727Z"
   },
   "timepicker": {
     "refresh_intervals": [
