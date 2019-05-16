@@ -33,12 +33,6 @@ async function prettyPrintDeploymentInfo(parsedCompose) {
     console.log(`RTMP ingest point: ` + c(`rtmp://${ip}:${po['1935']}/stream/customManifestID`))
   }
   if (parsedCompose.hasMetrics) {
-    const metricsIP = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, 'metrics')
-    if (metricsIP) {
-      console.log(`\nMetrics server: ` + c(`http://${metricsIP}:3000`))
-    }
-  }
-  if (parsedCompose.hasPrometheus) {
     const ip = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, 'prometheus')
     if (ip) {
       console.log(`\nPrometheus (Grafana): ` + c(`http://${ip}:3001`))

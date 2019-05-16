@@ -6,6 +6,7 @@ const path = require('path')
 const tar = require('tar')
 const fs = require('fs')
 const toml = require('toml')
+const chalk = require('chalk')
 const composefile = require('composefile')
 const { timesLimit, each, eachLimit } = require('async')
 const log = require('debug')('livepeer:test-harness:network')
@@ -51,8 +52,6 @@ class NetworkCreator extends EventEmitter {
     this.nodes = {}
     this.hasGeth = false
     this.hasMetrics = false
-    this.hasPrometheus = false
-    this.hasLoki = false
     if (config.local) {
 
     } else {
@@ -301,7 +300,7 @@ class NetworkCreator extends EventEmitter {
 
   machinesCreated(ips) {
     // ips - array of public ips, starting from manager machine
-    if (this.config.prometheus && ips.length) {
+    if (this.config.metrics && ips.length) {
       this.saveYaml(this._outputFolder, 'alertmanager.yml', mConfigs.alertManager(this.config.local, [], this.config.name,
         this.config.discordUserId, ips))
     }
@@ -366,18 +365,13 @@ class NetworkCreator extends EventEmitter {
       deps.push('geth')
     }
     if (this.hasMetrics) {
-      deps.push('metrics')
-    }
-    if (this.hasPrometheus) {
       deps.push('prometheus')
-    }
-    if (this.hasLoki) {
       deps.push('loki')
       deps.push('logspout')
     }
-    if (type === 'transcoder') {
-      deps.push(`orchestrator_${i}`)
-    }
+    // if (type === 'transcoder') {
+    //   deps.push(`orchestrator_${i}`)
+    // }
     return deps
   }
 
@@ -486,22 +480,14 @@ class NetworkCreator extends EventEmitter {
     } else {
       this.hasGeth = true
     }
-    if (this.config.startMetricsServer) {
-      output.mongodb = this.generateMongoService(volumes)
-      output.metrics = this.generateMetricsService()
-      this.hasMetrics = true
-    }
-    if (this.config.prometheus) {
+    this.hasMetrics = this.config.metrics
+    if (this.hasMetrics) {
       // output.prometheus = this.generatePrometheusService(outputFolder, volumes, configs)
       output.cadvisor = this.generateCAdvisorService(volumes)
       output.grafana = this.generateGrafanaService(outputFolder, volumes, configs)
       output['node-exporter'] = this.generateNodeExporterService(volumes)
-      this.hasPrometheus = true
-    }
-    if (this.config.loki) {
       output.loki = this.generateLokiService(outputFolder, volumes, configs)
       output.logspout = this.generateLogspoutService(outputFolder, volumes, configs)
-      this.hasLoki = true
     }
 
     let groups = Object.keys(this.config.nodes)
@@ -541,7 +527,7 @@ class NetworkCreator extends EventEmitter {
       console.log('all nodes have been generated')
       pool.killAll()
       log('output:', output)
-      if (this.config.prometheus) {
+      if (this.config.metrics) {
         output.prometheus = this.generatePrometheusService(outputFolder, Object.keys(output), this.config.nodes, volumes, configs)
         output.alertmanager = this.generateAlertManagerService(outputFolder, Object.keys(output), volumes, configs)
       }
@@ -924,7 +910,7 @@ class NetworkCreator extends EventEmitter {
       // 1860 -# Node Exporter Full
     */
 
-    this.saveYaml(outputFolder, 'grafanaDatasources.yml', mConfigs.grafanaDatasources(this.config.loki))
+    this.saveYaml(outputFolder, 'grafanaDatasources.yml', mConfigs.grafanaDatasources(this.config.metrics))
     this.saveYaml(outputFolder, 'grafanaDashboards.yml', mConfigs.grafanaDashboards)
     this.copyFileToOut('templates/grafana', outputFolder, '3662.json')
     this.copyFileToOut('templates/grafana', outputFolder, '4271.json')
@@ -938,68 +924,6 @@ class NetworkCreator extends EventEmitter {
   copyFileToOut(srcFolder, outputFolder, name) {
     const srcPath = path.resolve(__dirname, srcFolder)
     fs.copyFileSync(path.join(srcPath, name), path.join(outputFolder, name))
-  }
-
-  generateMetricsService () {
-    const mService = {
-      image: 'darkdragon/livepeermetrics:latest',
-      ports: ['3000:3000'],
-      depends_on: ['mongodb'],
-      networks: {
-        testnet: {
-          aliases: [`metrics`]
-        }
-      },
-      deploy: {
-        placement: {
-          constraints: ['node.role == manager']
-        }
-      },
-      restart: 'unless-stopped'
-    }
-    if (!this.config.local && !this.config.noGCPLogging) {
-     mService.logging = {
-        driver: 'gcplogs',
-        options: {
-          'gcp-project': PROJECT_ID,
-          'gcp-log-cmd': 'true',
-          'labels': `type=mongodb`
-        }
-      }
-    }
-    return mService
-  }
-
-  generateMongoService (volumes) {
-    const mService = {
-      image: 'mongo:latest',
-      networks: {
-        testnet: {
-          aliases: [`mongodb`]
-        }
-      },
-      deploy: {
-        placement: {
-          constraints: ['node.role == manager']
-        }
-      },
-      restart: 'unless-stopped',
-      volumes: ['vmongo1:/data/db', 'vmongo2:/data/configdb']
-      // networks: ['outside']
-    }
-    if (!this.config.local && !this.config.noGCPLogging) {
-     mService.logging = {
-        driver: 'gcplogs',
-        options: {
-          'gcp-project': PROJECT_ID,
-          'gcp-log-cmd': 'true',
-          'labels': `type=mongodb`
-        }
-      }
-    }
-    volumes.vmongo1 = {}
-    volumes.vmongo2 = {}
-    return mService
   }
 
   generateGethService (volumes) {
@@ -1082,7 +1006,6 @@ class NetworkCreator extends EventEmitter {
 
     if (this.hasMetrics) {
       output.push('-monitor=true')
-      output.push('-monUrl http://metrics:3000/api/events')
     }
 
     // if (nodeType === 'orchestrator') {
@@ -1098,11 +1021,17 @@ class NetworkCreator extends EventEmitter {
         let oGroup = oName.split('_')
         oGroup = oGroup.slice(0, oGroup.length - 1).join('_')
         console.log('o_group: ', oGroup)
+        if (!this.config.nodes[oGroup].orchSecret) {
+          console.log(chalk.red(`For transcoder nodes ${chalk.yellowBright('orchSecret')} should be specified on ${chalk.yellowBright('orchestrators')} config object.`))
+          process.exit(17)
+        }
         output.push('-orchSecret', `${this.config.nodes[oGroup].orchSecret}`)
         output.push('-transcoder')
         break
       case 'orchestrator':
-        output.push('-orchSecret', this.config.nodes[gname].orchSecret)
+        if (this.config.nodes[gname].orchSecret) {
+          output.push('-orchSecret', this.config.nodes[gname].orchSecret)
+        }
         output.push('-orchestrator')
         break
       case 'broadcaster':

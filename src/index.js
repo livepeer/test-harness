@@ -125,13 +125,12 @@ class TestHarness {
         process.exit(4)
       }
     }
-    if (config.metrics) {
-      if (!config.local) {
-        config.noGCPLogging = true
-      }
-      config.prometheus = true
-      config.startMetricsServer = true
-      config.loki = true
+    if (config.metrics && !config.local) {
+      config.noGCPLogging = true
+    }
+    if (config.prometheus || config.loki) {
+      // `prometheus` is deprecated, this is for compatibility with old configs
+      config.metrics = true
     }
 
     // prettyPrintDeploymentInfo(config)
@@ -230,7 +229,7 @@ class TestHarness {
     if (!notCreatedNow) {
       await this.swarm.createRegistry()
     }
-    if (config.prometheus) {
+    if (config.metrics) {
       const ri = await this.swarm.getRunningMachinesList(config.name)
       console.log(`running machines: "${ri}"`)
       ri.sort()
@@ -256,10 +255,6 @@ class TestHarness {
 
     if (config.standardSetup) {
       setupSuccess =  await this.standardSetup(config)
-    }
-    if (config.startMetricsServer) {
-      await this.restartService('metrics')
-      console.log('restarted metrics service')
     }
 
     await prettyPrintDeploymentInfo(experiment.parsedCompose)

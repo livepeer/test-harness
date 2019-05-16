@@ -170,11 +170,8 @@ function parseComposeAndGetAddresses (configName) {
   }
   const usedWorkers = new Set()
   for (let sn of Object.keys(parsedCompose.services)) {
-    if (sn === 'metrics') {
-      parsedCompose.hasMetrics = true
-    }
     if (sn === 'prometheus') {
-      parsedCompose.hasPrometheus = true
+      parsedCompose.hasMetrics = true
     }
     const cs = getConstrain(parsedCompose.services[sn])
     if (cs) {
