@@ -28,6 +28,7 @@ class Swarm {
 
     this._managerName = `${name}-manager` || null
     this._name = name
+    this._machines = null
   }
 
   createMachines (opts, cb) {
@@ -66,7 +67,7 @@ class Swarm {
         },
         (done) => {
           eachOfLimit(groups, 3, (machinesOpts, zone, next) => {
-            eachLimit(machinesOpts, 20, (machine, n) => {
+            eachLimit(machinesOpts, 50, (machine, n) => {
               this.createMachine(machine, n)
             }, next)
           }, done)
@@ -86,7 +87,7 @@ class Swarm {
           }, done)
         },
         (done) => {
-          timesLimit(machinesCount - 1, 20, (i, next) => {
+          timesLimit(machinesCount - 1, 50, (i, next) => {
             // create workers
             const  mName = `${name}-worker-${i + 1}`
             this.createMachine({
@@ -454,7 +455,7 @@ SHELL_SCREENRC`
     this.setEnv(this._managerName, (err, env) => {
       console.log('env before network: ', env)
       if (err) return cb(err)
-      exec(`docker network create -d overlay ${networkName}`, {
+      exec(`docker network create -d overlay --subnet=10.0.0.0/16 --gateway=10.0.0.1 ${networkName}`, {
         env: env
       }, (err, output) => {
         if (err) console.error('create network err: ', err)
@@ -508,28 +509,33 @@ SHELL_SCREENRC`
 
   setEnv (machineName, cb) {
     exec(`docker-machine env ${machineName}`, (err, stdout) => {
-      if (err) throw err
-      // get all the values in the double quotes
-      // example env output
-      // export DOCKER_TLS_VERIFY="1"
-      // export DOCKER_HOST="tcp://12.345.678.90:2376"
-      // export DOCKER_CERT_PATH="/machine/machines/swarm-manager"
-      // export DOCKER_MACHINE_NAME="swarm-manager"
-      // # Run this command to configure your shell:
-      // # eval $(docker-machine env swarm-manager)
+      // if (err) throw err
+      if (err) {
+        console.error(err, `\nRetrying setEnv ${machineName}`)
+        this.setEnv(machineName, cb)
+      } else {
+        // get all the values in the double quotes
+        // example env output
+        // export DOCKER_TLS_VERIFY="1"
+        // export DOCKER_HOST="tcp://12.345.678.90:2376"
+        // export DOCKER_CERT_PATH="/machine/machines/swarm-manager"
+        // export DOCKER_MACHINE_NAME="swarm-manager"
+        // # Run this command to configure your shell:
+        // # eval $(docker-machine env swarm-manager)
 
-      let parsed = stdout.match(/(["'])(?:(?=(\\?))\2.)*?\1/g)
-      if (parsed.length !== 4) {
-        throw new Error('env parsing mismatch!')
-      }
-      let env = {
-        DOCKER_TLS_VERIFY: parsed[0].substr(1,parsed[0].length -2),
-        DOCKER_HOST: parsed[1].substr(1, parsed[1].length-2),
-        DOCKER_CERT_PATH: parsed[2].substr(1, parsed[2].length-2),
-        DOCKER_MACHINE_NAME: parsed[3].substr(1, parsed[3].length-2)
-      }
+        let parsed = stdout.match(/(["'])(?:(?=(\\?))\2.)*?\1/g)
+        if (parsed.length !== 4) {
+          throw new Error('env parsing mismatch!')
+        }
+        let env = {
+          DOCKER_TLS_VERIFY: parsed[0].substr(1,parsed[0].length -2),
+          DOCKER_HOST: parsed[1].substr(1, parsed[1].length-2),
+          DOCKER_CERT_PATH: parsed[2].substr(1, parsed[2].length-2),
+          DOCKER_MACHINE_NAME: parsed[3].substr(1, parsed[3].length-2)
+        }
 
-      cb(null, env)
+        cb(null, env)
+      }
     })
   }
 
@@ -567,7 +573,7 @@ SHELL_SCREENRC`
         }
 
         while (true) {
-          await wait(2000) // need to wait while instances gets shutdown
+          await wait(1000) // need to wait while instances gets shutdown
           try {
             await this.pruneLocalVolumes(config.name)
           } catch (e) {
@@ -816,7 +822,7 @@ SHELL_SCREENRC`
       if (conts.trim()) {
         await this._runDocker(mn, `rm -f ${conts.trim().split('\n').join(' ')}`)
       }
-      await wait(1000)
+      await wait(100)
       const out2 = await this._runDocker(mn, 'volume prune -f')
       console.log(out2)
     }
@@ -1045,18 +1051,23 @@ SHELL_SCREENRC`
 
   getRunningMachinesList(name) {
     return new Promise((resolve, reject) => {
-      const cmd = `docker-machine ls -q --filter "name=${name}-([a-z]+)" -filter "state=Running"`
-      // console.log(cmd)
-      exec(cmd, (err, output) => {
-        if (err) {
-          reject(err)
-        } else {
-          const tr = output.trim()
-          const machines = tr ? tr.split('\n') : []
-          // console.log('found running machines: ', machines)
-          resolve(machines)
-        }
-      })
+      if (this._machines) {
+        resolve(this._machines)
+      } else {
+        const cmd = `docker-machine ls -q --filter "name=${name}-([a-z]+)" -filter "state=Running"`
+        // console.log(cmd)
+        exec(cmd, (err, output) => {
+          if (err) {
+            reject(err)
+          } else {
+            const tr = output.trim()
+            const machines = tr ? tr.split('\n') : []
+            // console.log('found running machines: ', machines)
+            this._machines = machines
+            resolve(this._machines)
+          }
+        })
+      }
     })
   }
 
@@ -1068,7 +1079,12 @@ SHELL_SCREENRC`
       console.log(`running machines: "${ri}"`)
       ri.sort()
       // ri.splice(0, 1)
-      const workersIPS = await Promise.all(ri.map(wn => swarm.getPubIP(wn)))
+      let workersIPS
+      try {
+        workersIPS = await Promise.all(ri.map(wn => swarm.getPubIP(wn)))
+      } catch (e) {
+        console.log('getPublicIPOfService Error: ', e)
+      }
       const worker2IP = ri.reduce((a, v, i) => a.set(v, workersIPS[i]), new Map())
       worker1IP = workersIPS[0]
       service2IP = new Map()
