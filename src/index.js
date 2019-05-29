@@ -15,7 +15,20 @@ const { prettyPrintDeploymentInfo } = require('./helpers')
 
 const DIST_DIR = '../dist'
 const DEFAULT_MACHINES = 5
-const getOName = new RegExp('.*\/(orchestrator_\\d+):')
+// const getOName = new RegExp('.*\/(orchestrator_\\d+):')
+
+const deprecatedMachinesProps = ['orchestartorsMachines', 'broadcastersMachines', 'num']
+const mandatoyMachinesProps = ['orchestratorMachineType', 'managerMachineType', 'broadcasterMachineType']
+
+function configHasInstancesOfType(config, type) {
+  for (let groupName of Object.keys(config.nodes)) {
+    const node = config.nodes[groupName]
+    if (node.type === type && node.instances) {
+      return true
+    }
+  }
+  return false
+}
 
 class TestHarness {
   constructor () {
@@ -113,11 +126,43 @@ class TestHarness {
       process.exit(2)
     }
     if (!config.local) {
-      if (!config.machines.hasOwnProperty('orchestartorsMachines') ||
-          !config.machines.hasOwnProperty('broadcastersMachines')) {
-            console.log(chalk.red('Cloud deployments should have `orchestartorsMachines` and `broadcastersMachines` properties in config.'))
-            process.exit(3)
-          }
+      let failed = false
+      if (!config.machines) {
+        console.log(`Config to be run in cloud should specify ${chalk.yellowBright('machines')} section.`)
+        process.exit(3)
+      }
+      for (let prop in config.machines) {
+        if (deprecatedMachinesProps.includes(prop)) {
+          failed = true
+          console.log(`Property ${chalk.red(prop)} is deprecated.`)
+        }
+      }
+      if (failed) {
+        console.log('Please remove deprecated properties.')
+        process.exit(3)
+      }
+      if (config.machines.machineType) {
+        console.log(`Property ${chalk.yellowBright('machineType')} is deprecated, please change to ${chalk.yellowBright('orchestratorMachineType')}`)
+        process.exit(3)
+      }
+      for (let prop of mandatoyMachinesProps) {
+        if (!config.machines.hasOwnProperty(prop)) {
+          failed = true
+          console.log(`Property ${chalk.yellowBright(prop)} is mandatory.`)
+        }
+      }
+      if (failed) {
+        console.log('Please specify mandatory properties.')
+        process.exit(3)
+      }
+      if (configHasInstancesOfType(config, 'transcoder') && !config.machines.transcoderMachineType) {
+        console.log(`Should specify ${chalk.yellowBright('transcoderMachineType')}.`)
+        process.exit(3)
+      }
+      if (configHasInstancesOfType(config, 'streamer') && !config.machines.streamerMachineType) {
+        console.log(`Should specify ${chalk.yellowBright('streamerMachineType')}.`)
+        process.exit(3)
+      }
     }
     for (let groupName of Object.keys(config.nodes)) {
       if (!config.nodes[groupName].type) {
@@ -577,14 +622,17 @@ class TestHarness {
       }
       */
       await Promise.all(loadToWorkers)
-      locTag = `sudo docker tag lpnode:latest localhost:5000/lpnode:latest && sudo docker push localhost:5000/lpnode:latest &&`
+      locTag = `sudo docker tag lpnode:latest localhost:5000/lpnode:latest && sudo docker push localhost:5000/lpnode:latest `
+      await utils.remotelyExec(managerName, config.machines.zone, locTag)
     }
 
+    /*
     await utils.remotelyExec(managerName, config.machines.zone,
        locTag + `sudo docker pull darkdragon/test-streamer:latest &&
        sudo docker tag darkdragon/test-streamer:latest localhost:5000/streamer:latest &&
        sudo docker push localhost:5000/streamer:latest
       `)
+    */
     console.log('docker image pushed')
     await this.swarm.deployComposeFile(this.getDockerComposePath(config), 'livepeer', managerName)
     const results = await this.fundAccounts(config)

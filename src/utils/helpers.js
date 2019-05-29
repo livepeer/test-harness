@@ -126,18 +126,6 @@ function wait(pauseTimeMs, suppressLogs) {
   })
 }
 
-function getServiceConstraints(workers, bs, os, ts) {
-    const broadcasters = getNames('broadcaster_', bs)
-    const orchestrators = getNames('orchestrator_', os)
-    const transcoders = getNames('transcoder_', ts)
-
-    return {
-      broadcaster: spread(broadcasters, workers, true),
-      orchestrator: spread(orchestrators, workers, true),
-      transcoder: spread(transcoders, workers, true),
-    }
-}
-
 function getDockerComposePath (configName) {
   return path.join(__dirname, '../../dist', configName, 'docker-compose.yml')
 }
@@ -205,6 +193,6 @@ function getIds (configName, num) {
 }
 
 module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount,
-  getNames, spread, wait, getServiceConstraints, parseComposeAndGetAddresses,
+  getNames, spread, wait, parseComposeAndGetAddresses,
   getIds, getConstrain
 }

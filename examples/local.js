@@ -22,9 +22,13 @@ th.run({
     controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982' //pm
   },
   nodes: {
+    streamers: {
+      instances: 2,
+      type: 'streamer',
+    },
     transcoders: {
       // how many containers to run as transcoders.
-      instances: 1,
+      instances: 2,
       // these are the livepeer binary flags, add them as you wish.
       // the test-harness overrides flags that has to do with directories or
       // ip/port bindings, these are automated.
@@ -32,11 +36,11 @@ th.run({
       flags: '-v 5 '
     },
     orchestrators: {
-      instances: 1,
+      instances: 2,
       orchSecret: 'aapp',
       type: 'orchestrator',
       flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 \
-      -currentManifest=true   -maxSessions 4 -transcoder `
+      -currentManifest=true   -maxSessions 4  `
     },
     broadcasters: {
       instances: 2,

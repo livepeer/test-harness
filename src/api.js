@@ -4,13 +4,10 @@ const request = require('request')
 const axios = require('axios')
 const { map, each, eachLimit, filter } = require('async')
 const { wait } = require('./utils/helpers')
+const constants = require('./constants')
 
-const NODE_TYPES = ['broadcasters', 'transcoders', 'orchestrators']
-const NODE_REGEX = {
-  broadcasters: /broadcaster/g,
-  orchestrators: /orchestrator/g,
-  transcoders: /transcoder/g
-}
+const  NODE_TYPES = ['broadcasters', 'transcoders', 'orchestrators', 'streamers']
+
 const MAX_CONCURRENCY = 3
 
 const BASE_URL = 'localhost'
@@ -171,6 +168,13 @@ class Api {
         })
       })
     })
+  }
+
+  async status (nodeName) {
+    const [port] = await this._getPortsArray([nodeName])
+    const url = `http://${this._baseUrl}:${port['7935']}/status`
+    const res = await axios.get(url)
+    return res.data
   }
 
   async waitTillAlive (nodeName) {
@@ -679,7 +683,7 @@ class Api {
             })
           })
         } else {
-          console.log('_getPortsArray getting ports for  ', node)
+          // console.log('_getPortsArray getting ports for  ', node)
           let ports = this._getPorts(this._config.services[node].ports)
           ports.name = node
           n(null, [ports])
@@ -703,29 +707,26 @@ class Api {
   }
 
   _getPorts (portsArray) {
-    return {
-      '7935': this._getCliPort(portsArray),
-      '1935': this._getRtmpPort(portsArray),
-      '8935': this._getServicePort(portsArray)
+    const ports = Object.keys(constants.ports).reduce((ac, cv, ci, ar) => {
+      const op = constants.ports[cv]
+      const p = this._getPort(portsArray, op)
+      if (p) {
+        ac[op] = p
+      }
+      return ac
+    }, {})
+    return ports
+  }
+
+  _getPort (portsArray, port) {
+    const re = new RegExp(`:${port}`, 'g')
+    const p = portsArray.filter((portMapping) => {
+      return (portMapping.match(re))
+    })
+    if (!p.length) {
+      return ''
     }
-  }
-
-  _getCliPort (portsArray) {
-    return portsArray.filter((portMapping) => {
-      return (portMapping.match(/:7935/g))
-    })[0].split(':')[0]
-  }
-
-  _getRtmpPort (portsArray) {
-    return portsArray.filter((portMapping) => {
-      return (portMapping.match(/:1935/g))
-    })[0].split(':')[0]
-  }
-
-  _getServicePort (portsArray) {
-    return portsArray.filter((portMapping) => {
-      return (portMapping.match(/:8935/g))
-    })[0].split(':')[0]
+    return p[0].split(':')[0]
   }
 
   _httpPostWithParams (url, params, cb) {
