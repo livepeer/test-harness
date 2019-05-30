@@ -157,17 +157,21 @@ function parseComposeAndGetAddresses (configName) {
     parsedCompose.zone = g.labels.zone
   }
   const usedWorkers = new Set()
+  const service2Machine = new Map()
   for (let sn of Object.keys(parsedCompose.services)) {
     if (sn === 'prometheus') {
       parsedCompose.hasMetrics = true
     }
     const cs = getConstrain(parsedCompose.services[sn])
+    // console.log('sn:', sn, cs)
     if (cs) {
       usedWorkers.add(cs)
+      service2Machine.set(sn, cs)
     }
   }
   parsedCompose.usedWorkers = Array.from(usedWorkers.values())
   parsedCompose.usedWorkers.sort()
+  parsedCompose.service2Machine = service2Machine
   return parsedCompose
 }
 

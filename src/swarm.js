@@ -846,10 +846,51 @@ SHELL_SCREENRC`
     })
   }
 
-  getLogs (serviceName, managerName, cb) {
-    this.setEnv(managerName, (err, env) => {
-      if (err) throw err
-      exec(`docker service logs ${serviceName}`, {env: env}, cb)
+  /**
+   * 
+   * @param {string} serviceName Name of service of which to save logs
+   * @param {string} managerName Name of manager VM
+   * @param {number} stdioFd File descriptor of file to which save STDIO of logs
+   * @param {number} stderrFd File descriptor of file to which save STDERR of logs:w
+   */
+  saveLogs (serviceName, managerName, stdioFd, stderrFd) {
+    return new Promise((resolve, reject) => {
+      this.setEnv(managerName, (err, denv) => {
+        if (err) {
+          reject(err)
+        } else {
+          const env = {...process.env, ...denv}
+          const subprocess = spawn(`docker`, ['service', 'logs', serviceName], {env, stdio: [ 'ignore', stdioFd, stderrFd ]})
+          subprocess.on('error', (err) => {
+            reject(err)
+          })
+          subprocess.on('close', (code) => {
+            if (code) {
+              reject(code)
+            } else {
+              resolve()
+            }
+          })
+        }
+      })
+    })
+  }
+
+  getLogs (serviceName, managerName) {
+    return new Promise((resolve, reject) => {
+      this.setEnv(managerName, (err, env) => {
+        if (err) {
+          reject(err)
+        } else {
+          exec(`docker service logs ${serviceName}`, {env}, (err, stdout, stderr) => {
+            if (err) {
+              reject(err)
+            } else {
+              resolve({stdout, stderr})
+            }
+          })
+        }
+      })
     })
   }
 
