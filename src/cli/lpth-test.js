@@ -14,7 +14,6 @@ const { StreamerTester } = require('../streamertester')
 program
   .option('-s --simulteneous <n>', 'number of simulteneous streams to stream from each streamer')
   .option('-r --repeat <n>', 'number of times to repeat streaming')
-  .option('-p --profiles <n>', 'number of profiles broadcasters configured with')
   .option('-t --stop', 'stop running streams')
   .option('-a --stats', 'just show stats from streamers')
   .description('Test deployment by streaming video into it and calculating success rate')
@@ -43,15 +42,15 @@ function mapStreamersToBroadcasters(streamers, broadcasters) {
   return res
 }
 
-function printStreamersMap(services, streamers, broadcasters, m, versions) {
+function printStreamersMap(services, streamers, broadcasters, m, versions, broadcastersConfigs) {
   for (let si of m) {
-    console.log(`Streamer ${chalk.green(services[streamers[si[0]]].hostname)} will stream to ${chalk.green(services[broadcasters[si[0]]].hostname)} (version ${chalk.yellowBright(versions[si[1]])})`)
+    console.log(`Streamer ${chalk.green(services[streamers[si[0]]].hostname)} will stream to ${chalk.green(services[broadcasters[si[0]]].hostname)} (version ${chalk.yellowBright(versions[si[1]])}) transcoding ${chalk.yellowBright(broadcastersConfigs[si[1]].TranscodingOptions)}`)
   }
 }
 
 function printAllStats(streamers, allStats) {
   allStats.forEach((stats, i) => {
-    console.log(`\n============ stats for ${chalk.green(streamers[i].name)} (version ${chalk.yellowBright(streamers[i].version)}) `)
+    console.log(`\n============ stats for ${chalk.green(streamers[i].name)} (version ${chalk.yellowBright(streamers[i].version)})  transcoding ${chalk.yellowBright(streamers[i].transcodingOptions)}`)
     console.log(StreamerTester.FormatStatsForConsole(stats))
   })
   combinedStats = StreamerTester.CombineStats(allStats)
@@ -130,7 +129,6 @@ async function run() {
   // console.log('broadcasters services:', broadcasterServices)
   const simulteneous = program.simulteneous|0 || 1
   const repeat = program.repeat|0 || 1
-  const profiles = program.profiles
   // console.log('repeat:', repeat, 'sim', simulteneous, 'program', program)
   // process.exit(11)
   let managerIP = 'localhost'
@@ -140,13 +138,16 @@ async function run() {
   const api = new Api(parsedCompose, managerIP)
   const versions = await getVersions(api, broadcasterServices)
   const sm = mapStreamersToBroadcasters(streamersServices, broadcasterServices)
-  printStreamersMap(services, streamersServices, broadcasterServices, sm, versions)
+  const broadcastersConfigs = await api.getBroadcastConfig('broadcasters')
+  const broadcastersProfilesNums = broadcastersConfigs.map(cfg => cfg.TranscodingOptions.split(',').length)
+  printStreamersMap(services, streamersServices, broadcasterServices, sm, versions, broadcastersConfigs)
 
   const sPorts = await api.getPortsArray(['streamers'])
   // console.log(sPorts)
   const streamers = streamersServices.map((sn, i) => {
     // const host = parsedCompose.isLocal ? 'localhost' : services[sn].hostname
-    return new StreamerTester(sn, versions[sm.get(i)], managerIP, sPorts[i][constants.ports.STREAMER_PORT], profiles)
+    const cfg = {version: versions[sm.get(i)], transcodingOptions: broadcastersConfigs[sm.get(i)].TranscodingOptions}
+    return new StreamerTester(sn, cfg, managerIP, sPorts[i][constants.ports.STREAMER_PORT], broadcastersProfilesNums[sm.get(i)])
   })
 
   const allStats = await StreamerTester.StatsForMany(streamers)

@@ -26,10 +26,11 @@ function addObjects(objA, objB) {
 
 class StreamerTester {
 
-  constructor(name, version, host, port, profiles) {
+  constructor(name, cfg, host, port, profiles) {
     // console.log(`new StreamerTester(${host}, ${port}, ${profiles})`)
     this.name = name
-    this.version = version
+    this.version = cfg.version
+    this.transcodingOptions = cfg.transcodingOptions
     this.host = host
     this.port = port
     this.profiles = profiles || 2

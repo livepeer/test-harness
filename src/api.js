@@ -409,6 +409,22 @@ class Api {
     })
   }
 
+  async getBroadcastConfig (nodes) {
+    if (!nodes) {
+      return reject(new Error(`node is required`))
+    }
+
+    if (!Array.isArray(nodes)) {
+      nodes = [nodes]
+    }
+
+    const ports = await this._getPortsArray(nodes)
+    const configs = (await Promise.all(ports.map(port => {
+        return axios.get(`http://${this._baseUrl}:${port['7935']}/getBroadcastConfig`)
+    }))).map(cr => cr.data)
+    return configs
+  }
+
   setBroadcastConfig (nodes, maxPricePerSegment, transcodingOptions, cb) {
     let endpoint = `setBroadcastConfig`
     if (!nodes) {
@@ -459,9 +475,43 @@ class Api {
   }
 
   // tickerbroker
-  fundAndApproveSigners (nodes, depositAmountInWei, penaltyEscrowAmount, cb) {
+  fundDeposit (nodes, amount) {
     return new Promise((resolve, reject) => {
-      let endpoint = `fundAndApproveSigners`
+      let endpoint = `fundDeposit`
+      if (!nodes) {
+        const e = new Error(`nodes array is required`)
+        reject(e)
+        return
+      }
+
+      if (!Array.isArray(nodes)) {
+        nodes = [nodes]
+      }
+
+      let params = {
+        amount
+      }
+
+      this._getPortsArray(nodes, (err, ports) => {
+        if (err) throw err
+        eachLimit(ports, MAX_CONCURRENCY, (port, next) => {
+          this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, params, (err, res, body) => {
+            next(err, res)
+          })
+        }, (e, r) => {
+          if (e) {
+            reject(e)
+          } else {
+            resolve(r)
+          }
+        })
+      })
+    })
+  }
+
+  fundDepositAndReserve (nodes, depositAmount, reserveAmount, cb) {
+    return new Promise((resolve, reject) => {
+      let endpoint = `fundDepositAndReserve`
       if (!nodes) {
         const e = new Error(`nodes array is required`)
         reject(e)
@@ -476,8 +526,8 @@ class Api {
       }
 
       let params = {
-        depositAmount: depositAmountInWei,
-        penaltyEscrowAmount: penaltyEscrowAmount
+        depositAmount,
+        reserveAmount
       }
 
       this._getPortsArray(nodes, (err, ports) => {
