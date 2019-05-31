@@ -456,8 +456,13 @@ class Api {
 
   // tickerbroker
   fundAndApproveSigners (nodes, depositAmountInWei, penaltyEscrowAmount, cb) {
+    console.log('WARNING: fundAndApproveSigners has been changed to fundDepositAndReserve, please use fundDepositAndReserve')
+    this.fundDepositAndReserve(nodes, depositAmountInWei, penaltyEscrowAmount, cb)
+  }
+
+  fundDepositAndReserve (nodes, depositAmountInWei, reserveAmount, cb) {
     return new Promise((resolve, reject) => {
-      let endpoint = `fundAndApproveSigners`
+      let endpoint = `fundDepositAndReserve`
       if (!nodes) {
         const e = new Error(`nodes array is required`)
         reject(e)
@@ -473,7 +478,7 @@ class Api {
 
       let params = {
         depositAmount: depositAmountInWei,
-        penaltyEscrowAmount: penaltyEscrowAmount
+        reserveAmount: reserveAmount
       }
 
       this._getPortsArray(nodes, (err, ports) => {
