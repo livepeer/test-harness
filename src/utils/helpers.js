@@ -126,18 +126,6 @@ function wait(pauseTimeMs, suppressLogs) {
   })
 }
 
-function getServiceConstraints(workers, bs, os, ts) {
-    const broadcasters = getNames('broadcaster_', bs)
-    const orchestrators = getNames('orchestrator_', os)
-    const transcoders = getNames('transcoder_', ts)
-
-    return {
-      broadcaster: spread(broadcasters, workers, true),
-      orchestrator: spread(orchestrators, workers, true),
-      transcoder: spread(transcoders, workers, true),
-    }
-}
-
 function getDockerComposePath (configName) {
   return path.join(__dirname, '../../dist', configName, 'docker-compose.yml')
 }
@@ -169,17 +157,21 @@ function parseComposeAndGetAddresses (configName) {
     parsedCompose.zone = g.labels.zone
   }
   const usedWorkers = new Set()
+  const service2Machine = new Map()
   for (let sn of Object.keys(parsedCompose.services)) {
     if (sn === 'prometheus') {
       parsedCompose.hasMetrics = true
     }
     const cs = getConstrain(parsedCompose.services[sn])
+    // console.log('sn:', sn, cs)
     if (cs) {
       usedWorkers.add(cs)
+      service2Machine.set(sn, cs)
     }
   }
   parsedCompose.usedWorkers = Array.from(usedWorkers.values())
   parsedCompose.usedWorkers.sort()
+  parsedCompose.service2Machine = service2Machine
   return parsedCompose
 }
 
@@ -205,6 +197,6 @@ function getIds (configName, num) {
 }
 
 module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount,
-  getNames, spread, wait, getServiceConstraints, parseComposeAndGetAddresses,
+  getNames, spread, wait, parseComposeAndGetAddresses,
   getIds, getConstrain
 }
