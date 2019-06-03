@@ -73,17 +73,14 @@ a docker cluster of 2 hosts, with livepeer containers and  `geth with protocol` 
 ## Config Options
 ----
 
-- `local`: must be `true` for local test-harness runs.
+- `local`: must be `true` for local test-harness runs
 - `localBuild`: build the livepeer binary locally or use the binary in the gcp bucket.
-- `publicImage`: if `true`, use `livepeer/go-livepeer:edge` image from Docker Hub, which is being built from master branch of `go-livepeer` repository. Can be set to string, - in this case it should refer to any image publicly available on Docker Hub.
-- `metrics`: it will start Prometheus and Grafana if `true`.
 - `standardSetup`: request token, register orchestartors, etc...
-- `updateMachines`: if `true`, will run `apt upgrade` on newly created VMs. Not really needed for benchmarking, so it is now `false` by default.
-- `installNodeExporter`: if `true` installs Prometheus Node Explorer on newly created machines (allows to scrape system metrics like CPU, Memory load etc). `false` by default to save time.
-- `installGoogleMonitoring`: if `true` installs Google's montiring agent. `false` by default, not really needed for benchmarking.
-- `constrainResources`: flag to activate resource constraint within docker swarm.
+- `startMetricsServer`: it will start `livepeer-metrics` container if `true`
+- `constrainResources`: flag to activate resource constraint within docker swarm
 - `name`: name of the configuration or experiment, must be unique for each deployment.
-- `livepeerBinaryPath`: relative path to the livepeer binary, set it to `null` to use the binary in the gcp bucket.
+- `livepeerBinaryPath`: relative path to the livepeer binary, set it to `null` to use
+the binary in the gcp bucket.
 
 - `blockchain`:
   - `name`: network name, should be 'lpTestNet' for test networks,
@@ -92,13 +89,11 @@ a docker cluster of 2 hosts, with livepeer containers and  `geth with protocol` 
 
 - `machines`: an object used for remote deployments configurations like number of
 host machines, zones, machine types and so on.
+  - `num`: number of host machines including the manager instance,
 
   - `zone`: gcp zone defaults to 'us-east1-b' **OR** `zones`: an array of gcp zones for multi region support
 
-  - `orchestratorMachineType`: type of machine for Orchestrator , ex: 'n1-highcpu-8',
-  - `broadcasterMachineType`: type of machine for Broadcaster , ex: 'n1-highcpu-8',
-  - `transcoderMachineType`: type of machine for Transcoder , ex: 'n1-highcpu-8',
-  - `streamerMachineType`: type of machine for Streamer , ex: 'n1-standard-1',
+  - `machineType`: type of machine , ex: 'n1-highcpu-8',
   - `managerMachineType`: type of the instance used as manager,
 
 - `nodes`: the object that plans the O/T/B within a deployment.

@@ -31,44 +31,26 @@ class Swarm {
     this._machines = null
   }
 
-  createMachines (config, cb) {
-    this._updateMachines = config.updateMachines
-    this._installNodeExporter = config.installNodeExporter
-    this._installGoogleMonitoring = config.installGoogleMonitoring
-    const machinesCount = config.machines.num || 3
-    const name = config.name || 'testharness-' + shortid.generate()
-    const getMachineType = machineName => {
-      const cm = config.machines
-      if (cm.machine2serviceType.has(machineName)) {
-        switch (cm.machine2serviceType.get(machineName)) {
-        case 'streamer':
-          return cm.streamerMachineType
-        case 'broadcaster':
-          return cm.broadcasterMachineType
-        case 'orchestrator':
-          return cm.orchestratorMachineType
-        case 'transcoder':
-          return cm.transcoderMachineType
-        }
-      } else {
-        return cm.managerMachineType
-      }
-    }
+  createMachines (opts, cb) {
+    const machinesCount = opts.machines.num || 3
+    const name = opts.name || 'testharness-' + shortid.generate()
+    const machine2type = this.mapMachinesTypes(opts)
+    console.log(machine2type)
 
-    if (Array.isArray(config.machines.zones)) {
-      let numberOfZones = config.machines.zones.length
+    if (Array.isArray(opts.machines.zones)) {
+      let numberOfZones = opts.machines.zones.length
       let machinesPerGroup = Math.floor(machinesCount / numberOfZones)
       let groups = {}
       for (let i = 0, j = 0; i < machinesCount - 1; i++) {
-        if (!groups[config.machines.zones[j]]) {
-          groups[config.machines.zones[j]] = []
+        if (!groups[opts.machines.zones[j]]) {
+          groups[opts.machines.zones[j]] = []
         }
 
-        groups[config.machines.zones[j]].push({
+        groups[opts.machines.zones[j]].push({
           name: `${name}-worker-${i + 1}`,
-          zone: config.machines.zones[j],
-          machineType: getMachineType(`${name}-worker-${i + 1}`),
-          tags: config.machines.tags || `${name}-cluster`
+          zone: opts.machines.zones[j],
+          machineType: machine2type.get(`${name}-worker-${i + 1}`) || opts.machines.machineType,
+          tags: opts.machines.tags || `${name}-cluster`
         })
 
         j = ++j % numberOfZones
@@ -78,9 +60,9 @@ class Swarm {
         (done) => {
           this.createMachine({
             name: `${name}-manager`,
-            zone: config.machines.zones[0],
-            machineType: config.machines.managerMachineType,
-            tags: config.machines.tags || `${name}-cluster`
+            zone: opts.machines.zones[0],
+            machineType: opts.machines.managerMachineType,
+            tags: opts.machines.tags || `${name}-cluster`
           }, done)
         },
         (done) => {
@@ -92,16 +74,16 @@ class Swarm {
         }
       ], (err) => {
         if (err) return cb(err)
-        this.setupGCEMonitoring(config).then(() => cb(null), cb)
+        this.setupGCEMonitoring(opts).then(() => cb(null), cb)
       })
     } else {
       parallel([
         (done) => {
           this.createMachine({
             name: `${name}-manager`,
-            zone: config.machines.zone,
-            machineType: config.machines.managerMachineType,
-            tags: config.machines.tags || `${name}-cluster`
+            zone: opts.machines.zone,
+            machineType: opts.machines.managerMachineType,
+            tags: opts.machines.tags || `${name}-cluster`
           }, done)
         },
         (done) => {
@@ -110,15 +92,15 @@ class Swarm {
             const  mName = `${name}-worker-${i + 1}`
             this.createMachine({
               name: mName,
-              zone: config.machines.zone,
-              machineType: getMachineType(mName),
-              tags: config.machines.tags || `${name}-cluster`
+              zone: opts.machines.zone,
+              machineType: machine2type.get(mName) || opts.machines.machineType,
+              tags: opts.machines.tags || `${name}-cluster`
             }, next)
           }, done)
         }
       ], (err) => {
         if (err) return cb(err)
-        this.setupGCEMonitoring(config).then(() => cb(null), cb)
+        this.setupGCEMonitoring(opts).then(() => cb(null), cb)
       })
     }
   }
@@ -132,7 +114,7 @@ class Swarm {
     const formattedName = gc.projectPath(PROJECT_ID);
     // console.log('Formatted name:', formattedName)
     const [groups] = await gc.listGroups({name: formattedName})
-    // console.log('====== groups:', groups)
+    console.log('====== groups:', groups)
     // const group = await gc.getGroup({name: formattedName})
     // console.log('====== group:', group)
     if (!groups.find(g => g.displayName === config.name)) {
@@ -144,8 +126,7 @@ class Swarm {
         },
       }
       const [resp] = await gc.createGroup(cgreq)
-      // console.log(`Group ${config.name} created:`, resp)
-      console.log(`Group ${config.name} created:`)
+      console.log(`Group ${config.name} created:`, resp)
     } else {
       console.log(`Group ${config.name} already exists.`)
     }
@@ -170,7 +151,7 @@ class Swarm {
       console.log(`ip of ${sn} is ${ip} cli port: ${po && po['7935']}, isGeth: ${isGeth}`)
       const checkName = `${config.name}-${sn} status`
       if (checks.find(c => c.displayName === checkName)) {
-        // console.log(`Uptime check '${checkName} already exists.`)
+        console.log(`Uptime check '${checkName} already exists.`)
         continue
       }
       const port = isGeth ? 8545 : +po['7935']
@@ -197,7 +178,7 @@ class Swarm {
           },
           contentMatchers,
       }})
-      // console.log(`Uptime check for service ${sn} created:`, upResp)
+      console.log(`Uptime check for service ${sn} created:`, upResp)
     }
     let nc = null
     if (config.email) {
@@ -286,7 +267,7 @@ class Swarm {
           name: formattedName,
           alertPolicy
         })
-        // console.log('Created alert policy', JSON.stringify(ap, null, 2))
+        console.log('Created alert policy', JSON.stringify(ap, null, 2))
       }
     }
     // await utils.remotelyExec(
@@ -301,7 +282,7 @@ class Swarm {
     const formattedName = gc.projectPath(PROJECT_ID);
     // console.log('Formatted name:', formattedName)
     const [groups] = await gc.listGroups({name: formattedName})
-    // console.log('====== groups:', groups)
+    console.log('====== groups:', groups)
     for (let group of groups) {
       if (group.displayName === config.name) {
         await gc.deleteGroup({name: group.name})
@@ -347,7 +328,7 @@ class Swarm {
     const formattedName = gc.projectPath(PROJECT_ID)
     // console.log('Formatted name:', formattedName)
     const [groups] = await gc.listGroups({name: formattedName})
-    // console.log('====== groups:', groups)
+    console.log('====== groups:', groups)
     for (let group of groups) {
       if (reserved.indexOf(group.displayName) === -1) {
         await gc.deleteGroup({name: group.name})
@@ -438,30 +419,24 @@ class Swarm {
   }
 
   async setupMachine(machine, zone) {
-    if (this._installGoogleMonitoring) {
-      await utils.remotelyExec(machine, zone,
-        `sudo curl -sSO https://dl.google.com/cloudagents/install-monitoring-agent.sh && sudo bash install-monitoring-agent.sh`
-      )
-    }
-    if (this._updateMachines) {
-      await utils.remotelyExec(machine, zone, `sudo apt-get update && sudo apt-get upgrade -y`)
-      console.log(`=============== apt updated`)
-    }
-    if (this._installNodeExporter) {
-      await utils.remotelyExec(machine, zone,
-        `sudo apt-get install -y python3-pip && sudo apt autoremove -y && \
-        sudo pip3 install ansible && \
-        ansible-galaxy install cloudalchemy.node-exporter && \
-        cat <<-SHELL_SCREENRC > $HOME/nodepb.yml
-  - hosts: 127.0.0.1
-    connection: local
-    become: yes
-    roles:
-      - cloudalchemy.node-exporter
-  SHELL_SCREENRC`
-      )
-      await utils.remotelyExec(machine, zone, 'sudo ansible-playbook  nodepb.yml')
-    }
+    await utils.remotelyExec(machine, zone,
+      `sudo curl -sSO https://dl.google.com/cloudagents/install-monitoring-agent.sh && sudo bash install-monitoring-agent.sh`
+    )
+    await utils.remotelyExec(machine, zone, `sudo apt-get update && sudo apt-get upgrade -y`)
+    console.log(`=============== apt updated`)
+    await utils.remotelyExec(machine, zone,
+       `sudo apt-get install -y python3-pip && sudo apt autoremove -y && \
+       sudo pip3 install ansible && \
+       ansible-galaxy install cloudalchemy.node-exporter && \
+       cat <<-SHELL_SCREENRC > $HOME/nodepb.yml
+- hosts: 127.0.0.1
+  connection: local
+  become: yes
+  roles:
+    - cloudalchemy.node-exporter
+SHELL_SCREENRC`
+    )
+    await utils.remotelyExec(machine, zone, 'sudo ansible-playbook  nodepb.yml')
   }
 
   async setupMachine2(machine, zone) {
@@ -505,7 +480,6 @@ SHELL_SCREENRC`
   }
 
   getPubIP (machineName, cb) {
-    // console.log(`getPubIP(${machineName})`)
     return new Promise((resolve, reject) => {
       exec(`docker-machine ip ${machineName}`, (err, ip) => {
         if (err) {
@@ -616,6 +590,29 @@ SHELL_SCREENRC`
     }
     await this.createSwarmCreateMachines(config)
     return false
+  }
+
+  mapMachinesTypes (config) {
+    const m = new Map()
+    const cm = config.machines
+    if (!cm.orchestartorsMachines || !cm.broadcastersMachines) {
+      for (let i = 0; i < cm.num-1; i++) {
+        m.set(`${config.name}-worker-${i+1}`, cm.machineType)
+      }
+    } else {
+      if (cm.orchestartorsMachines + cm.broadcastersMachines + 1 > cm.num) {
+        console.log(chalk.red('Error in config - total number of machines should be greater than number of orchestrator\'s and broadcaster\'s machines.'))
+        process.exit(11)
+      }
+      const bcs = cm.orchestartorsMachines
+      const sts = bcs + cm.broadcastersMachines
+      for (let i = 0; i < cm.num-1; i++) {
+        const mt = i >= sts ? cm.streamerMachineType :
+          i >= bcs ? cm.broadcasterMachineType : cm.machineType
+        m.set(`${config.name}-worker-${i+1}`, mt)
+      }
+    }
+    return m
   }
 
   createSwarmCreateMachines (config) {
@@ -846,51 +843,10 @@ SHELL_SCREENRC`
     })
   }
 
-  /**
-   * 
-   * @param {string} serviceName Name of service of which to save logs
-   * @param {string} managerName Name of manager VM
-   * @param {number} stdioFd File descriptor of file to which save STDIO of logs
-   * @param {number} stderrFd File descriptor of file to which save STDERR of logs:w
-   */
-  saveLogs (serviceName, managerName, stdioFd, stderrFd) {
-    return new Promise((resolve, reject) => {
-      this.setEnv(managerName, (err, denv) => {
-        if (err) {
-          reject(err)
-        } else {
-          const env = {...process.env, ...denv}
-          const subprocess = spawn(`docker`, ['service', 'logs', serviceName], {env, stdio: [ 'ignore', stdioFd, stderrFd ]})
-          subprocess.on('error', (err) => {
-            reject(err)
-          })
-          subprocess.on('close', (code) => {
-            if (code) {
-              reject(code)
-            } else {
-              resolve()
-            }
-          })
-        }
-      })
-    })
-  }
-
-  getLogs (serviceName, managerName) {
-    return new Promise((resolve, reject) => {
-      this.setEnv(managerName, (err, env) => {
-        if (err) {
-          reject(err)
-        } else {
-          exec(`docker service logs ${serviceName}`, {env}, (err, stdout, stderr) => {
-            if (err) {
-              reject(err)
-            } else {
-              resolve({stdout, stderr})
-            }
-          })
-        }
-      })
+  getLogs (serviceName, managerName, cb) {
+    this.setEnv(managerName, (err, env) => {
+      if (err) throw err
+      exec(`docker service logs ${serviceName}`, {env: env}, cb)
     })
   }
 
@@ -1113,14 +1069,6 @@ SHELL_SCREENRC`
         })
       }
     })
-  }
-
-  static async getManagerIP(configName) {
-    const swarm = new Swarm(configName)
-    // const ri = await swarm.getRunningMachinesList(configName)
-    // console.log(`running machines: "${ri}"`)
-    const ip = await swarm.getPubIP(`${configName}-manager`)
-    return ip
   }
 
   static async getPublicIPOfService (parsedCompose, serviceName) {

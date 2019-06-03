@@ -9,7 +9,6 @@ async function prettyPrintDeploymentInfo(parsedCompose) {
   const oPorts = await api.getPortsArray(['orchestrators'])
   const bPorts = await api.getPortsArray(['broadcasters'])
   const tPorts = await api.getPortsArray(['transcoders'])
-  const sPorts = await api.getPortsArray(['streamers'])
   const c = chalk.cyan
   console.log('==================================================================================')
   for (let po of oPorts) {
@@ -33,13 +32,6 @@ async function prettyPrintDeploymentInfo(parsedCompose) {
     console.log(`curl ` + c(`http://${ip}:${po['8935']}/stream/customManifestID.m3u8`))
     console.log(`RTMP ingest point: ` + c(`rtmp://${ip}:${po['1935']}/stream/customManifestID`))
   }
-
-  for (let po of sPorts) {
-    const ip = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, po.name)
-    console.log(`===== ${chalk.green(po.name)}:`)
-    console.log(`curl ` + c(`http://${ip}:${po['7934']}/stats`))
-  }
-
   if (parsedCompose.hasMetrics) {
     const ip = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, 'prometheus')
     if (ip) {

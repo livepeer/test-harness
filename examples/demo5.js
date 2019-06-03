@@ -23,30 +23,40 @@ th.run({
     controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982',
   },
   machines: {
+    // total VM instances number
+    num: 4,
+    orchestartorsMachines: 2,
+    broadcastersMachines: 1,
+    // zone: 'europe-west3-c',
     zone: 'us-east1-b',
-    transcoderMachineType: 'n1-standard-2',
+    // machineType: 'n1-highcpu-2',
+    machineType: 'n1-highcpu-4',
+    // machineType: 'n1-highmem-4',
+    // managerMachineType: 'n1-standard-2'
+    managerMachineType: 'n1-standard-1',
+    // managerMachineType: 'n1-highmem-2'
+    // managerMachineType: 'n1-highcpu-2',
+    // machineType: 'n1-standard-2'
     broadcasterMachineType: 'n1-standard-1',
-    orchestratorMachineType: 'n1-highcpu-4',
-    streamerMachineType: 'n1-standard-1',
-
-    managerMachineType: 'n1-highmem-2'
+    // streamerMachineType: 'n1-standard-2'
+    streamerMachineType: 'n1-highcpu-4',
   },
   nodes: {
-    s_a: {
-      instances: 1,
-      type: 'streamer',
-    },
     transcoders: {
       type: 'transcoder',
       // how many containers to run as transcoders.
       instances: 0,
-      flags: '-v 5 '
+      // these are the livepeer binary flags, add them as you wish.
+      // the test-harness overrides flags that has to do with directories or
+      // ip/port bindings, these are automated.
+      flags: '-v 5 -orchSecret=deepsecret'
     },
     orchestrators: {
       instances: 2,
       type: 'orchestrator',
       // TODO these are not complete, try adding the right orchestrator flags :)
-      flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 -maxSessions 4 -transcoder`
+      flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 \
+      -currentManifest=true  -orchSecret=deepsecret -maxSessions 4 -transcoder`
     },
     broadcasters: {
       type: 'broadcaster',

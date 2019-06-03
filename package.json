@@ -20,7 +20,6 @@
     "async": "^2.6.2",
     "axios": "^0.18.0",
     "chalk": "^2.4.2",
-    "cli-progress": "^2.1.1",
     "commander": "^2.19.0",
     "composefile": "darkdarkdragon/composefile#v0.3.0",
     "debug": "^4.1.1",

@@ -82,7 +82,7 @@ th.run({
     },
     (next) => {
       console.log('Depositing....')
-      api.fundDepositAndReserve(['all'], '1', '2', next)
+      api.fundAndApproveSigners(['all'], '5000000000', '500000000000000000', next)
     },
     (next) => { api.initializeRound(['orchestrator_0'], next) },
     (next) => {

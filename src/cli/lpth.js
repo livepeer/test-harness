@@ -20,8 +20,6 @@ program
   .command('info <config>', 'prints list of endpoints of deployed services')
   .command('down [name]', 'runs `docker-compose down` or removes VMs in cloud')
   .command('update [name]', 'runs `docker-compose down` and `docker-compose up` for local deployments\nor `docker stack deploy` for cloud deployment')
-  .command('test [name]', 'Test deployment by streaming video into it and calculating success rate')
-  .command('logs [name]', 'Save logs for all services to files')
 
 program
   .command('port [name] [lpnode]')

@@ -11,8 +11,8 @@ const composefile = require('composefile')
 const { timesLimit, each, eachLimit } = require('async')
 const log = require('debug')('livepeer:test-harness:network')
 const Pool = require('threads').Pool
-const { getNames, spread } = require('./utils/helpers')
-const { PROJECT_ID, NODE_TYPES } = require('./constants')
+const { getNames, spread, getServiceConstraints } = require('./utils/helpers')
+const { PROJECT_ID } = require('./constants')
 const YAML = require('yaml')
 const mConfigs = require('./configs')
 
@@ -35,40 +35,6 @@ const thread = pool.run(function(input, done) {
   ethers: 'ethers',
 })
 
-function countNeededMachines (config, type = undefined) {
-  let machines = 0
-  for (let groupName of Object.keys(config.nodes)) {
-    const node = config.nodes[groupName]
-    if (node.instances) {
-      if (type && type !== node.type) {
-        continue
-      }
-      machines += node.instances
-    }
-  }
-  // if counting all machinges, add one for manager
-  return type ? machines : machines + 1
-}
-
-function joinMaps (ma, mb) {
-  const c = new Map()
-  for (let t of ma) {
-    c.set(t[0], t[1])
-  }
-  for (let t of mb) {
-    c.set(t[0], t[1])
-  }
-  return c
-}
-
-function reverseMap (ma) {
-  const c = new Map()
-  for (let t of ma) {
-    c.set(t[1], t[0])
-  }
-  return c
-}
-
 class NetworkCreator extends EventEmitter {
   constructor (config, isToml) {
     super()
@@ -86,35 +52,57 @@ class NetworkCreator extends EventEmitter {
     this.nodes = {}
     this.hasGeth = false
     this.hasMetrics = false
-    if (!config.local) {
-      const neededMachines = countNeededMachines(config)
-      // setting config.machines.num property, because it is used by a lot of code downpath
-      config.machines.num = neededMachines
-      console.log(`For this config ${chalk.green(neededMachines)} machines should be created`)
-      const workers = getNames(`${config.name}-worker-`, neededMachines-1, 1)
-      const [_serviceConstraints, machine2serviceType] = this.getServiceConstraints(workers, config)
-      this._serviceConstraints = _serviceConstraints
+    if (config.local) {
+
+    } else {
+      const workers = getNames(`${config.name}-worker-`, config.machines.num-1, 1)
+      const n = config.nodes
+      this._serviceConstraints =
+        config.machines.orchestartorsMachines ?
+          this.getServiceConstraintsNew(config) :
+          getServiceConstraints(workers, n.broadcasters.instances, n.orchestrators.instances, n.transcoders.instances)
 
       console.log('_serviceConstraints: ', this._serviceConstraints)
-      console.log('machine2serviceType: ', machine2serviceType)
-      config.machines.machine2serviceType = machine2serviceType
-      // process.exit(11)
     }
   }
 
-  getServiceConstraints (workers, config) {
-    let j  = 0
-    let machine2serviceType = new Map()
-    const c = Object.keys(config.nodes).reduce((ac, groupName, i) => {
-      const n = config.nodes[groupName]
-      const needed = n.instances
-      const services = getNames(groupName + '_', needed)
-      ac = joinMaps(ac, spread(services, workers.slice(j, j+needed), true))
-      machine2serviceType = joinMaps(machine2serviceType, spread(workers.slice(j, j+needed), new Array(needed).fill(n.type), true))
-      j += needed
-      return ac
-    }, new Map())
-    return [c, machine2serviceType]
+  getServiceConstraintsNew (config) {
+    const workers = getNames(`${config.name}-worker-`, config.machines.num-1, 1)
+    const n = config.nodes
+    const bcs = config.machines.orchestartorsMachines
+    const sts = bcs + config.machines.broadcastersMachines
+    let groups = Object.keys(n)
+    let broadcasters = []
+    let orchestrators = []
+    let transcoders = []
+    groups.forEach((gname, i) => {
+      if (n[gname] && n[gname].type) {
+        switch (n[gname].type) {
+          case 'transcoder':
+            transcoders = transcoders.concat(getNames(`${gname}_`, n[gname].instances))
+            break
+          case 'broadcaster':
+            broadcasters = broadcasters.concat(getNames(`${gname}_`, n[gname].instances))
+            break
+          case 'orchestrator':
+            orchestrators = orchestrators.concat(getNames(`${gname}_`, n[gname].instances))
+            break
+          default:
+            throw new Error(`type: ${n[gname].type} isn't supported by the test-harness`)
+        }
+      } else {
+        broadcasters = getNames('broadcaster_', n.broadcasters.instances)
+        orchestrators = getNames('orchestrator_', n.orchestrators.instances)
+        transcoders = getNames('transcoder_', n.transcoders.instances)
+      }
+    })
+    const res = {
+      orchestrator: spread(orchestrators, workers.slice(0, bcs), true),
+      transcoder: spread(transcoders, workers.slice(0, bcs), true),
+      broadcaster: spread(broadcasters, workers.slice(bcs, sts), true)
+    }
+    console.log('res: ', res)
+    return res
   }
 
   isPortUsed (port) {
@@ -387,50 +375,6 @@ class NetworkCreator extends EventEmitter {
     return deps
   }
 
-  _generateStreamerService (gname, type, i, volumes, cb) {
-    let serviceName = this.config.isNewConfig ? `${gname}_${i}` : `${type}_${i}`
-    console.log(`generate service serviceName: ${serviceName}`)
-    const generated = {
-      image: 'livepeer/streamtester:latest',
-      ports: [
-        `${getRandomPort(7934)}:7934`,
-      ],
-      command: '/root/streamtester -server -serverAddr 0.0.0.0:7934 ',
-      hostname: serviceName,
-      networks: {
-        testnet: {
-          aliases: [serviceName]
-        }
-      },
-      environment: {
-        type: 'streamer'
-      },
-      restart: 'unless-stopped',
-    }
-    if (!this.config.local) {
-      if (!this.config.noGCPLogging) {
-        generated.logging = {
-          driver: 'gcplogs',
-          options: {
-            'gcp-project': PROJECT_ID,
-            'gcp-log-cmd': 'true',
-            'labels': `type=${type},node=${type}_${i},lpgroup=${gname}`
-          }
-        }
-      }
-      generated.deploy = {
-        replicas: 1,
-        placement: {
-          constraints: [
-            'node.role == worker',
-            'node.hostname == ' + this._serviceConstraints.get(serviceName)
-          ]
-        }
-      }
-    }
-    cb(null, generated)
-  }
-
   _generateService (gname, type, i, volumes, cb) {
     let serviceName = this.config.isNewConfig ? `${gname}_${i}` : `${type}_${i}`
     console.log(`generate service serviceName: ${serviceName}`)
@@ -467,7 +411,9 @@ class NetworkCreator extends EventEmitter {
       generated.secrets = [nodes.googleStorage.secretName]
     }
 
-    if (!this.config.local) {
+    if (this.config.local) {
+
+    } else {
       if (!this.config.noGCPLogging) {
         generated.logging = {
           driver: 'gcplogs',
@@ -484,7 +430,7 @@ class NetworkCreator extends EventEmitter {
           placement: {
             constraints: [
               'node.role == worker',
-              'node.hostname == ' + this._serviceConstraints.get(serviceName)
+              'node.hostname == ' + this._serviceConstraints[type].get(serviceName)
             ]
           }
         }
@@ -560,11 +506,7 @@ class NetworkCreator extends EventEmitter {
         (i, next) => {
           // generate separate services with the forwarded ports.
           // append it to output as output.<node_generate_id> = props
-          if (type === 'streamer') {
-            this._generateStreamerService(group, type, i, volumes, next)
-          } else {
-            this._generateService(group, type, i, volumes, next)
-          }
+          this._generateService(group, type, i, volumes, next)
         },
         (err, nodes) => {
           if (err) throw err
