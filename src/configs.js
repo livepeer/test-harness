@@ -137,7 +137,9 @@ const loki = (isLocal) => {
       'lifecycler': {
         'address': '127.0.0.1',
         'ring': {
-          'store': 'inmemory',
+          kvstore: {
+            store: 'inmemory',
+          },
           'replication_factor': 1
         }
       },
@@ -146,7 +148,7 @@ const loki = (isLocal) => {
     'schema_config': {
       'configs': [
         {
-          'from': 0,
+          'from': '2019-06-03',
           'store': 'boltdb',
           'object_store': 'filesystem',
           'schema': 'v9',

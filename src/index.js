@@ -70,6 +70,7 @@ class TestHarness {
   }
 
 
+  /*
   onReady (config, cb) {
     if (config.local) {
 
@@ -94,6 +95,7 @@ class TestHarness {
       })
     }
   }
+  */
 
   run (config, cb) {
     // 1. [ ] validate the configurations
@@ -639,9 +641,15 @@ class TestHarness {
       `)
     */
     console.log('docker image pushed')
+    try {
     await this.swarm.deployComposeFile(this.getDockerComposePath(config), 'livepeer', managerName)
     const results = await this.fundAccounts(config)
     return results
+    } catch(e) {
+      console.log('Error finishing setup')
+      console.error(e)
+      process.exit(11)
+    }
   }
 
   async saveLocalDockerImage() {
