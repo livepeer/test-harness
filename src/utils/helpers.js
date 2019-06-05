@@ -32,17 +32,25 @@ function remotelyExec (machineName, zone, command, cb) {
     ]
     args.push(command)
 
+    console.log('gcloud ' + args.join(' '))
     console.log(`Running remote command '${command}'`)
     let builder = spawn('gcloud', args)
     let output
 
     builder.stdout.on('data', (data) => {
-      console.log(`stdout: ${data}`)
-      output = data
+      const trimmed = String.prototype.trim(data)
+      if (trimmed) {
+        console.log(`stdout: ${trimmed}`)
+      }
+      output += data
     })
 
     builder.stderr.on('data', (data) => {
-      console.log(`stderr: ${data}`)
+      if (data == '.') return
+      const trimmed = String.prototype.trim(data)
+      if (trimmed) {
+        console.log(`stderr: ${trimmed}`)
+      }
     })
 
     builder.on('close', (code) => {
@@ -81,15 +89,22 @@ function fundAccount (address, valueInEth, containerId, cb) {
 function fundRemoteAccount (config, address, valueInEth, serviceName, cb) {
   // NOTE: this requires the geth container to be running and account[0] to be unlocked.
   console.log(`funding ${address} with ${valueInEth} ETH`)
+  // without running this first, `gcloud` gives me strange error on some deployments
+  remotelyExec(
+    `${config.name}-manager`, config.machines.zone,
+    `cat /etc/hostname`,
+  (err, stdout, stderr) => {
+
   remotelyExec(
     `${config.name}-manager`, config.machines.zone,
     `sudo docker exec livepeer_geth.1.$(sudo docker service ps -q livepeer_geth) geth --exec 'eth.sendTransaction({from: eth.accounts[0], to: "${address}", value: web3.toHex(web3.toWei("${valueInEth}", "ether"))})' attach`,
   (err, stdout, stderr) => {
-    if (err) throw err
+    if (err) return cb(err)
     console.log('stdout: ', stdout)
     console.log('stderr: ', stderr)
     cb(null, stdout)
-  })
+  }).catch(e => console.log(e))
+})
 }
 
 function getNames (prefix, num, shift = 0) {
