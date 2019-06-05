@@ -390,12 +390,14 @@ class NetworkCreator extends EventEmitter {
   _generateStreamerService (gname, type, i, volumes, cb) {
     let serviceName = this.config.isNewConfig ? `${gname}_${i}` : `${type}_${i}`
     console.log(`generate service serviceName: ${serviceName}`)
+    const nodes = this.config.nodes[gname]
+    const flags = nodes.flags || ''
     const generated = {
       image: 'livepeer/streamtester:latest',
       ports: [
         `${getRandomPort(7934)}:7934`,
       ],
-      command: '/root/streamtester -server -serverAddr 0.0.0.0:7934 ',
+      command: '/root/streamtester -server -serverAddr 0.0.0.0:7934 ' + flags,
       hostname: serviceName,
       networks: {
         testnet: {
@@ -1169,7 +1171,7 @@ class NetworkCreator extends EventEmitter {
         value: web3.toHex(web3.toWei(${valueInEth}, "ether"))
       })' attach`,
     (err, stdout, stderr) => {
-      if (err) throw err
+      if (err) return cb(err)
       console.log('stdout: ', stdout)
       console.log('stderr: ', stderr)
       cb(null, stdout)

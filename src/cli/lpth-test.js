@@ -44,7 +44,7 @@ function mapStreamersToBroadcasters(streamers, broadcasters) {
 
 function printStreamersMap(services, streamers, broadcasters, m, versions, broadcastersConfigs) {
   for (let si of m) {
-    console.log(`Streamer ${chalk.green(services[streamers[si[0]]].hostname)} will stream to ${chalk.green(services[broadcasters[si[0]]].hostname)} (version ${chalk.yellowBright(versions[si[1]])}) transcoding ${chalk.yellowBright(broadcastersConfigs[si[1]].TranscodingOptions)}`)
+    console.log(`Streamer ${chalk.green(services[streamers[si[0]]].hostname)} will stream to ${chalk.green(services[broadcasters[si[1]]].hostname)} (version ${chalk.yellowBright(versions[si[1]])}) transcoding ${chalk.yellowBright(broadcastersConfigs[si[1]].TranscodingOptions)}`)
   }
 }
 

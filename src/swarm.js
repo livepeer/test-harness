@@ -458,7 +458,7 @@ class Swarm {
     become: yes
     roles:
       - cloudalchemy.node-exporter
-  SHELL_SCREENRC`
+SHELL_SCREENRC`
       )
       await utils.remotelyExec(machine, zone, 'sudo ansible-playbook  nodepb.yml')
     }
