@@ -54,7 +54,7 @@ class TestHarness {
   }
 
   AlreadyExists (name, cb) {
-    exec(`docker-machine ls -q --filter "name=${name}-([a-z]+)"`, (err, output) => {
+    exec(`docker-machine ls -q --filter "name=^${name}-([a-z]+)"`, (err, output) => {
       if (err) throw err
       if (output && output.length > 0) {
         console.log(`${name} machines already exists`)
