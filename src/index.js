@@ -10,7 +10,7 @@ const NetworkCreator = require('./networkcreator')
 const Swarm = require('./swarm')
 const Api = require('./api')
 const utils = require('./utils/helpers')
-const { wait, getNames, parseComposeAndGetAddresses } = require('./utils/helpers')
+const { wait, getNames, parseComposeAndGetAddresses, needToCreateGeth } = require('./utils/helpers')
 const { prettyPrintDeploymentInfo } = require('./helpers')
 
 const DIST_DIR = '../dist'
@@ -118,8 +118,10 @@ class TestHarness {
       process.exit(3)
     }
     config.name = config.name || 'testharness'
-    // config.isNewConfig = !!(config.machines||{}).orchestartorsMachines
-    config.isNewConfig = true
+    config.hasGeth = needToCreateGeth(config)
+    if (!config.hasGeth) {
+      config.standardSetup = false
+    }
     this.swarm = new Swarm(config.name)
 
     this._config = config
@@ -210,19 +212,24 @@ class TestHarness {
     // profit.
     await this.networkCreator.loadBinaries(`../containers/lpnode/binaries`)
     await this.networkCreator.buildLpImage()
-    let logs = await dockercompose.upOne(`geth`, {
-      cwd: path.resolve(__dirname, `${DIST_DIR}/${config.name}`),
-      log: true
-    })
-    console.warn('docker-compose warning: ', logs.err)
-    console.log('geth is up...', logs.out)
-    await wait(5000)
+    let logs
+    if (config.hasGeth) {
+      logs = await dockercompose.upOne(`geth`, {
+        cwd: path.resolve(__dirname, `${DIST_DIR}/${config.name}`),
+        log: true
+      })
+      console.warn('docker-compose warning: ', logs.err)
+      console.log('geth is up...', logs.out)
+      await wait(5000)
+    }
     const parsedCompose = parseComposeAndGetAddresses(config.name)
 
-    await Promise.all(parsedCompose.addresses.map(address => {
-      return utils.fundAccount(address, '1', `${config.name}_geth_1`)
-    }))
-    console.log('funding secured!!')
+    if (parsedCompose.hasGeth) {
+      await Promise.all(parsedCompose.addresses.map(address => {
+        return utils.fundAccount(address, '1', `${config.name}_geth_1`)
+      }))
+      console.log('funding secured!!')
+    }
     logs = await dockercompose.upAll({
       cwd: path.resolve(__dirname, `${DIST_DIR}/${config.name}`),
       log: true
@@ -234,7 +241,7 @@ class TestHarness {
     console.log('all lpnodes are up: ', logs.out)
     // console.log('waiting 10s')
     this.api = new Api(parsedCompose)
-    await wait(10000)
+    await wait(config.hasGeth ? 10000 : 2000)
     const experiment = {
       parsedCompose,
       baseUrl: '',

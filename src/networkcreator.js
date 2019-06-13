@@ -11,7 +11,7 @@ const composefile = require('composefile')
 const { timesLimit, each, eachLimit } = require('async')
 const log = require('debug')('livepeer:test-harness:network')
 const Pool = require('threads').Pool
-const { getNames, spread } = require('./utils/helpers')
+const { getNames, spread, needToCreateGeth } = require('./utils/helpers')
 const { PROJECT_ID, NODE_TYPES } = require('./constants')
 const YAML = require('yaml')
 const mConfigs = require('./configs')
@@ -388,7 +388,7 @@ class NetworkCreator extends EventEmitter {
   }
 
   _generateStreamerService (gname, type, i, volumes, cb) {
-    let serviceName = this.config.isNewConfig ? `${gname}_${i}` : `${type}_${i}`
+    let serviceName = this._getHostnameForService(gname, i)
     console.log(`generate service serviceName: ${serviceName}`)
     const nodes = this.config.nodes[gname]
     const flags = nodes.flags || ''
@@ -433,10 +433,27 @@ class NetworkCreator extends EventEmitter {
     cb(null, generated)
   }
 
+  _getHostnameForService(gname, i) {
+    return `${gname}_${i}`
+  }
+
+  _getHostsByType(type) {
+    let hosts = []
+    for (let gname of Object.keys(this.config.nodes)) {
+      let g = this.config.nodes[gname]
+      if (g.type === type) {
+        for (let i = 0; i < g.instances; i++) {
+          hosts.push(this._getHostnameForService(gname, i))
+        }
+      }
+    }
+    return hosts
+  }
+  
   _generateService (gname, type, i, volumes, cb) {
-    let serviceName = this.config.isNewConfig ? `${gname}_${i}` : `${type}_${i}`
+    let serviceName = this._getHostnameForService(gname, i)
     console.log(`generate service serviceName: ${serviceName}`)
-    const nodes = this.config.nodes[`${gname}`]
+    const nodes = this.config.nodes[gname]
     const vname = 'v_' + serviceName
     let image = this.config.local ? 'lpnode:latest' : 'localhost:5000/lpnode:latest'
     if (this.config.publicImage) {
@@ -527,8 +544,6 @@ class NetworkCreator extends EventEmitter {
     const volumes = {}
     const configs = {}
 
-    // if (this.config.blockchain && this.config.blockchain.controllerAddress === '') {
-    // }
     output.geth = this.generateGethService(volumes)
     if (!output.geth) {
       delete output.geth
@@ -572,11 +587,7 @@ class NetworkCreator extends EventEmitter {
           if (err) throw err
           // console.log(`finished ${type}, ${JSON.stringify(nodes)}`)
           nodes.forEach((node, i) => {
-            if (this.config.isNewConfig) {
-              output[`${group}_${i}`] = node
-            } else {
-              output[node.hostname] = node
-            }
+            output[`${group}_${i}`] = node
           })
           // console.log('output', output)
           callback(null)
@@ -1035,17 +1046,7 @@ class NetworkCreator extends EventEmitter {
       volumes.vgeth = {}
     }
 
-    switch (this.config.blockchain.name) {
-      case 'rinkeby':
-      case 'mainnet':
-      case 'offchain':
-          // no need to run a node.
-        break
-      case 'lpTestNet2':
-      case 'lpTestNet':
-      default:
-        return gethService
-    }
+    return needToCreateGeth(this.config) ? gethService : undefined
   }
 
   getNodeOptions (gname, nodes, i) {
@@ -1093,9 +1094,18 @@ class NetworkCreator extends EventEmitter {
           output.push('-orchSecret', this.config.nodes[gname].orchSecret)
         }
         output.push('-orchestrator')
+        output.push('-serviceAddr')
+        output.push(this._getHostnameForService(gname, i) + ':8935')
         break
       case 'broadcaster':
         output.push('-broadcaster')
+        if (!this.config.hasGeth) {
+          let orchs = this._getHostsByType('orchestrator')
+          if (orchs.length) {
+            output.push('-orchAddr')
+            output.push(orchs.join(','))
+          }
+        }
         break
     }
 

@@ -145,6 +145,21 @@ function getDockerComposePath (configName) {
   return path.join(__dirname, '../../dist', configName, 'docker-compose.yml')
 }
 
+function needToCreateGeth (config) {
+    switch ((config.blockchain||{}).name) {
+      case 'rinkeby':
+      case 'mainnet':
+      case 'offchain':
+          // no need to run a node.
+        break
+      case 'lpTestNet2':
+      case 'lpTestNet':
+      default:
+        return true
+    }
+    return false
+}
+
 function parseComposeAndGetAddresses (configName) {
   let parsedCompose = null
   try {
@@ -165,6 +180,7 @@ function parseComposeAndGetAddresses (configName) {
   }).filter(v => !!v)
   // console.log('addresses results: ', parsedCompose.addresses)
   parsedCompose.isLocal = parsedCompose.networks.testnet.driver === 'bridge'
+  parsedCompose.hasGeth = !!parsedCompose.services.geth
   // console.log('is local:', parsedCompose.isLocal)
   parsedCompose.configName = configName
   const g = parsedCompose.services.geth
@@ -213,5 +229,5 @@ function getIds (configName, num) {
 
 module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount,
   getNames, spread, wait, parseComposeAndGetAddresses,
-  getIds, getConstrain
+  getIds, getConstrain, needToCreateGeth
 }
