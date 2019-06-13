@@ -474,7 +474,7 @@ class TestHarness {
       console.log('Initialize round...', onames)
       await this.api.initializeRound([`${onames[0]}`])
       await wait(2000)
-      await this.api.fundDepositAndReserve(['broadcasters'], '1', '2')
+      await this.api.fundDepositAndReserve(['broadcasters'], '2500000000', '1500000000')
       // check if deposit was successful
       tr = 0
       while (true) {
@@ -494,7 +494,7 @@ class TestHarness {
           break
         }
       }
-      await this.api.fundDepositAndReserve(['broadcasters'], '1', '2')
+      await this.api.fundDepositAndReserve(['broadcasters'], '2500000003', '1500000002')
       console.log('Initialize round...', onames)
       await this.api.initializeRound([`${onames[0]}`])
       console.log('activating orchestrators...')
