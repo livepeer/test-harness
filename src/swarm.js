@@ -1062,7 +1062,7 @@ SHELL_SCREENRC`
 
   tearDown (name, cb) {
     return new Promise((resolve, reject) => {
-      exec(`docker-machine ls -q --filter "name=${name}-([a-z]+)"`, (err, output) => {
+      exec(`docker-machine ls -q --filter "name=^${name}-([a-z]+)"`, (err, output) => {
         if (err) throw err
         if (!output) {
           resolve(null)
@@ -1098,7 +1098,7 @@ SHELL_SCREENRC`
       if (this._machines) {
         resolve(this._machines)
       } else {
-        const cmd = `docker-machine ls -q --filter "name=${name}-([a-z]+)" -filter "state=Running"`
+        const cmd = `docker-machine ls -q --filter "name=^${name}-([a-z]+)" -filter "state=Running"`
         // console.log(cmd)
         exec(cmd, (err, output) => {
           if (err) {

@@ -16,6 +16,7 @@ program
   .option('-r --repeat <n>', 'number of times to repeat streaming')
   .option('-t --stop', 'stop running streams')
   .option('-a --stats', 'just show stats from streamers')
+  .option('-3 --threemin', 'use three minutes video')
   .description('Test deployment by streaming video into it and calculating success rate')
 
 program
@@ -175,7 +176,7 @@ async function run() {
   if (!hasActiveStreams) {
     const streams = streamers.map((streamer, i) => {
       const hostToStream = services[broadcasterServices[sm.get(i)]].hostname
-      return streamer.StartStreaming(hostToStream, simulteneous, repeat)
+      return streamer.StartStreaming(hostToStream, simulteneous, repeat, program.threemin)
     })
     await Promise.all(streams)
   } else {
