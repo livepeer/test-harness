@@ -449,7 +449,7 @@ class NetworkCreator extends EventEmitter {
     }
     return hosts
   }
-  
+
   _generateService (gname, type, i, volumes, cb) {
     let serviceName = this._getHostnameForService(gname, i)
     console.log(`generate service serviceName: ${serviceName}`)
@@ -900,7 +900,7 @@ class NetworkCreator extends EventEmitter {
         GF_SECURITY_ADMIN_PASSWORD: 'admin1234',
         GF_AUTH_ANONYMOUS_ENABLED: 'True',
         GF_AUTH_ANONYMOUS_ORG_NAME: 'Main Org.',
-        GF_AUTH_ANONYMOUS_ORG_ROLE: 'Viewer',
+        GF_AUTH_ANONYMOUS_ORG_ROLE: 'Editor'
       },
       deploy: {
         placement: {
