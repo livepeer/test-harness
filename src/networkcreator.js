@@ -1100,6 +1100,8 @@ class NetworkCreator extends EventEmitter {
           output.push('-orchSecret', this.config.nodes[gname].orchSecret)
         }
         output.push('-orchestrator')
+        output.push('-pricePerUnit')
+        output.push('1')
         output.push('-serviceAddr')
         output.push(this._getHostnameForService(gname, i) + ':8935')
         break
