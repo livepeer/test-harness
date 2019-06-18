@@ -2,7 +2,7 @@
 
 ASSET_URL=http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4
 
-docker pull darkdragon/geth-with-livepeer-protocol:pm
+docker pull livepeer/geth-with-livepeer-protocol:pm
 
 if [ ! -f ./assets/BigBuckBunny.mp4 ]; then
   # download http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4

@@ -698,7 +698,7 @@ class Api {
       map(nodes, (node, n) => {
         if (node === 'all') {
           map(this._config.services, (service, next) => {
-            if (service.image.startsWith('darkdragon/geth') ||
+            if (service.image.startsWith('livepeer/geth') ||
                 service.image.startsWith('darkdragon/livepeermetrics') ||
                 service.image.startsWith('darkdragon/loki') ||
                 service.image.startsWith('darkdragon/prometheus') ||

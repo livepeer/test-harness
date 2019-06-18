@@ -1006,8 +1006,7 @@ class NetworkCreator extends EventEmitter {
 
   generateGethService (volumes) {
     let gethService = {
-      // image: 'geth-dev:latest',
-      image: 'darkdragon/geth-with-livepeer-protocol:pm',
+      image: 'livepeer/geth-with-livepeer-protocol:pm',
       ports: [
         '8545:8545',
         '8546:8546',
