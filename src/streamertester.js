@@ -117,11 +117,22 @@ class StreamerTester {
       return addObjects(ac, cv)
     }, stats[0])
     combined.success_rate /= stats.length
+    // combined.profiles_num = stats[0].profiles_num
+
+    // for combined stats, recalc success rate 
+    combined.succcess_rate = combined.downloaded_segments / ((combined.profiles_num + stats.length) * combined.total_segments_to_send) * 100
     return combined
   }
 
   static FormatStatsForConsole(stats) {
+    // stats.ShouldHaveDownloadedSegments = (model.ProfilesNum + 1) * stats.SentSegments
+    // stats.SuccessRate = float64(stats.DownloadedSegments) / ((float64(model.ProfilesNum) + 1) * float64(stats.SentSegments)) * 100
+    // const successRate2 = stats.downloaded_segments / ((stats.profiles_num + 1) * stats.sent_segments) * 100
+    // const succ2 = successRate2 > 95 ? successRate2 > 99.9999 ? chalk.green : chalk.yellowBright : chalk.red
+    // stats.total_segments_to_send
+
     const f7 = fn.bind(null, 7)
+
     const succ = stats.success_rate > 95 ? stats.success_rate > 99.9999 ? chalk.green : chalk.yellowBright : chalk.red
     return `    Number of RTMP streams:                       ${f7(stats.rtm_pstreams)}
     Number of media streams:                      ${f7(stats.media_streams)}
@@ -129,6 +140,7 @@ class StreamerTester {
     Total number of segments sent to broadcaster: ${f7(stats.sent_segments)}
     Total number of segments read back:           ${f7(stats.downloaded_segments)}
     Total number of segments should read back:    ${f7(stats.should_have_downloaded_segments)}
+    Number of retries:                            ${f7(stats.retries)}
     Success rate:                                     ${succ(stats.success_rate)}%
     Lost connection to broadcaster:               ${f7(stats.connection_lost)}
     Bytes dowloaded:                      ${fn(15, stats.bytes_downloaded)}`
