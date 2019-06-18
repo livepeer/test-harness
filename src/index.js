@@ -657,14 +657,16 @@ class TestHarness {
 
 
   async fundAccounts(config) {
-    await wait(10000)
-    // fund accounts here.
     const parsedCompose = parseComposeAndGetAddresses(config.name)
     // console.log('=========== GOT RESULTS ', parsedCompose)
-    await this.fundAccountsList(config, parsedCompose.addresses)
-    console.log('funding secured!!')
+    if (parsedCompose.hasGeth) {
+      // fund accounts here.
+      await wait(5000)
+      await this.fundAccountsList(config, parsedCompose.addresses)
+      console.log('funding secured!!')
+    }
     const pubIP = await this.swarm.getPubIP(`${config.name}-manager`)
-    await wait(10000)
+    await wait(config.hasGeth ? 10000 : 2000)
     return {
       parsedCompose,
       config,
