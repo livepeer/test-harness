@@ -3,6 +3,7 @@
 const program = require('commander')
 const path = require('path')
 const { parseConfigFromCommandLine } = require('./helpers.js')
+const { saveLocalDockerImage, loadLocalDockerImageToSwarm, pushDockerImageToSwarmRegistry } = require('../utils/helpers')
 const dockercompose = require('docker-compose')
 const NetworkCreator = require('../networkcreator')
 const Swarm = require('../swarm')
@@ -11,19 +12,24 @@ const chalk = require('chalk')
 
 async function run(parsedCompose) {
   const name = parsedCompose.configName
+  const swarm = new Swarm(name)
+  const managerName = name + '-manager'
+  const config = {name, local: parsedCompose.isLocal, nodes: {}, machines: parsedCompose.machines}
+  const networkCreator = new NetworkCreator(config)
   if (!parsedCompose.isLocal) {
     // console.log(parsedCompose)
-    if (!parsedCompose.services.broadcaster_0.image.startsWith('livepeer/')) {
-      console.log(chalk.red('Can be used only for deployments with public image.'))
-      process.exit(14)
+    if (parsedCompose.isLocalBuild) {
+      await networkCreator.buildLocalLpImage()
+      await saveLocalDockerImage()
+      await loadLocalDockerImageToSwarm(swarm, managerName)
+      await pushDockerImageToSwarmRegistry(managerName, config.machines.zone)
+      console.log('docker image pushed')
     }
-    const swarm = new Swarm(name)
     const th = new TestHarness()
     console.log(`Redeploying services for ${name}`)
-    await swarm.deployComposeFile(th.getDockerComposePath({name}), 'livepeer', `${name}-manager`)
+    await swarm.deployComposeFile(th.getDockerComposePath({name}), 'livepeer', managerName)
     process.exit(0)
   }
-  const networkCreator = new NetworkCreator({name, local: true})
   // console.log('Running docker-compose down...')
   // let logs = await dockercompose.execCompose('down', [], {
   //   cwd: path.resolve(__dirname, `../../dist/${name}/`),

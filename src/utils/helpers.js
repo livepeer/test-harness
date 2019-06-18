@@ -180,12 +180,21 @@ function parseComposeAndGetAddresses (configName) {
   }).filter(v => !!v)
   // console.log('addresses results: ', parsedCompose.addresses)
   parsedCompose.isLocal = parsedCompose.networks.testnet.driver === 'bridge'
+  parsedCompose.isLocalBuild =  Object.keys(parsedCompose.services).some(s => parsedCompose.services[s].image === 'localhost:5000/lpnode:latest')
   parsedCompose.hasGeth = !!parsedCompose.services.geth
   // console.log('is local:', parsedCompose.isLocal)
   parsedCompose.configName = configName
-  const g = parsedCompose.services.geth
-  if (g && g.labels && g.labels.zone) {
-    parsedCompose.zone = g.labels.zone
+  parsedCompose.machines = {num: Object.keys(parsedCompose.services).length}
+  const lsn = Object.keys(parsedCompose.services).find(sn => {
+    const s = parsedCompose.services[sn]
+    return !!(s && s.labels && s.labels.zone)
+  })
+  if (lsn) {
+    const s = parsedCompose.services[lsn]
+    if (s && s.labels && s.labels.zone) {
+      parsedCompose.zone = s.labels.zone
+      parsedCompose.machines.zone = parsedCompose.zone
+    }
   }
   const usedWorkers = new Set()
   const service2Machine = new Map()
@@ -227,7 +236,54 @@ function getIds (configName, num) {
   return Array.from({length: num}, (_, i) => `${u}${n}-${d}-${i}`)
 }
 
+async function saveLocalDockerImage() {
+  console.log('Saving locally built image to file')
+  return new Promise((resolve, reject) => {
+    // exec(`docker save -o /tmp/lpnodeimage.tar lpnode:latest`, (err, stdout) =>
+    const cmd = 'docker save  lpnode:latest | gzip -9 > /tmp/lpnodeimage.tar.gz'
+    exec(cmd, (err, stdout) => {
+      if (err) return reject(err)
+      console.log('lpnode image saved')
+      resolve()
+    })
+  })
+}
+
+async function pushDockerImageToSwarmRegistry(managerName, zone) {
+  console.log('Pushing image to swarm registry')
+  const locTag = `sudo docker tag lpnode:latest localhost:5000/lpnode:latest && sudo docker push localhost:5000/lpnode:latest `
+  await remotelyExec(managerName, zone, locTag)
+}
+
+async function loadLocalDockerImageToSwarm(swarm, managerName) {
+  let err = null
+  for (let i = 0; i < 10; i++) {
+    try {
+      await _loadLocalDockerImageToSwarm(swarm, managerName)
+      return
+    } catch(e) {
+      console.log(e)
+      err = e
+    }
+  }
+  throw err
+}
+
+async function _loadLocalDockerImageToSwarm(swarm, managerName) {
+  console.log('Loading lpnode docker image into swarm ' + managerName)
+  return new Promise((resolve, reject) => {
+    swarm.setEnv(managerName, (err, env) => {
+      if (err) return reject(err)
+      exec(`docker load -i /tmp/lpnodeimage.tar.gz`, {env}, (err, stdout) => {
+        if (err) return reject(err)
+        console.log('lpnode image loaded into swarm ' + managerName)
+        resolve()
+      })
+    })
+  })
+}
+
 module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount,
   getNames, spread, wait, parseComposeAndGetAddresses,
-  getIds, getConstrain, needToCreateGeth
+  getIds, getConstrain, needToCreateGeth, saveLocalDockerImage, loadLocalDockerImageToSwarm, pushDockerImageToSwarmRegistry
 }
