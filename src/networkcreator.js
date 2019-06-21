@@ -1006,8 +1006,7 @@ class NetworkCreator extends EventEmitter {
 
   generateGethService (volumes) {
     let gethService = {
-      // image: 'geth-dev:latest',
-      image: 'darkdragon/geth-with-livepeer-protocol:pm',
+      image: 'livepeer/geth-with-livepeer-protocol:pm',
       ports: [
         '8545:8545',
         '8546:8546',
@@ -1101,6 +1100,8 @@ class NetworkCreator extends EventEmitter {
           output.push('-orchSecret', this.config.nodes[gname].orchSecret)
         }
         output.push('-orchestrator')
+        output.push('-pricePerUnit')
+        output.push('1')
         output.push('-serviceAddr')
         output.push(this._getHostnameForService(gname, i) + ':8935')
         break
