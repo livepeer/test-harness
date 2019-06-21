@@ -37,7 +37,7 @@ class StreamerTester {
   }
 
   async StartStreaming(hostToStream, sim, repeat, threeMin) {
-    console.log('host to stream:', hostToStream)
+    console.log(`host to stream: ${hostToStream} streams number: ${sim} repeat: ${repeat}`)
     try {
       const res = await axios.post(`http://${this.host}:${this.port}/start_streams`, {
         'file_name': threeMin ? 'official_test_source_2s_keys_24pfs_3min.mp4' : 'official_test_source_2s_keys_24pfs.mp4',

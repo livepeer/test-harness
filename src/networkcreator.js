@@ -478,6 +478,9 @@ class NetworkCreator extends EventEmitter {
           aliases: [serviceName]
         }
       },
+      labels: {
+        zone: this._getZoneFromConfig()
+      },
       restart: 'unless-stopped',
       volumes: [vname + ':/root/.lpData']
     }
@@ -997,6 +1000,10 @@ class NetworkCreator extends EventEmitter {
     fs.copyFileSync(path.join(srcPath, name), path.join(outputFolder, name))
   }
 
+  _getZoneFromConfig () {
+    return this.config.machines && this.config.machines.zone || 'us-east1-b'
+  }
+
   generateGethService (volumes) {
     let gethService = {
       // image: 'geth-dev:latest',
@@ -1013,7 +1020,7 @@ class NetworkCreator extends EventEmitter {
       },
       restart: 'unless-stopped',
       labels: {
-        zone: this.config.machines && this.config.machines.zone || 'us-east1-b'
+        zone: this._getZoneFromConfig()
       }
     }
 
@@ -1171,6 +1178,7 @@ class NetworkCreator extends EventEmitter {
   }
 
   // TODO, fix the docker-compose added prefix so it won't default to basename
+  /*
   fundAccount (address, valueInEth, cb) {
     // NOTE: this requires the geth container to be running and account[0] to be unlocked.
     exec(`docker exec -it test-harness_geth_1
@@ -1187,6 +1195,7 @@ class NetworkCreator extends EventEmitter {
       cb(null, stdout)
     })
   }
+  */
 }
 
 let usedPorts = [8545, 8546, 30303, 8080, 3000, 3001, 9090]

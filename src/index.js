@@ -10,7 +10,8 @@ const NetworkCreator = require('./networkcreator')
 const Swarm = require('./swarm')
 const Api = require('./api')
 const utils = require('./utils/helpers')
-const { wait, getNames, parseComposeAndGetAddresses, needToCreateGeth } = require('./utils/helpers')
+const { wait, parseComposeAndGetAddresses, needToCreateGeth, saveLocalDockerImage, loadLocalDockerImageToSwarm,
+  pushDockerImageToSwarmRegistry } = require('./utils/helpers')
 const { prettyPrintDeploymentInfo } = require('./helpers')
 
 const DIST_DIR = '../dist'
@@ -494,7 +495,7 @@ class TestHarness {
           break
         }
       }
-      await this.api.fundDepositAndReserve(['broadcasters'], '2500000000', '1500000000')
+      await this.api.fundDepositAndReserve(['broadcasters'], '2500000003', '1500000002')
       console.log('Initialize round...', onames)
       await this.api.initializeRound([`${onames[0]}`])
       console.log('activating orchestrators...')
@@ -613,7 +614,11 @@ class TestHarness {
               throw err
             }
             console.log('stack deployed ', (outputBuf) ? outputBuf.toString() : outputBuf)
-            this.fundAccounts(config).then(resolve, reject)
+            if (config.hasGeth) {
+              this.fundAccounts(config).then(resolve, reject)
+            } else {
+              resolve()
+            }
           }
         )
       })
@@ -624,20 +629,10 @@ class TestHarness {
     const configName = config.name
     console.log('== finish setup ' + configName)
     const managerName = `${configName}-manager`
-    // await this.networkCreator.buildLocalLpImage()
-    let locTag = ''
     if (config.localBuild) {
-      await this.saveLocalDockerImage()
-      const loadToWorkers = [this.loadLocalDockerImageToSwarm(managerName)]
-      /*
-      for (let i = 0; i < config.machines.num - 1; i++) {
-        const workerName = `${configName}-worker-${ i+1 }`
-        loadToWorkers.push(this.loadLocalDockerImageToSwarm(workerName))
-      }
-      */
-      await Promise.all(loadToWorkers)
-      locTag = `sudo docker tag lpnode:latest localhost:5000/lpnode:latest && sudo docker push localhost:5000/lpnode:latest `
-      await utils.remotelyExec(managerName, config.machines.zone, locTag)
+      await saveLocalDockerImage()
+      await loadLocalDockerImageToSwarm(this.swarm, managerName)
+      await pushDockerImageToSwarmRegistry(managerName, config.machines.zone)
     }
 
     /*
@@ -649,54 +644,14 @@ class TestHarness {
     */
     console.log('docker image pushed')
     try {
-    await this.swarm.deployComposeFile(this.getDockerComposePath(config), 'livepeer', managerName)
-    const results = await this.fundAccounts(config)
-    return results
+      await this.swarm.deployComposeFile(this.getDockerComposePath(config), 'livepeer', managerName)
+      const results = await this.fundAccounts(config)
+      return results
     } catch(e) {
       console.log('Error finishing setup')
       console.error(e)
       process.exit(11)
     }
-  }
-
-  async saveLocalDockerImage() {
-    return new Promise((resolve, reject) => {
-      // exec(`docker save -o /tmp/lpnodeimage.tar lpnode:latest`, (err, stdout) =>
-      const cmd = 'docker save  lpnode:latest | gzip -9 > /tmp/lpnodeimage.tar.gz'
-      exec(cmd, (err, stdout) => {
-        if (err) return reject(err)
-        console.log('lpnode image saved')
-        resolve()
-      })
-    })
-  }
-
-  async loadLocalDockerImageToSwarm(managerName) {
-    let err = null
-    for (let i = 0; i < 10; i++) {
-      try {
-        await this._loadLocalDockerImageToSwarm(managerName)
-        return
-      } catch(e) {
-        console.log(e)
-        err = e
-      }
-    }
-    throw err
-  }
-
-  async _loadLocalDockerImageToSwarm(managerName) {
-    console.log('Loading lpnode docker image into swarm ' + managerName)
-    return new Promise((resolve, reject) => {
-      this.swarm.setEnv(managerName, (err, env) => {
-        if (err) return reject(err)
-        exec(`docker load -i /tmp/lpnodeimage.tar.gz`, {env}, (err, stdout) => {
-          if (err) return reject(err)
-          console.log('lpnode image loaded into swarm ' + managerName)
-          resolve()
-        })
-      })
-    })
   }
 
   async fundAccounts(config) {

@@ -12,7 +12,7 @@ const { StreamerTester } = require('../streamertester')
 
 
 program
-  .option('-s --simulteneous <n>', 'number of simulteneous streams to stream from each streamer')
+  .option('-s --streams <n>', 'total number of streams to stream, will be distributed evenly between all streamers')
   .option('-r --repeat <n>', 'number of times to repeat streaming')
   .option('-t --stop', 'stop running streams')
   .option('-a --stats', 'just show stats from streamers')
@@ -128,10 +128,16 @@ async function run() {
     console.log(chalk.red('No broadcaster services in config, can\'t do testing'))
   }
   // console.log('broadcasters services:', broadcasterServices)
-  const simulteneous = program.simulteneous|0 || 1
+  const streamsNumber = program.streams|0 || streamersServices.length
   const repeat = program.repeat|0 || 1
   // console.log('repeat:', repeat, 'sim', simulteneous, 'program', program)
   // process.exit(11)
+  const streamsPerStreamer = new Map() // streamerIndex:numberOfStreams
+  streamersServices.forEach((_s, i) => {
+    streamsPerStreamer.set(i, (streamsNumber/streamersServices.length|0)+((i+1) <= (streamsNumber%streamersServices.length))|0)
+  })
+  console.log('streamsPerStreamer:', streamsPerStreamer)
+
   let managerIP = 'localhost'
   if (!parsedCompose.isLocal) {
     managerIP = await Swarm.getManagerIP(configName)
@@ -176,7 +182,9 @@ async function run() {
   if (!hasActiveStreams) {
     const streams = streamers.map((streamer, i) => {
       const hostToStream = services[broadcasterServices[sm.get(i)]].hostname
-      return streamer.StartStreaming(hostToStream, simulteneous, repeat, program.threemin)
+      const numberOfStreams = streamsPerStreamer.get(i)
+      // console.log(`numberOfStreams for ${i} streamer: ${numberOfStreams}`)
+      return numberOfStreams ? streamer.StartStreaming(hostToStream, numberOfStreams, repeat, program.threemin) : null
     })
     await Promise.all(streams)
   } else {
