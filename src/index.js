@@ -654,8 +654,6 @@ class TestHarness {
     }
   }
 
-
-
   async fundAccounts(config) {
     const parsedCompose = parseComposeAndGetAddresses(config.name)
     // console.log('=========== GOT RESULTS ', parsedCompose)
