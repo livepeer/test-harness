@@ -36,7 +36,7 @@ class StreamerTester {
     this.profiles = profiles || 2
   }
 
-  async StartStreaming(hostToStream, sim, repeat, threeMin) {
+  async StartStreaming(hostToStream, sim, repeat, threeMin, duration) {
     console.log(`host to stream: ${hostToStream} streams number: ${sim} repeat: ${repeat}`)
     try {
       const res = await axios.post(`http://${this.host}:${this.port}/start_streams`, {
@@ -46,6 +46,7 @@ class StreamerTester {
         'media': 8935,
         'repeat': repeat,
         'simultaneous': sim,
+        'time': duration||'',
         'profiles_num': this.profiles,
       })
       if (res.status !== 200) {
