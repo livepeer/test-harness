@@ -15,6 +15,7 @@ program
   .option('-s --streams <n>', 'total number of streams to stream, will be distributed evenly between all streamers')
   .option('-r --repeat <n>', 'number of times to repeat streaming')
   .option('-t --stop', 'stop running streams')
+  .option('-d --duration <s>', 'duration to run stream. should not be used together with `-r`')
   .option('-a --stats', 'just show stats from streamers')
   .option('-3 --threemin', 'use three minutes video')
   .description('Test deployment by streaming video into it and calculating success rate')
@@ -108,7 +109,7 @@ async function getVersions(api, broadcasterServices) {
   for (let i = 0; i < broadcasterServices.length; i++) {
     const status = await api.status(broadcasterServices[i])
     // console.log(status)
-    versions.push(status.Version)
+    versions.push(status.Version + ' ' + status.GolangRuntimeVersion)
   }
   return versions
 }
@@ -175,6 +176,7 @@ async function run() {
   }
   if (program.stats) {
     const allStats = await StreamerTester.StatsForMany(streamers)
+    // console.log(allStats)
     const combinedStats = StreamerTester.CombineStats(allStats)
     console.log(StreamerTester.FormatStatsForConsole(combinedStats))
     return
@@ -184,7 +186,7 @@ async function run() {
       const hostToStream = services[broadcasterServices[sm.get(i)]].hostname
       const numberOfStreams = streamsPerStreamer.get(i)
       // console.log(`numberOfStreams for ${i} streamer: ${numberOfStreams}`)
-      return numberOfStreams ? streamer.StartStreaming(hostToStream, numberOfStreams, repeat, program.threemin) : null
+      return numberOfStreams ? streamer.StartStreaming(hostToStream, numberOfStreams, repeat, program.threemin, program.duration) : null
     })
     await Promise.all(streams)
   } else {
