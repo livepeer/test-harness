@@ -86,7 +86,7 @@ a docker cluster of 2 hosts, with livepeer containers and  `geth with protocol` 
 - `livepeerBinaryPath`: relative path to the livepeer binary, set it to `null` to use the binary in the gcp bucket.
 
 - `blockchain`:
-  - `name`: network name, should be 'lpTestNet' for test networks,
+  - `name`: network name, should be 'lpTestNet' for test networks, or 'offchain' for offchain mode.
   - `networkId`:  network id, default `54321`,
   - `controllerAddress`: address of the livepeer controller contract
 
