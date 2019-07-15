@@ -69,7 +69,7 @@ program
     parseDockerCompose(name, async (err, experiment) => {
       if (err) throw err
       try {
-        const parsedCompose = parseComposeAndGetAddresses(name)
+        const parsedCompose = utils.parseComposeAndGetAddresses(name)
         const outputBuf = await utils.remotelyExec(`${name}-manager`, parsedCompose.zone || DEFAULT_ZONE,
           `sudo docker service create --name pumba --network testnet --mode global --detach=false --mount type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock gaiaadm/pumba:latest --interval ${env.interval || '20s'} --random stop --duration ${env.duration || '5s'} re2:livepeer_${group}_*`)
         console.log('pumba deployed', (outputBuf) ? outputBuf.toString() : null)
@@ -86,7 +86,7 @@ program
   .action((name, env) => {
     parseDockerCompose(name, async (err, experiment) => {
       if (err) throw err
-      const parsedCompose = parseComposeAndGetAddresses(name)
+      const parsedCompose = utils.parseComposeAndGetAddresses(name)
         const outputBuf = await utils.remotelyExec(`${name}-manager`, parsedCompose.zone || DEFAULT_ZONE,
         `sudo docker service rm pumba`)
       console.log('pumba stopped', (outputBuf) ? outputBuf.toString() : null)
@@ -106,7 +106,7 @@ program
         throw new Error(`interval ${env.interval} must be bigger than duration ${env.duration}`)
       }
 
-      const parsedCompose = parseComposeAndGetAddresses(name)
+      const parsedCompose = utils.parseComposeAndGetAddresses(name)
       const outputBuf = await utils.remotelyExec(`${name}-manager`, parsedCompose.zone || DEFAULT_ZONE,
         `sudo docker service create \
           --name pumba_net --network testnet \
@@ -129,7 +129,7 @@ program
   .action((name, env) => {
     parseDockerCompose(name, async (err, experiment) => {
       if (err) throw err
-      const parsedCompose = parseComposeAndGetAddresses(name)
+      const parsedCompose = utils.parseComposeAndGetAddresses(name)
       const outputBuf = await utils.remotelyExec(`${name}-manager`, parsedCompose.zone || DEFAULT_ZONE,
         `sudo docker service rm pumba_net`)
       console.log('pumba stopped', (outputBuf) ? outputBuf.toString() : null)
