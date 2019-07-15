@@ -123,6 +123,11 @@ class TestHarness {
     if (!config.hasGeth) {
       config.standardSetup = false
     }
+    if (typeof config.noGCPLogging === 'undefined' && typeof config.GCPLogging !== 'undefined') {
+      config.noGCPLogging = !config.GCPLogging
+    } else if (typeof config.noGCPLogging === 'undefined') {
+      config.noGCPLogging = true
+    }
     this.swarm = new Swarm(config.name)
 
     this._config = config
