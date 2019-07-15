@@ -854,7 +854,7 @@ class NetworkCreator extends EventEmitter {
     const service = {
       image: 'google/cadvisor:latest',
       ports: ['8080:8080'],
-      depends_on: (this.hasGeth)? ['geth'] : [],
+      depends_on: this.hasGeth ? ['geth'] : [],
       networks: {
         testnet: {
           // aliases: [`cadvisor`]
