@@ -84,6 +84,7 @@ a docker cluster of 2 hosts, with livepeer containers and  `geth with protocol` 
 - `constrainResources`: flag to activate resource constraint within docker swarm.
 - `name`: name of the configuration or experiment, must be unique for each deployment.
 - `livepeerBinaryPath`: relative path to the livepeer binary, set it to `null` to use the binary in the gcp bucket.
+- `GCPLogging`: setting to true will enable sending logs to Google Cloud. Enabling this will make impossible to use `docker logs` command (and `./test-harness logs`).
 
 - `blockchain`:
   - `name`: network name, should be 'lpTestNet' for test networks,

@@ -127,6 +127,10 @@ class TestHarness {
       config.noGCPLogging = !config.GCPLogging
     } else if (typeof config.noGCPLogging === 'undefined') {
       config.noGCPLogging = true
+    } else {
+      console.log(`Property ${chalk.red('noGCPLogging')} is deprecated. Please use ${chalk.green('GCPLogging')} instead.
+Plese note now GCP logging is truned off by default and should be turned on explicitly.`)
+      process.exit(3)
     }
     this.swarm = new Swarm(config.name)
 
