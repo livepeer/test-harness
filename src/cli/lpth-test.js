@@ -15,6 +15,7 @@ program
   .option('-s --streams <n>', 'total number of streams to stream, will be distributed evenly between all streamers')
   .option('-r --repeat <n>', 'number of times to repeat streaming')
   .option('-t --stop', 'stop running streams')
+  .option('-l --latency', 'measure latency')
   .option('-d --duration <s>', 'duration to run stream. should not be used together with `-r`')
   .option('-a --stats', 'just show stats from streamers')
   .option('-3 --threemin', 'use three minutes video')
@@ -58,6 +59,7 @@ function printAllStats(streamers, allStats) {
   combinedStats = StreamerTester.CombineStats(allStats)
   console.log('\n============ combined stats ')
   console.log(StreamerTester.FormatStatsForConsole(combinedStats))
+  return combinedStats
 }
 
 async function cliProgressMonitorSart(streamers) {
@@ -79,8 +81,8 @@ async function cliProgressMonitorSart(streamers) {
 
   allStats = await StreamerTester.StatsForMany(streamers)
   const printCurrentStats = () => {
-    printAllStats(streamers, allStats)
-    process.exit(0)
+    const combined = printAllStats(streamers, allStats)
+    process.exit(combined.success_rate === 100 ? 0 : 200)
   }
   process.on('SIGTERM', printCurrentStats)
   process.on('SIGINT', printCurrentStats)
@@ -98,7 +100,7 @@ async function cliProgressMonitorSart(streamers) {
   }
   bar.stop()
   allStats = await StreamerTester.StatsForMany(streamers)
-  console.log(allStats)
+  // console.log(allStats)
   printCurrentStats()
 }
 
@@ -186,7 +188,7 @@ async function run() {
       const hostToStream = services[broadcasterServices[sm.get(i)]].hostname
       const numberOfStreams = streamsPerStreamer.get(i)
       // console.log(`numberOfStreams for ${i} streamer: ${numberOfStreams}`)
-      return numberOfStreams ? streamer.StartStreaming(hostToStream, numberOfStreams, repeat, program.threemin, program.duration) : null
+      return numberOfStreams ? streamer.StartStreaming(hostToStream, numberOfStreams, repeat, program.threemin, program.duration, program.latency) : null
     })
     await Promise.all(streams)
   } else {
