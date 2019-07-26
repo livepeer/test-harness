@@ -455,8 +455,9 @@ Plese note now GCP logging is truned off by default and should be turned on expl
       const orchConf = {
         blockRewardCut: '10',
         feeShare: '5',
-        pricePerSegment: '1',
-        amount: '500'
+        amount: '500',
+        pricePerUnit: '1',
+        pixelsPerUnit: '1'
       }
 
       let tr = 0
