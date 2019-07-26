@@ -13,7 +13,6 @@ th.run({
   discordUserId: null, // id of Discord user to send alert from Prometheus to (use `Copy ID` on profile to get)
   standardSetup: true, // request token, register orchestartors, etc...
   name: 'test123',
-  livepeerBinaryPath: '../containers/lpnode/livepeer_linux/livepeer',
   email: null, // email to send alerts to
   blockchain: {
     // keep these to run a private testnet.
@@ -39,13 +38,13 @@ th.run({
       instances: 2,
       orchSecret: 'aapp',
       type: 'orchestrator',
-      flags: `-v 5 -initializeRound=true -gasPrice 20 -gasLimit 20000000 \
-      -currentManifest=true   -maxSessions 4  `
+      flags: `-v 5 -initializeRound=true \
+      -currentManifest=true -maxSessions 4`
     },
     broadcasters: {
       instances: 2,
       type: 'broadcaster',
-      flags: `-v 5 -gasPrice 20 -gasLimit 20000000  -currentManifest=true`
+      flags: `-v 5 -currentManifest=true`
     }
   }
 }, (err, experiment) => {
