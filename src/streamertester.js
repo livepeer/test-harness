@@ -83,7 +83,7 @@ class StreamerTester {
   async StartStreaming(hostToStream, sim, repeat, threeMin, duration, latency) {
     console.log(`host to stream: ${hostToStream} streams number: ${sim} repeat: ${repeat} duration: ${duration} latency: ${latency}`)
     try {
-      const res = await axios.post(`http://${this.host}:${this.port}/start_streams`, {
+      const data = {
         'file_name': threeMin ? 'official_test_source_2s_keys_24pfs_3min.mp4' : 'official_test_source_2s_keys_24pfs.mp4',
         'host': hostToStream,
         'rtmp': 1935,
@@ -93,12 +93,14 @@ class StreamerTester {
         'time': duration || '',
         'profiles_num': this.profiles,
         'measure_latency': !!latency,
-      })
+      }
+      // console.log('== sending ', data)
+      const res = await axios.post(`http://${this.host}:${this.port}/start_streams`, data)
       if (res.status !== 200) {
         console.log(`Error ${res.status} starting streams: `, res.data)
         process.exit(12)
       }
-      // console.log(res.data)
+      // console.log('== response:' ,res.data)
       return res
     }
     catch (err) {
