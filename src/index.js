@@ -74,7 +74,6 @@ class TestHarness {
   /*
   onReady (config, cb) {
     if (config.local) {
-
     } else {
       const parsedCompose = parseComposeAndGetAddresses(config.name)
       eachLimit(parsedCompose.addresses, 5, (address, cb) => {
