@@ -438,6 +438,15 @@ class Swarm {
   }
 
   async setupMachine(machine, zone) {
+    // configure docker to rotate logs
+    await utils.remotelyExec(machine, zone,
+      `sudo bash -c 'echo {\\"log-driver\\": \\"json-file\\", \\"log-opts\\": {\\"max-size\\": \\"1000m\\", \\"max-file\\": \\"5\\"}} > /etc/docker/daemon.json'`
+    )
+    await utils.remotelyExec(machine, zone,
+      // SIGHUP reloads configuration, but it doesn't affect logging driver's configuration
+      // `sudo kill -SIGHUP $(pidof dockerd)`
+      `sudo kill -SIGKILL $(pidof dockerd)`
+    )
     if (this._installGoogleMonitoring) {
       await utils.remotelyExec(machine, zone,
         `sudo curl -sSO https://dl.google.com/cloudagents/install-monitoring-agent.sh && sudo bash install-monitoring-agent.sh`
@@ -461,6 +470,8 @@ class Swarm {
 SHELL_SCREENRC`
       )
       await utils.remotelyExec(machine, zone, 'sudo ansible-playbook  nodepb.yml')
+    } else {
+      await wait(1000) // need to wait while till new docker daemon starts up after being killed
     }
   }
 
@@ -534,7 +545,10 @@ SHELL_SCREENRC`
   }
 
   setEnv (machineName, cb) {
+    console.log(`executing d-m env ${machineName}`)
     exec(`docker-machine env ${machineName}`, (err, stdout) => {
+      console.log(`done exec d-m env`, err, stdout)
+      console.log('===')
       // if (err) throw err
       if (err) {
         console.error(err, `\nRetrying setEnv ${machineName}`)
