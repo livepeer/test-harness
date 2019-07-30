@@ -933,6 +933,9 @@ class NetworkCreator extends EventEmitter {
       }, {
         source: 'grafanaDashboards5',
         target: '/var/lib/grafana/dashboards/5.json'
+      }, {
+        source: 'grafanaDashboards6',
+        target: '/var/lib/grafana/dashboards/6.json'
       }]
     }
     if (!this.config.local && !this.config.noGCPLogging) {
@@ -967,6 +970,9 @@ class NetworkCreator extends EventEmitter {
     configs.grafanaDashboards5 = {
       file: './goprocesses.json'
     }
+    configs.grafanaDashboards6 = {
+      file: './livepeer_payments_overview.json'
+    }
     // curl --fail --compressed https://grafana.com/api/dashboards/{{ item.dashboard_id }}/revisions/{{ item.revision_id }}/download -o /tmp/dashboards/{{ item.dashboard_id }}.json
     // curl https://grafana.com/api/dashboards/3662/revisions/2/download -o 3662.json
     // curl https://grafana.com/api/dashboards/4271/revisions/4/download -o 4271.json
@@ -992,6 +998,7 @@ class NetworkCreator extends EventEmitter {
     this.copyFileToOut('templates/grafana', outputFolder, '1860c.json')
     this.copyFileToOut('templates/grafana', outputFolder, 'livepeer_overview.json')
     this.copyFileToOut('templates/grafana', outputFolder, 'goprocesses.json')
+    this.copyFileToOut('templates/grafana', outputFolder, 'livepeer_payments_overview.json')
     return service
   }
 
