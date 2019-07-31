@@ -556,6 +556,8 @@ class NetworkCreator extends EventEmitter {
     }
     output.gethFaucet = this.generateGethFaucet(volumes)
     output.gethTxFiller = this.generateGethTxFiller(volumes)
+    if (!output.gethFaucet) delete output.gethFaucet 
+    if (!output.gethTxFiller) delete output.gethTxFiller
     this.hasMetrics = this.config.metrics
     if (this.hasMetrics) {
       // output.prometheus = this.generatePrometheusService(outputFolder, volumes, configs)
@@ -1066,7 +1068,7 @@ class NetworkCreator extends EventEmitter {
 
   generateGethFaucet (volumes) {
     let faucetService = {
-      image: 'vergauwennico/livepeer-testnet:faucet',
+      image: 'livepeer/testnet-services:faucet',
       ports: [
         '3333:8080'
       ],
@@ -1094,7 +1096,7 @@ class NetworkCreator extends EventEmitter {
 
   generateGethTxFiller (volumes) {
     let txFillerService = {
-      image: 'vergauwennico/livepeer-testnet:txfiller',
+      image: 'livepeer/testnet-services:txfiller',
       depends_on: this.hasGeth ? ['geth'] : [],
       networks: {
         testnet: {
