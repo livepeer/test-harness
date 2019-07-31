@@ -236,7 +236,7 @@ Plese note now GCP logging is truned off by default and should be turned on expl
 
     if (parsedCompose.hasGeth) {
       await Promise.all(parsedCompose.addresses.map(address => {
-        return utils.fundAccount(address, '1', `${config.name}_geth_1`)
+        return utils.fundAccount(address, '10000', `${config.name}_geth_1`)
       }))
       console.log('funding secured!!')
     }
@@ -455,8 +455,9 @@ Plese note now GCP logging is truned off by default and should be turned on expl
       const orchConf = {
         blockRewardCut: '10',
         feeShare: '5',
-        pricePerSegment: '1',
-        amount: '500'
+        amount: '500',
+        pricePerUnit: '1',
+        pixelsPerUnit: '1'
       }
 
       let tr = 0
@@ -478,13 +479,10 @@ Plese note now GCP logging is truned off by default and should be turned on expl
         break
       }
       console.log('Depositing....')
-      // await this.api.fundDepositAndReserve(['all'], '5000000000', '500000000000000000')
-      // await this.api.fundDepositAndReserve(['orchestrators'], '1', '2')
-      // await this.api.fundDeposit(['broadcasters'], '1')
       console.log('Initialize round...', onames)
       await this.api.initializeRound([`${onames[0]}`])
       await wait(2000)
-      await this.api.fundDepositAndReserve(['broadcasters'], '2500000000', '1500000000')
+      await this.api.fundDepositAndReserve(['broadcasters'], '1000000000000000000000', '1000000000000000000000')
       // check if deposit was successful
       tr = 0
       while (true) {
@@ -504,18 +502,11 @@ Plese note now GCP logging is truned off by default and should be turned on expl
           break
         }
       }
-      await this.api.fundDepositAndReserve(['broadcasters'], '2500000000', '1500000000')
+
       console.log('Initialize round...', onames)
       await this.api.initializeRound([`${onames[0]}`])
       console.log('activating orchestrators...')
-      // await wait(2000)
-      // await this.api.activateOrchestrator(['orchestrators'], orchConf)
-      // bond
 
-      // await Promise.all(onames.map(n => this.restartService(n)))
-      // console.log(`restarted ${onames.length} orchestrators`)
-      // await Promise.all(bnames.map(n => this.restartService(n)))
-      // console.log(`restarted ${bnames.length} broadcasters`)
       await this.api.waitTillAlive(`${orchs.matchedNames[0]}_0`)
       let orchsList = await this.api.getOrchestratorsList(`${orchs.matchedNames[0]}_0`)
       console.log(`orchsList:`, orchsList)
@@ -684,7 +675,7 @@ Plese note now GCP logging is truned off by default and should be turned on expl
   fundAccountsList(config, addresses) {
     return new Promise((resolve, reject) => {
       eachLimit(addresses, 10, (address, cb) => {
-        utils.fundRemoteAccount(config, address, '1', `livepeer_geth`, cb)
+        utils.fundRemoteAccount(config, address, '10000', `livepeer_geth`, cb)
       }, (err) => {
         if (err) {
           reject(err)
