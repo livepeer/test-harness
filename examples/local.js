@@ -18,7 +18,7 @@ th.run({
     // keep these to run a private testnet.
     name: 'lpTestNet',
     networkId: 54321,
-    controllerAddress: '0xA1fe753Fe65002C22dDc7eab29A308f73C7B6982' //pm
+    controllerAddress: '0x77A0865438f2EfD65667362D4a8937537CA7a5EF' //pm
   },
   nodes: {
     streamers: {
