@@ -46,6 +46,14 @@ async function prettyPrintDeploymentInfo(parsedCompose) {
       console.log(`\nPrometheus (Grafana): ` + c(`http://${ip}:3001`))
     }
   }
+
+  if (parsedCompose.hasGeth) {
+    const ethRpc = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, 'geth')
+    const ethFaucet = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, 'gethFaucet')
+    console.log(`===== ${chalk.green('Blockchain')}:`)
+    console.log(`Geth JSON-RPC:  ${c(`http://${ethRpc}:8545`)}`)
+    console.log(`ETH Faucet:  ${c(`http://${ethFaucet}:3333`)}`)
+  }
 }
 
 module.exports = {

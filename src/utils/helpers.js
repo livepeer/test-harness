@@ -160,6 +160,18 @@ function needToCreateGeth (config) {
     return false
 }
 
+function needToCreateGethFaucet(config) {
+    if (needToCreateGeth(config) ) {
+      return (config.blockchain||{}).faucet
+    }
+}
+
+function needToCreateGethTxFiller(config) {
+  if (needToCreateGeth(config )) {
+    return (config.blockchain||{}).txFiller
+  }
+}
+
 function parseComposeAndGetAddresses (configName) {
   let parsedCompose = null
   try {
@@ -285,5 +297,5 @@ async function _loadLocalDockerImageToSwarm(swarm, managerName) {
 
 module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount,
   getNames, spread, wait, parseComposeAndGetAddresses,
-  getIds, getConstrain, needToCreateGeth, saveLocalDockerImage, loadLocalDockerImageToSwarm, pushDockerImageToSwarmRegistry
+  getIds, getConstrain, needToCreateGeth, needToCreateGethFaucet, needToCreateGethTxFiller, saveLocalDockerImage, loadLocalDockerImageToSwarm, pushDockerImageToSwarmRegistry
 }

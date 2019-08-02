@@ -11,7 +11,7 @@ const composefile = require('composefile')
 const { timesLimit, each, eachLimit } = require('async')
 const log = require('debug')('livepeer:test-harness:network')
 const Pool = require('threads').Pool
-const { getNames, spread, needToCreateGeth } = require('./utils/helpers')
+const { getNames, spread, needToCreateGeth, needToCreateGethFaucet, needToCreateGethTxFiller } = require('./utils/helpers')
 const { PROJECT_ID, NODE_TYPES } = require('./constants')
 const YAML = require('yaml')
 const mConfigs = require('./configs')
@@ -554,6 +554,10 @@ class NetworkCreator extends EventEmitter {
     } else {
       this.hasGeth = true
     }
+    output.gethFaucet = this.generateGethFaucet(volumes)
+    output.gethTxFiller = this.generateGethTxFiller(volumes)
+    if (!output.gethFaucet) delete output.gethFaucet 
+    if (!output.gethTxFiller) delete output.gethTxFiller
     this.hasMetrics = this.config.metrics
     if (this.hasMetrics) {
       // output.prometheus = this.generatePrometheusService(outputFolder, volumes, configs)
@@ -1062,6 +1066,60 @@ class NetworkCreator extends EventEmitter {
     return needToCreateGeth(this.config) ? gethService : undefined
   }
 
+  generateGethFaucet (volumes) {
+    let faucetService = {
+      image: 'livepeer/testnet-services:faucet',
+      ports: [
+        '3333:8080'
+      ],
+      depends_on: this.hasGeth ? ['geth'] : [],
+      networks: {
+        testnet: {
+          aliases: [`faucet`]
+        }
+      },
+      command: [
+        '-network',
+        '54321',
+        '-provider',
+        'http://geth:8545',
+        '-keystore',
+        'keystore',
+        '-address',
+        '0161e041aad467a890839d5b08b138c1e6373072'
+      ],
+      restart: 'unless-stopped',
+    }
+
+    return needToCreateGethFaucet(this.config) ? faucetService : undefined
+  }
+
+  generateGethTxFiller (volumes) {
+    let txFillerService = {
+      image: 'livepeer/testnet-services:txfiller',
+      depends_on: this.hasGeth ? ['geth'] : [],
+      networks: {
+        testnet: {
+          aliases: ['tx-filler']
+        }
+      },
+      command: [
+        '-senderAddr',
+        '0161e041aad467a890839d5b08b138c1e6373072',
+        '-chainID',
+        '54321',
+        '-provider',
+        'http://geth:8545',
+        '-keystoreDir',
+        'keystore',
+        '-password',
+        'password.txt'
+      ],
+      restart: 'unless-stopped'
+    }
+    return needToCreateGethTxFiller(this.config) ? txFillerService : undefined
+  }
+
   getNodeOptions (gname, nodes, i) {
     const output = []
     const userFlags = nodes.flags
@@ -1206,7 +1264,7 @@ class NetworkCreator extends EventEmitter {
   */
 }
 
-let usedPorts = [8545, 8546, 30303, 8080, 3000, 3001, 9090]
+let usedPorts = [8545, 8546, 30303, 8080, 3000, 3001, 3333, 9090]
 function getRandomPort (origin) {
   // TODO, ugh, fix this terrible recursive logic, use an incrementer like a gentleman
   let port = origin + Math.floor(Math.random() * 999)
