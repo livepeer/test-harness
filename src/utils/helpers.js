@@ -41,7 +41,10 @@ function remotelyExec (machineName, zone, command, cb) {
       const trimmed = String.prototype.trim(data)
       if (trimmed) {
         console.log(`stdout: ${trimmed}`)
+      } else {
+        console.log('untrimmed stdout', (data) ? data.toString() : null)
       }
+
       output += data
     })
 
@@ -50,11 +53,17 @@ function remotelyExec (machineName, zone, command, cb) {
       const trimmed = String.prototype.trim(data)
       if (trimmed) {
         console.log(`stderr: ${trimmed}`)
+      } else {
+        console.log('untrimmed stderr', (data) ? data.toString() : null)
       }
     })
 
-    builder.on('close', (code) => {
-      console.log(`[remotelyExec] hild process exited with code ${code}`)
+    builder.on('message', (msg, sendHandle) => {
+      console.log(`[remotelyExec] msg: ${JSON.stringify(msg)}`)
+    })
+
+    builder.on('close', (code, signal) => {
+      console.log(`[remotelyExec] child process exited with code ${code} , signal: ${signal}`)
       setTimeout(() => {
         if (code) {
           reject(code)
