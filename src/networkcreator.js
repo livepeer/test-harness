@@ -1117,6 +1117,14 @@ class NetworkCreator extends EventEmitter {
       ],
       restart: 'unless-stopped'
     }
+
+    if ((this.config.blockchain||{}).minGasPrice) {
+      txFillerService.command.push('-minGasPrice', this.config.blockchain.minGasPrice)
+    }
+    if ((this.config.blockchain||{}).maxGasPrice) {
+      txFillerService.command.push('-maxGasPrice', this.config.blockchain.maxGasPrice)
+    }
+
     return needToCreateGethTxFiller(this.config) ? txFillerService : undefined
   }
 
