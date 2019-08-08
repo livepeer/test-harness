@@ -38,23 +38,20 @@ function remotelyExec (machineName, zone, command, cb) {
     let output
 
     builder.stdout.on('data', (data) => {
-      const trimmed = String.prototype.trim(data)
-      if (trimmed) {
-        console.log(`stdout: ${trimmed}`)
-      } else {
-        console.log('untrimmed stdout', (data) ? data.toString() : null)
-      }
+      if (data) {
+        const trimmed = String.prototype.trim.call(data)
 
-      output += data
+        console.log(`stdout: ${trimmed}`)
+      
+        output += data
+      }
     })
 
     builder.stderr.on('data', (data) => {
-      if (data == '.') return
-      const trimmed = String.prototype.trim(data)
-      if (trimmed) {
+      if (data) {
+        if (data == '.') return
+        const trimmed = String.prototype.trim.call(data)
         console.log(`stderr: ${trimmed}`)
-      } else {
-        console.log('untrimmed stderr', (data) ? data.toString() : null)
       }
     })
 
