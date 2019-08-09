@@ -38,23 +38,29 @@ function remotelyExec (machineName, zone, command, cb) {
     let output
 
     builder.stdout.on('data', (data) => {
-      const trimmed = String.prototype.trim(data)
-      if (trimmed) {
+      if (data) {
+        const trimmed = String.prototype.trim.call(data)
+
         console.log(`stdout: ${trimmed}`)
+      
+        output += data
       }
-      output += data
     })
 
     builder.stderr.on('data', (data) => {
-      if (data == '.') return
-      const trimmed = String.prototype.trim(data)
-      if (trimmed) {
+      if (data) {
+        if (data == '.') return
+        const trimmed = String.prototype.trim.call(data)
         console.log(`stderr: ${trimmed}`)
       }
     })
 
-    builder.on('close', (code) => {
-      console.log(`[remotelyExec] hild process exited with code ${code}`)
+    builder.on('message', (msg, sendHandle) => {
+      console.log(`[remotelyExec] msg: ${JSON.stringify(msg)}`)
+    })
+
+    builder.on('close', (code, signal) => {
+      console.log(`[remotelyExec] child process exited with code ${code} , signal: ${signal}`)
       setTimeout(() => {
         if (code) {
           reject(code)
