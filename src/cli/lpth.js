@@ -11,6 +11,9 @@ function parsePath (val) {
   return fs.readFileSync(path.resolve(val))
 }
 
+
+const DEFAULT_ZONE = 'us-east1-b'
+
 program
   .version('0.1.0')
   .command('build <config>', 'generate a docker-compose file based on TOML config', parsePath)
@@ -61,21 +64,18 @@ program
   .command('disrupt [name] [group]')
   .description('uses pumba to kill containers in a specified livepeer group randomly')
   .option('-i --interval <interval>', 'recurrent interval for chaos command; use with optional unit suffix: \'ms/s/m/h\'')
+  .option('-d --duration <duration>', ' duration of the stop; should be smaller than recurrent interval; use with optional unit suffix: \'ms/s/m/h\'')
   .action((name, group, env) => {
     parseDockerCompose(name, async (err, experiment) => {
       if (err) throw err
-      const outputBuf = await utils.remotelyExec(`${name}-manager`, experiment.services.geth.labels.zone || 'us-east-1b',
-        `sudo docker service create \
-          --name pumba --network testnet \
-          --mode global \
-          --detach=false \
-          --mount type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock \
-          gaiaadm/pumba:latest \
-          --interval ${env.interval || '20s'} \
-          --random \
-          stop \
-          re2:livepeer_${group}_*`)
-      console.log('pumba deployed', (outputBuf) ? outputBuf.toString() : null)
+      try {
+        const parsedCompose = utils.parseComposeAndGetAddresses(name)
+        const outputBuf = await utils.remotelyExec(`${name}-manager`, parsedCompose.zone || DEFAULT_ZONE,
+          `sudo docker service create --name pumba --network testnet --mode global --detach=false --mount type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock gaiaadm/pumba:latest --interval ${env.interval || '20s'} --random stop --duration ${env.duration || '5s'} re2:livepeer_${group}_*`)
+        console.log('pumba deployed', (outputBuf) ? outputBuf.toString() : null)
+      } catch (e) {
+        if (e) console.log('There was an error while deploying pumba, please check the docker logs ', e)
+      }
       process.exit()
     })
   })
@@ -86,7 +86,8 @@ program
   .action((name, env) => {
     parseDockerCompose(name, async (err, experiment) => {
       if (err) throw err
-      const outputBuf = await utils.remotelyExec(`${name}-manager`, experiment.services.geth.labels.zone || 'us-east-1b',
+      const parsedCompose = utils.parseComposeAndGetAddresses(name)
+        const outputBuf = await utils.remotelyExec(`${name}-manager`, parsedCompose.zone || DEFAULT_ZONE,
         `sudo docker service rm pumba`)
       console.log('pumba stopped', (outputBuf) ? outputBuf.toString() : null)
       process.exit()
@@ -105,7 +106,8 @@ program
         throw new Error(`interval ${env.interval} must be bigger than duration ${env.duration}`)
       }
 
-      const outputBuf = await utils.remotelyExec(`${name}-manager`, experiment.services.geth.labels.zone || 'us-east-1b',
+      const parsedCompose = utils.parseComposeAndGetAddresses(name)
+      const outputBuf = await utils.remotelyExec(`${name}-manager`, parsedCompose.zone || DEFAULT_ZONE,
         `sudo docker service create \
           --name pumba_net --network testnet \
           --mode global \
@@ -127,7 +129,8 @@ program
   .action((name, env) => {
     parseDockerCompose(name, async (err, experiment) => {
       if (err) throw err
-      const outputBuf = await utils.remotelyExec(`${name}-manager`, experiment.services.geth.labels.zone || 'us-east-1b',
+      const parsedCompose = utils.parseComposeAndGetAddresses(name)
+      const outputBuf = await utils.remotelyExec(`${name}-manager`, parsedCompose.zone || DEFAULT_ZONE,
         `sudo docker service rm pumba_net`)
       console.log('pumba stopped', (outputBuf) ? outputBuf.toString() : null)
       process.exit()
