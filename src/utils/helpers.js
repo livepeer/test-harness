@@ -75,6 +75,47 @@ function remotelyExec (machineName, zone, command, cb) {
   })
 }
 
+/**
+ * copy a file between your machine and any docker-machine provisioned instance.
+ * @param {string} origin source_machine:path
+ * @param {string} destination destination_machine:path
+ * @param {string} opts scp flags, check docker-machine scp -h for more info
+ */
+async function scp (origin, destination, opts) {
+  return new Promise((resolve, reject) => {
+    exec(`docker-machine scp ${opts} ${origin} ${destination}`, (err, res) => {
+      if (err) {
+        reject(err)
+      } else {
+        resolve(res)
+      }
+    })
+  })
+}
+
+/**
+ * 
+ * @param {string} machine docker-machine hostname
+ * @param {string} zone gcp zone name
+ * @param {string} interface network interface to get IP for , for example tun0
+ */
+async function getInterfaceIP (machine, zone, interface, cb) {
+  return new Promise((resolve, reject) => {
+    remotelyExec(machine, zone,
+      `ip addr show ${interface} | grep "inet\b" | awk '{print $2}' | cut -d/ -f1`, (err, res) => {
+        if (err) {
+          reject(err)
+        } else {
+          resolve(res)
+        }
+
+        if (cb) {
+          cb(err, res)
+        }
+      })
+
+  })
+}
 
 function fundAccount (address, valueInEth, containerId, cb) {
   // NOTE: this requires the geth container to be running and account[0] to be unlocked.
@@ -303,5 +344,6 @@ async function _loadLocalDockerImageToSwarm(swarm, managerName) {
 
 module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount,
   getNames, spread, wait, parseComposeAndGetAddresses,
-  getIds, getConstrain, needToCreateGeth, needToCreateGethFaucet, needToCreateGethTxFiller, saveLocalDockerImage, loadLocalDockerImageToSwarm, pushDockerImageToSwarmRegistry
+  getIds, getConstrain, needToCreateGeth, needToCreateGethFaucet, needToCreateGethTxFiller, saveLocalDockerImage, loadLocalDockerImageToSwarm, pushDockerImageToSwarmRegistry,
+  scp, getInterfaceIP
 }
