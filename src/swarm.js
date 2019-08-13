@@ -9,6 +9,7 @@ const { PROJECT_ID, GCE_VM_IMAGE } = require('./constants')
 const monitoring = require('@google-cloud/monitoring')
 const utils = require('./utils/helpers')
 const { wait, parseComposeAndGetAddresses, getConstrain } = require('./utils/helpers')
+const {installOpenvpn, uploadOvpnFile, runOpenvpn } = require('./gpu')
 const DIST_DIR = '../dist'
 
 // assume for a one run we only work with one config
@@ -35,6 +36,7 @@ class Swarm {
     this._updateMachines = config.updateMachines
     this._installNodeExporter = config.installNodeExporter
     this._installGoogleMonitoring = config.installGoogleMonitoring
+    this._openvpn = config.openvpn
     const machinesCount = config.machines.num || 3
     const name = config.name || 'testharness-' + shortid.generate()
     const getMachineType = machineName => {
@@ -456,6 +458,16 @@ class Swarm {
       await utils.remotelyExec(machine, zone, `sudo apt-get update && sudo apt-get upgrade -y`)
       console.log(`=============== apt updated`)
     }
+    // install openvpn to be able to connect to external GPU rigs
+    if (this._openvpn) {
+      await installOpenvpn(machine, zone)
+      console.log(`${machine} : OpenVPN installed`)
+      await uploadOvpnFile(this._openvpn, `${machine}:/tmp`)
+      console.log(`${machine} : OpenVPN config ${this._openvpn} uploaded`)
+      await runOpenvpn(machine, zone)
+      console.log(`${machine} : OpenVPN config ${this._openvpn} running`)
+    }
+    
     if (this._installNodeExporter) {
       await utils.remotelyExec(machine, zone,
         `sudo apt-get install -y python3-pip && sudo apt autoremove -y && \
@@ -647,7 +659,13 @@ SHELL_SCREENRC`
               this.getSwarmToken(`${config.name}-manager`, next)
             },
             internalIP: (next) => {
-              this.getInternalIP(`${config.name}-manager`, next)
+              if (config.openvpn) {
+                // use tun0 interface instead of gcp IP
+                console.log(`[Openvpn] : using TUN0 instead of GCP internal networking`)
+                utils.getInterfaceIP(`${config.name}-manager`, config.machines.zone, `tun0`, next)
+              } else {
+                this.getInternalIP(`${config.name}-manager`, next)
+              }
             },
             networkId: (next) => {
               this.createNetwork(`testnet`, config.name, next)
