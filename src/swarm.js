@@ -466,6 +466,9 @@ class Swarm {
       console.log(`${machine} : OpenVPN config ${this._openvpn} uploaded`)
       await runOpenvpn(machine, zone)
       console.log(`${machine} : OpenVPN config ${this._openvpn} running`)
+      await wait(10000) // wait a while till openvpn connects, @FIXME add a proper check to make sure the connection was successful
+      await utils.remotelyExec(machine, zone,
+        `sudo ifconfig`)
     }
     
     if (this._installNodeExporter) {
@@ -672,6 +675,14 @@ SHELL_SCREENRC`
             }
           }, (err, result) => {
             if (err) throw err
+            // FIXME , standardize the value in internalIP
+            if (Array.isArray(result.internalIP)) {
+
+            } else {
+              let tempIpArr = [result.internalIP]
+              result.internalIP = tempIpArr
+            }
+
             console.log('result: ', result)
             console.log(`adding ${config.machines.num - 1} workers to the swarm, token ${result.token[0]}, ip: ${result.internalIP[0]}`)
             timesLimit(

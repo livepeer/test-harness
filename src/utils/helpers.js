@@ -83,6 +83,10 @@ function remotelyExec (machineName, zone, command, cb) {
  */
 async function scp (origin, destination, opts) {
   return new Promise((resolve, reject) => {
+    if (!opts) {
+      opts = ''
+    }
+
     exec(`docker-machine scp ${opts} ${origin} ${destination}`, (err, res) => {
       if (err) {
         reject(err)
@@ -102,13 +106,21 @@ async function scp (origin, destination, opts) {
 async function getInterfaceIP (machine, zone, interface, cb) {
   return new Promise((resolve, reject) => {
     remotelyExec(machine, zone,
-      `ip addr show ${interface} | grep "inet\b" | awk '{print $2}' | cut -d/ -f1`, (err, res) => {
+      // `ip addr show ${interface} | grep "inet\b" | awk '{print $2}' | cut -d/ -f1`
+      // `ip -f inet addr show ${interface} | grep "inet\b" | awk '{print $2}' | cut -d/ -f1 `, 
+      `ip -f inet addr show ${interface} | grep "inet" | awk '{$1=""; print $2}'`, 
+      (err, res) => {
         if (err) {
           reject(err)
         } else {
+          if (res.startsWith('undefined')) {
+            res = res.slice(9, res.length - 1)
+          }
           resolve(res)
         }
-
+        console.log('-------------------------------------------------------------------------------')
+        console.log('getInterfaceIP : ', res)
+        console.log('-------------------------------------------------------------------------------')
         if (cb) {
           cb(err, res)
         }
