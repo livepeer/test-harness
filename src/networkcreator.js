@@ -586,6 +586,8 @@ class NetworkCreator extends EventEmitter {
           // append it to output as output.<node_generate_id> = props
           if (type === 'streamer') {
             this._generateStreamerService(group, type, i, volumes, next)
+          } else if (type === 'gpu') {
+            next()
           } else {
             this._generateService(group, type, i, volumes, next)
           }

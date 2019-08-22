@@ -97,6 +97,16 @@ async function scp (origin, destination, opts) {
   })
 }
 
+function getSubnet (ip, range) {
+  let ipArr = ip.split('.')
+  if (ipArr.length !== 4) {
+    throw new Error(`bad IP : ${ip} , ip.length: ${ipArr.length}`)
+  }
+
+  ipArr[3] = 0
+  return `${ipArr.join('.')}/${range}`
+}
+
 /**
  * 
  * @param {string} machine docker-machine hostname
@@ -127,6 +137,41 @@ async function getInterfaceIP (machine, zone, interface, cb) {
       })
 
   })
+}
+
+function setDockerEnv (machineName, cb) {
+  console.log(`executing d-m env ${machineName}`)
+    exec(`docker-machine env ${machineName}`, (err, stdout) => {
+      console.log(`done exec d-m env`, err, stdout)
+      console.log('===')
+      // if (err) throw err
+      if (err) {
+        console.error(err, `\nRetrying setEnv ${machineName}`)
+        setDockerEnv(machineName, cb)
+      } else {
+        // get all the values in the double quotes
+        // example env output
+        // export DOCKER_TLS_VERIFY="1"
+        // export DOCKER_HOST="tcp://12.345.678.90:2376"
+        // export DOCKER_CERT_PATH="/machine/machines/swarm-manager"
+        // export DOCKER_MACHINE_NAME="swarm-manager"
+        // # Run this command to configure your shell:
+        // # eval $(docker-machine env swarm-manager)
+
+        let parsed = stdout.match(/(["'])(?:(?=(\\?))\2.)*?\1/g)
+        if (parsed.length !== 4) {
+          throw new Error('env parsing mismatch!')
+        }
+        let env = {
+          DOCKER_TLS_VERIFY: parsed[0].substr(1,parsed[0].length -2),
+          DOCKER_HOST: parsed[1].substr(1, parsed[1].length-2),
+          DOCKER_CERT_PATH: parsed[2].substr(1, parsed[2].length-2),
+          DOCKER_MACHINE_NAME: parsed[3].substr(1, parsed[3].length-2)
+        }
+
+        cb(null, env)
+      }
+    })
 }
 
 function fundAccount (address, valueInEth, containerId, cb) {
@@ -354,8 +399,20 @@ async function _loadLocalDockerImageToSwarm(swarm, managerName) {
   })
 }
 
+function getRandomPort (origin) {
+  let usedPorts = [8545, 8546, 30303, 8080, 3000, 3001, 3333, 9090]
+  // TODO, ugh, fix this terrible recursive logic, use an incrementer like a gentleman
+  let port = origin + Math.floor(Math.random() * 999)
+  if (usedPorts.indexOf(port) === -1) {
+    usedPorts.push(port)
+    return port
+  } else {
+    return getRandomPort(origin)
+  }
+}
+
 module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount,
   getNames, spread, wait, parseComposeAndGetAddresses,
   getIds, getConstrain, needToCreateGeth, needToCreateGethFaucet, needToCreateGethTxFiller, saveLocalDockerImage, loadLocalDockerImageToSwarm, pushDockerImageToSwarmRegistry,
-  scp, getInterfaceIP
+  scp, getInterfaceIP, getSubnet, setDockerEnv, getRandomPort
 }

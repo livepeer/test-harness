@@ -28,8 +28,17 @@ async function uploadOvpnFile (sourcePath, targetPath) {
  * @param {string} zone GCP zone
  */
 async function runOpenvpn (machine, zone) {
-    return utils.remotelyExec(machine, zone, 
-        `sudo openvpn --daemon --config /tmp/livepeer_admin.ovpn`)
+    if (Array.isArray(machine)) {
+        // const res = await Promise.all(machine.map(m => runOpenvpn(m, zone)))
+        // return res
+        await machine.forEach(async (m) => {
+            await runOpenvpn(m, zone)
+        })
+    } else {
+        console.log(`${machine} : OpenVPN client starting...`)
+        return utils.remotelyExec(machine, zone, 
+            `sudo openvpn --daemon --cd /tmp --config livepeer_admin.ovpn`)
+    }
 }
 
 module.exports = { installOpenvpn, uploadOvpnFile, runOpenvpn }
