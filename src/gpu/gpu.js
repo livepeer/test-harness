@@ -1,5 +1,33 @@
 'use strict'
+const path = require('path')
+const fs = require('fs')
+
 const {exec} = require('child_process')
+const Pool = require('threads').Pool
+const {timesLimit, eachLimit} = require('async')
+const utils = require('../utils/helpers')
+const composefile = require('composefile')
+const pool = new Pool()
+
+const thread = pool.run(function(input, done) {
+  // Everything we do here will be run in parallel in another execution context.
+  // Remember that this function will be executed in the thread's context,
+  // so you cannot reference any value of the surrounding code.
+  // done({ string : input.string, integer : parseInt(input.string) })
+  const ethers = require('ethers')
+  // const log = require('debug')('livepeer:test-harness:network:worker')
+  let randomKey = ethers.Wallet.createRandom()
+  randomKey.encrypt('').then((json) => {
+    console.log('acc: ', JSON.parse(json).address)
+    done({
+      JSON_KEY: json
+    })
+  })
+}, {
+  ethers: 'ethers',
+})
+
+const DIST_DIR = '../../dist'
 
 class GpuTranscoder {
     constructor (config, opts) {
@@ -9,60 +37,175 @@ class GpuTranscoder {
         this._stackName = 'gpu'
     }
 
-    generateTranscoderServices () {
-        let services = {}
+    generateTranscoderServices (managerIP, oPorts) {
+        return new Promise((resolve, reject) => {
 
-        let groups = Object.keys(this._config.nodes)
-        eachLimit(groups, 1, (group, cb) => {
-            let type = this._config.nodes[`${group}`].type
-            if (type === 'gpu') {
-                timesLimit(
-                    this._config.nodes[`${group}`].instances,
-                    5,
-                    (i, next) => {
-                        let serviceName = `${group}_${i}`
-                        let nodes = this._config.nodes[group]
-                        let vname = `v_${serviceName}`
-                        let image = this._config.local ? 'lpnode:latest' : 'localhost:5000/lpnode:latest'
-                        if (this._config.publicImage) {
-                            image = (typeof this._config.publicImage === 'string') ? this._config.publicImage : 'livepeer/go-livepeer:edge'
-                        }
-                        // override with gpu specific image
-                        if (nodes.image) {
-                            image = nodes.image
-                        }
+            let services = {}
 
-                        services[serviceName] = {
-                            image,
-                            ports: [
-                                `${utils.getRandomPort(8935)}:8935`,
-                                `${utils.getRandomPort(7935)}:7935`,
-                                `${utils.getRandomPort(1935)}:1935`
-                            ],
+            let groups = Object.keys(this._config.nodes)
+            eachLimit(groups, 1, (group, cb) => {
+                let type = this._config.nodes[`${group}`].type
+                console.log('type: ', type)
+                if (type !== 'gpu') {
+                    return cb()
+                }
+                if (type === 'gpu') {
+                    timesLimit(
+                        this._config.nodes[`${group}`].instances,
+                        5,
+                        (i, next) => {
+                            let serviceName = `${group}_${i}`
+                            let nodes = this._config.nodes[group]
+                            let vname = `v_${serviceName}`
+                            let image = this._config.local ? 'lpnode:latest' : 'localhost:5000/lpnode:latest'
+                            if (this._config.publicImage) {
+                                image = (typeof this._config.publicImage === 'string') ? this._config.publicImage : 'livepeer/go-livepeer:edge'
+                            }
+                            // override with gpu specific image
+                            if (nodes.image) {
+                                image = nodes.image
+                            }
 
-                        }
+                            const generated = {
+                                image,
+                                ports: [
+                                    `${utils.getRandomPort(8935)}:8935`,
+                                    `${utils.getRandomPort(7935)}:7935`,
+                                    `${utils.getRandomPort(1935)}:1935`
+                                ],
+                                command: this._getNodeOptions(group, nodes, i),
+                                hostname: serviceName,
+                                networks: {
+                                    testnet: {
+                                        aliases: [serviceName]
+                                    }
+                                },
+                                labels: {
+                                    gpu: true,
+                                    host: this._config.sshParams.hostname
+                                },
+                                restart: 'unless-stopped',
+                                volumes: [vname + ':/root/.lpData']
+                            }
 
-                })
-            } 
+                            this._output.volumes[vname] = {}
+                            if (nodes.googleStorage) {
+                                generated.secrets = [nodes.googleStorage.secretName]
+                            }
+                        
+                            if (!this._config.local) {
+                                // if (!this._config.noGCPLogging) {
+                                //   generated.logging = {
+                                //     driver: 'gcplogs',
+                                //     options: {
+                                //       'gcp-project': PROJECT_ID,
+                                //       'gcp-log-cmd': 'true',
+                                //       'labels': `type=${type},node=${type}_${i},lpgroup=${gname}`
+                                //     }
+                                //   }
+                                // }
+                                if (type === 'gpu') {
+                                generated.deploy = {
+                                    replicas: 1,
+                                    placement: {
+                                    constraints: [
+                                        'node.role == worker',
+                                        'node.hostname == ' + this._sshParams.hostname
+                                    ]
+                                    }
+                                }
+                                //   if (this._config.constrainResources) {
+                                //     if (type === 'broadcaster') {
+                                //       generated.deploy.resources = {
+                                //         reservations: {
+                                //           cpus: '0.1',
+                                //           memory: '250M'
+                                //         },
+                                //         limits: {
+                                //           cpus: '0.2',
+                                //           memory: '500M'
+                                //         }
+                                //       }
+                                //     } else {
+                                //       generated.deploy.resources = {
+                                //         reservations: {
+                                //           cpus: '1.0',
+                                //           memory: '500M'
+                                //         }
+                                //       }
+                                //     }
+                                //   }
+                                }
+                            }
+                            console.log('generated all but JSON key ', generated)
+                            // cb(null, generated)
+                            this.getEnvVars((err, envObj) => {
+                                if (err) throw err
+                                envObj.type = type
+                                generated.environment = envObj
+                                this._output.services[serviceName] = generated
+                                console.log('generated service ', serviceName, generated)
+                                next(null)
+                            })
+
+                    }, cb)
+                } 
+            }, (err, results) => {
+                if (err) {
+                    reject(err)
+                } else {
+                    console.log('all gpu transcoders generated ', results)
+                    resolve(true)
+                }
+            })
         })
     }
 
-    generateDockerStack () {
-        let output = {
-            version: '3.7',
-            outputFolder,
-            filename: `${this._stackName}-stack.yml`,
-            services: {},
-            networks: {
-              testnet: {
-                driver: this._config.local ? 'bridge' : 'overlay',
-                external: this._config.local ? false : true
+    async generateDockerStack (outputPath = `${DIST_DIR}/${this._config.name}`) {
+        console.log('output path: ', outputPath)
+        const outputFolder = path.resolve(__dirname, outputPath)
+        console.log('output folder: ', outputFolder)
+        this._outputFolder = outputFolder
+        if (!fs.existsSync(outputFolder)) {
+            fs.mkdirSync(outputFolder, { recursive: true, mode: 484 })
+        }
+        
+        return new Promise(async (resolve, reject) => {
+            console.log('inside promise')
+            this._output = {
+                version: '3.7',
+                outputFolder,
+                filename: `${this._stackName}-stack.yml`,
+                services: {},
+                networks: {
+                  testnet: {
+                    driver: this._config.local ? 'bridge' : 'overlay',
+                    external: this._config.local ? false : true
+                  }
+                },
+                volumes: {},
+                configs: {},
+                // network_mode: 'host',
               }
-            },
-            volumes: {},
-            configs: {},
-            // network_mode: 'host',
-          }
+            if (!this._opts.swarm) {
+                throw new Error('Error: GpuTranscoder class requires swarm')
+            }
+    
+            this._managerIP = await this._opts.swarm.getPubIP(`${this._config.name}-manager`)
+            this._oPorts = await this._opts.swarm._api.getPortsArray(['orchestrators'])
+            console.log('generating services...', this._managerIP, this._oPorts)
+            await this.generateTranscoderServices(this._managerIP, this._oPorts)
+            console.log('storing services...')    
+            composefile(this._output, (err, resp) => {
+                console.log('compose file stored', err, resp)
+                if (err) {
+                    reject(err)
+                } else {
+                    resolve(resp)
+                }
+            })
+        })
+
     }
 
     deployStack () {
@@ -173,21 +316,21 @@ class GpuTranscoder {
     
         switch (nodeType) {
           case 'gpu':
-            output.push('-orchAddr', `${this.config.o2t[`${gname}_${i}`]}:8935`)
-            let oName = this.config.o2t[`${gname}_${i}`]
+            let oName = this._config.o2t[`${gname}_${i}`]
+            output.push('-orchAddr', `${this._managerIP}:po['8935']`)
             let oGroup = oName.split('_')
             oGroup = oGroup.slice(0, oGroup.length - 1).join('_')
             console.log('o_group: ', oGroup)
-            if (!this.config.nodes[oGroup].orchSecret) {
+            if (!this._config.nodes[oGroup].orchSecret) {
               console.log(chalk.red(`For transcoder nodes ${chalk.yellowBright('orchSecret')} should be specified on ${chalk.yellowBright('orchestrators')} config object.`))
               process.exit(17)
             }
-            output.push('-orchSecret', `${this.config.nodes[oGroup].orchSecret}`)
+            output.push('-orchSecret', `${this._config.nodes[oGroup].orchSecret}`)
             output.push('-transcoder')
             break
           case 'gpu_o':
-            if (this.config.nodes[gname].orchSecret) {
-              output.push('-orchSecret', this.config.nodes[gname].orchSecret)
+            if (this._config.nodes[gname].orchSecret) {
+              output.push('-orchSecret', this._config.nodes[gname].orchSecret)
             }
             output.push('-orchestrator')
             output.push('-pricePerUnit')
@@ -198,7 +341,7 @@ class GpuTranscoder {
         }
     
         let ldir = ''
-        switch (this.config.blockchain.name) {
+        switch (this._config.blockchain.name) {
           case 'rinkeby':
             output.push('-network=rinkeby')
             ldir = 'rinkeby'
@@ -206,8 +349,8 @@ class GpuTranscoder {
           case 'lpTestNet2':
           case 'lpTestNet':
             output.push('-network=devenv')
-            output.push(`-ethUrl ws://geth:8546`)
-            output.push(`-ethController ${this.config.blockchain.controllerAddress}`)
+            output.push(`-ethUrl ws://${this._managerIP}:8546`)
+            output.push(`-ethController ${this._config.blockchain.controllerAddress}`)
             ldir = 'devenv'
             break
           default:
@@ -224,6 +367,21 @@ class GpuTranscoder {
         // console.log('outputStr: ', outputStr)
         return outputStr
       }
+    
+    getEnvVars (cb) {
+        thread.send('')
+        .on('done',(env) => {
+          // console.log('got env, ', env)
+          // thread.kill()
+          cb(null, env)
+        })
+        .on('error', function(error) {
+          console.error('Worker errored:', error)
+        })
+        .on('exit', function() {
+          console.log('Worker has been terminated.')
+        })
+    }
 }
 
 module.exports = GpuTranscoder

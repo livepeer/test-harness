@@ -411,8 +411,14 @@ function getRandomPort (origin) {
   }
 }
 
+function saveYaml (outputFolder, name, content) {
+  // console.log(`===== saving ${name} into ${outputFolder}`)
+  // console.log(content)
+  fs.writeFileSync(path.join(outputFolder, name), YAML.stringify(content))
+}
+
 module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount,
   getNames, spread, wait, parseComposeAndGetAddresses,
   getIds, getConstrain, needToCreateGeth, needToCreateGethFaucet, needToCreateGethTxFiller, saveLocalDockerImage, loadLocalDockerImageToSwarm, pushDockerImageToSwarmRegistry,
-  scp, getInterfaceIP, getSubnet, setDockerEnv, getRandomPort
+  scp, getInterfaceIP, getSubnet, setDockerEnv, getRandomPort, saveYaml
 }

@@ -138,7 +138,7 @@ Plese note now GCP logging is truned off by default and should be turned on expl
     this.swarm = new Swarm(config.name)
 
     if (config.gpu) {
-      this.gpu = new GpuTranscoder(this._config)
+      this.gpu = new GpuTranscoder(this._config, {swarm: this.swarm})
     }
 
     if (config.localBuild && config.publicImage) {
@@ -327,9 +327,11 @@ Plese note now GCP logging is truned off by default and should be turned on expl
       console.log('leaving swarm')
       await this.gpu.leaveSwarm() 
     }
-    
+
     console.log('joining swarm')
     await this.gpu.joinSwarm(swarmInfo.token, `${swarmInfo.pubIP}:2377`)
+    console.log('generating gpu stack')
+    await this.gpu.generateDockerStack()
   }
 
   async runSwarm(config) {

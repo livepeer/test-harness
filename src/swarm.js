@@ -152,6 +152,7 @@ class Swarm {
       console.log(`Group ${config.name} already exists.`)
     }
     const api = new Api(parsedCompose)
+    this._api = api
     // const oPorts = await api.getPortsArray(['all'])
     const oPorts = await api.getPortsArray(['orchestrators'])
     const tPorts = await api.getPortsArray(['transcoders'])
@@ -740,7 +741,7 @@ SHELL_SCREENRC`
                 if (config.gpu) {
                   let ip = await this.getPubIP(`${config.name}-manager`)
                   console.log('manager IP : ', ip)
-                  
+
                   resolve({
                     token: result.token[0].trim(),
                     internalIP: result.internalIP[0].trim(),
