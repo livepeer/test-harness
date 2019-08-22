@@ -320,6 +320,15 @@ Plese note now GCP logging is truned off by default and should be turned on expl
   }
 
   async setupGPU (config, swarmInfo) {
+    let gpuSwarmState = await this.gpu._getSwarmStatus()
+    
+    if (gpuSwarmState && gpuSwarmState === 'active') {
+      console.log('WARNING: gpu instance is already in a swarm, which means it is being used by another test-harness deployment. leaving swarm is going to break that...')
+      console.log('leaving swarm')
+      await this.gpu.leaveSwarm() 
+    }
+    
+    console.log('joining swarm')
     await this.gpu.joinSwarm(swarmInfo.token, `${swarmInfo.pubIP}:2377`)
   }
 

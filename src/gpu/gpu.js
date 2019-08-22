@@ -118,7 +118,7 @@ class GpuTranscoder {
                     return resolve(stdout)
                 }
 
-                resolve(jsonResp)
+                resolve(jsonResp.LocalNodeState)
 
             }).catch(reject)
         })
