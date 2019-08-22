@@ -201,6 +201,8 @@ class GpuTranscoder {
                 if (err) {
                     reject(err)
                 } else {
+                    pool.killAll()
+
                     resolve(resp)
                 }
             })
