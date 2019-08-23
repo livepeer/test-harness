@@ -515,8 +515,8 @@ SHELL_SCREENRC`
       // await runOpenvpn(machine, zone)
       // console.log(`${machine} : OpenVPN config ${this._openvpn} running`)
       // await wait(10000) // wait a while till openvpn connects, @FIXME add a proper check to make sure the connection was successful
-      await utils.remotelyExec(machine, zone,
-        `sudo ifconfig`)
+      // await utils.remotelyExec(machine, zone,
+      //   `sudo ifconfig`)
     }
   }
 
@@ -639,6 +639,7 @@ SHELL_SCREENRC`
         
         try {
           await this.stopStack('livepeer')
+          await this.stopStack('gpu')
           await this.stopStack('streamer')
         } catch (e) {
           if (e) console.log('stopping stack error ', e)

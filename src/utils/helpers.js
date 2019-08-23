@@ -3,6 +3,8 @@
 const fs = require('fs')
 const path = require('path')
 const YAML = require('yaml')
+const composefile = require('composefile')
+const writeYaml = require('write-yaml')
 const { spawn, exec } = require('child_process')
 const ethUtil = require('ethereumjs-util')
 const ethAbi = require('ethereumjs-abi')
@@ -249,6 +251,10 @@ function getDockerComposePath (configName) {
   return path.join(__dirname, '../../dist', configName, 'docker-compose.yml')
 }
 
+function getConfigFolderPath (configName) {
+  return path.join(__dirname, '../../dist', configName)
+}
+
 function needToCreateGeth (config) {
     switch ((config.blockchain||{}).name) {
       case 'rinkeby':
@@ -414,11 +420,51 @@ function getRandomPort (origin) {
 function saveYaml (outputFolder, name, content) {
   // console.log(`===== saving ${name} into ${outputFolder}`)
   // console.log(content)
-  fs.writeFileSync(path.join(outputFolder, name), YAML.stringify(content))
+  // fs.writeFileSync(path.join(outputFolder, name), YAML.stringify(content))
+  writeYaml.sync(path.join(outputFolder, name), content)
 }
+
+function updateServiceUri (configName, serviceName, pubIP, ports) {
+  let parsedCompose = null
+  try {
+    const file = fs.readFileSync(getDockerComposePath(configName), 'utf-8')
+    parsedCompose = YAML.parse(file)
+  } catch (e) {
+    throw e
+  }
+
+  if (!parsedCompose || !parsedCompose.services) {
+    console.log('parsedCompose doesn\'t have services Map', parsedCompose)
+    return
+  }
+
+  if (parsedCompose.services[serviceName]) {
+    const service = parsedCompose.services[serviceName]
+    let commandArr = service.command.split(' ')
+    let serviceAddrFlag = commandArr.indexOf('-serviceAddr')
+    if (serviceAddrFlag === -1) {
+      console.error('could not find -serviceAddr flag')
+      return
+    }
+
+    console.log(commandArr[serviceAddrFlag], commandArr[serviceAddrFlag + 1])
+    commandArr[serviceAddrFlag+1] = `${pubIP}:${ports['8935']}`
+    console.log(commandArr[serviceAddrFlag], commandArr[serviceAddrFlag + 1])
+    service.command = commandArr.join(' ')
+    parsedCompose.services[serviceName] = service
+    // store yaml again
+    saveYaml(getConfigFolderPath(configName), `docker-compose.yml`, parsedCompose)
+    // parsedCompose.outputFolder = getConfigFolderPath(configName)
+    // parsedCompose.filename = `docker-compose-yml`
+    
+    // composefile(parsedCompose, noob)
+  }
+}
+
+let noob = () => { console.log('noob Done')}
 
 module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount,
   getNames, spread, wait, parseComposeAndGetAddresses,
   getIds, getConstrain, needToCreateGeth, needToCreateGethFaucet, needToCreateGethTxFiller, saveLocalDockerImage, loadLocalDockerImageToSwarm, pushDockerImageToSwarmRegistry,
-  scp, getInterfaceIP, getSubnet, setDockerEnv, getRandomPort, saveYaml
+  scp, getInterfaceIP, getSubnet, setDockerEnv, getRandomPort, saveYaml, updateServiceUri, getConfigFolderPath
 }

@@ -35,6 +35,7 @@
     "tar": "^4.4.8",
     "threads": "^0.12.0",
     "toml": "^2.3.3",
+    "write-yaml": "^1.0.0",
     "yaml": "^1.1.0"
   },
   "devDependencies": {

@@ -81,7 +81,7 @@ class GpuTranscoder {
                                     }
                                 },
                                 labels: {
-                                    gpu: true,
+                                    gpu: 'genesis',
                                     host: this._config.sshParams.hostname
                                 },
                                 restart: 'unless-stopped',
@@ -203,7 +203,7 @@ class GpuTranscoder {
                 } else {
                     pool.killAll()
 
-                    resolve(resp)
+                    resolve(outputFolder)
                 }
             })
         })
@@ -211,13 +211,11 @@ class GpuTranscoder {
     }
 
     deployStack () {
-        // return new Promise((resolve, reject) => {
-        //     this._sshExec(this._sshParams, `sudo docker stack deploy -c ${composeFilePath} ${this._stackName}`).then((stdout) => {
-        //         console.log('stack deploy: ', stdout)
-        //         resolve(stdout)
-        //     }).catch(reject)
-        // })
-        
+        return new Promise((resolve, reject) => {
+            this._opts.swarm.deployComposeFile(
+                `${this._outputFolder}/${this._stackName}-stack.yml`, this._stackName, `${this._config.name}-manager`
+            ).then(resolve).catch(reject)
+        })
     }
 
     rmStack () {
@@ -322,6 +320,10 @@ class GpuTranscoder {
             const [po] = this._oPorts.filter(o => o.name === oName)
 
             output.push('-orchAddr', `${this._managerIP}:${po['8935']}`)
+            // make sure the orchestrator updates -serviceAddr to public IP aswell
+            utils.updateServiceUri(this._config.name, oName, this._managerIP, po)
+            // -------------------------------
+
             let oGroup = oName.split('_')
             oGroup = oGroup.slice(0, oGroup.length - 1).join('_')
             console.log('o_group: ', oGroup)

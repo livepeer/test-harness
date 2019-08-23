@@ -68,8 +68,8 @@ class TestHarness {
     })
   }
 
-  getDockerComposePath(config) {
-    return path.join(this.distDir, DIST_DIR, config.name, 'docker-compose.yml')
+  getDockerComposePath(config, filename) {
+    return path.join(this.distDir, DIST_DIR, config.name, filename || 'docker-compose.yml')
   }
 
 
@@ -291,7 +291,7 @@ Plese note now GCP logging is truned off by default and should be turned on expl
 
   async setupSwarm (config) {
     const swarmInfo = await this.swarm.createSwarm(config)
-    // result = {internalIp, token, networkId}
+    // result = {internalIp, token, networkId, notCreatedNow}
     console.log('swarm created')
     const ri = await this.swarm.getRunningMachinesList(config.name)
     console.log(`running machines: "${ri}"`)
@@ -301,14 +301,14 @@ Plese note now GCP logging is truned off by default and should be turned on expl
       await this.swarm.createRegistry()
     }
     
-    if (config.openvpn) {
-      Promise.all(ri.map(async m => {
-        console.log(`running OVPN on ${m}`)
-        await runOpenvpn(m, config.machines.zone);
-      }))
-      // await runOpenvpn(ri, config.machines.zone)
-      console.log('OVPN clients running')
-    }
+    // if (config.openvpn) {
+    //   Promise.all(ri.map(async m => {
+    //     console.log(`running OVPN on ${m}`)
+    //     await runOpenvpn(m, config.machines.zone);
+    //   }))
+    //   // await runOpenvpn(ri, config.machines.zone)
+    //   console.log('OVPN clients running')
+    // }
     
     if (config.metrics) {
       const workersIPS = await Promise.all(ri.map(wn => this.swarm.getPubIP(wn)))
@@ -322,16 +322,21 @@ Plese note now GCP logging is truned off by default and should be turned on expl
   async setupGPU (config, swarmInfo) {
     let gpuSwarmState = await this.gpu._getSwarmStatus()
     
-    if (gpuSwarmState && gpuSwarmState === 'active') {
-      console.log('WARNING: gpu instance is already in a swarm, which means it is being used by another test-harness deployment. leaving swarm is going to break that...')
-      console.log('leaving swarm')
-      await this.gpu.leaveSwarm() 
+    if (!swarmInfo.notCreatedNow) {
+      if (gpuSwarmState && gpuSwarmState === 'active') {
+        console.log('WARNING: gpu instance is already in a swarm, which means it is being used by another test-harness deployment. leaving swarm is going to break that...')
+        console.log('leaving swarm')
+        await this.gpu.leaveSwarm() 
+      }
+  
+      console.log('joining swarm')
+      await this.gpu.joinSwarm(swarmInfo.token, `${swarmInfo.pubIP}:2377`)
     }
-
-    console.log('joining swarm')
-    await this.gpu.joinSwarm(swarmInfo.token, `${swarmInfo.pubIP}:2377`)
+    
     console.log('generating gpu stack')
     await this.gpu.generateDockerStack()
+    console.log('deploying GPU stack')
+    await this.gpu.deployStack()
   }
 
   async runSwarm(config) {
@@ -694,6 +699,11 @@ Plese note now GCP logging is truned off by default and should be turned on expl
     console.log('docker image pushed')
     try {
       await this.swarm.deployComposeFile(this.getDockerComposePath(config), 'livepeer', managerName)
+
+      if (config.gpu) {
+        await this.swarm.deployComposeFile(this.getDockerComposePath(config, 'gpu-stack.yml'), 'gpu', managerName)
+      }
+
       const results = await this.fundAccounts(config)
       return results
     } catch(e) {
