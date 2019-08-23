@@ -319,7 +319,9 @@ class GpuTranscoder {
         switch (nodeType) {
           case 'gpu':
             let oName = this._config.o2t[`${gname}_${i}`]
-            output.push('-orchAddr', `${this._managerIP}:po['8935']`)
+            const [po] = this._oPorts.filter(o => o.name === oName)
+
+            output.push('-orchAddr', `${this._managerIP}:${po['8935']}`)
             let oGroup = oName.split('_')
             oGroup = oGroup.slice(0, oGroup.length - 1).join('_')
             console.log('o_group: ', oGroup)
