@@ -117,7 +117,8 @@ class Api {
     let endpoint = `activateOrchestrator`
     const [port] = await this._getPortsArray([node])
     return new Promise((resolve, reject) => {
-      const p = {...params, serviceURI: `https://${port.name}:8935`}
+      // const p = {...params, serviceURI: `https://${port.name}:8935`}
+      const p = {...params, serviceURI: `https://${this._baseUrl}:${port['8935']}`}
       this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, p, (err, res, body) => {
         if (err) {
           reject(err)
@@ -151,7 +152,8 @@ class Api {
           // console.log('== artivate for port:', port, params)
           this.initializeRound([port.name], (err) => {
             if (err) return next(err)
-            const p = {...params, serviceURI: `https://${port.name}:8935`}
+            console.log('port Object: ', JSON.stringify(port))
+            const p = {...params, serviceURI: `https://${this._baseUrl}:${port['8935']}`}
             this._httpPostWithParams(`http://${this._baseUrl}:${port['7935']}/${endpoint}`, p, (err, res, body) => {
               next(err, res)
             })

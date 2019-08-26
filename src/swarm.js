@@ -9,6 +9,7 @@ const { PROJECT_ID, GCE_VM_IMAGE } = require('./constants')
 const monitoring = require('@google-cloud/monitoring')
 const utils = require('./utils/helpers')
 const { wait, parseComposeAndGetAddresses, getConstrain } = require('./utils/helpers')
+const {installOpenvpn, uploadOvpnFile, runOpenvpn } = require('./ovpn')
 const DIST_DIR = '../dist'
 
 // assume for a one run we only work with one config
@@ -35,6 +36,7 @@ class Swarm {
     this._updateMachines = config.updateMachines
     this._installNodeExporter = config.installNodeExporter
     this._installGoogleMonitoring = config.installGoogleMonitoring
+    this._openvpn = config.openvpn
     const machinesCount = config.machines.num || 3
     const name = config.name || 'testharness-' + shortid.generate()
     const getMachineType = machineName => {
@@ -150,6 +152,7 @@ class Swarm {
       console.log(`Group ${config.name} already exists.`)
     }
     const api = new Api(parsedCompose)
+    this._api = api
     // const oPorts = await api.getPortsArray(['all'])
     const oPorts = await api.getPortsArray(['orchestrators'])
     const tPorts = await api.getPortsArray(['transcoders'])
@@ -162,12 +165,24 @@ class Swarm {
     const servicesNames = Object.keys(parsedCompose.services).filter(sn => {
       return sn.startsWith('transcoder') || sn.startsWith('orchestrator') || sn.startsWith('broadcaster') || sn === 'geth'
     })
+    let notAvailable = []
     // console.log(servicesNames)
     for (let sn of servicesNames) {
       const isGeth = sn === 'geth'
       const ip = await Swarm.getPublicIPOfService(parsedCompose, sn)
       const [po] = allPorts.filter(o => o.name === sn)
+      if (!po && !isGeth) {
+        // GPU transcoders aren't there yet
+        console.log('service ', sn, ' is not available yet')
+        notAvailable.push(sn)
+        continue
+      }
       console.log(`ip of ${sn} is ${ip} cli port: ${po && po['7935']}, isGeth: ${isGeth}`)
+
+      // use public ips
+      // this.config.service2Ports = this.config.service2Ports || {}
+      // this.config.service2Ports[sn] = po
+      // --------------------
       const checkName = `${config.name}-${sn} status`
       if (checks.find(c => c.displayName === checkName)) {
         // console.log(`Uptime check '${checkName} already exists.`)
@@ -228,7 +243,8 @@ class Swarm {
     const [checks2] = await ucClient.listUptimeCheckConfigs({parent: formattedName})
     // console.log(`Existing checks:`, JSON.stringify(checks2, null, 2))
     // return
-    const chunked = chunk(servicesNames, 6)
+    const chunked = chunk(servicesNames, 6) 
+    console.log('chunked: ', chunked)
     for (let i = 0; i < chunked.length; i++) {
       const apDisplayName = config.name + '-alert-group-' + i
       if (!alertPolicies.find(ap => ap.displayName === apDisplayName)) {
@@ -239,45 +255,58 @@ class Swarm {
             config: config.name
           },
           combiner: 'OR',
-          conditions: ch.map(sn => {
-            const checkDisplayName = `${config.name}-${sn} status`
-            const ch = checks2.find(c => c.displayName === checkDisplayName)
-            if (!ch) {
-              throw 'Can\t find check for ' + checkDisplayName
-            }
-            const chnp = ch.name.split('/')
-            const checkName = chnp[chnp.length-1]
-            return {
-              displayName: `${sn} not responding`,
-              conditionThreshold: {
-                aggregations: [
-                  {
-                    groupByFields: ['resource.*'],
-                    alignmentPeriod: {
-                      seconds: '1200',
-                      nanos: 0
-                    },
-                    perSeriesAligner: 'ALIGN_NEXT_OLDER',
-                    crossSeriesReducer: 'REDUCE_COUNT_FALSE'
-                  }
-                ],
-                denominatorAggregations: [],
-                filter: `metric.type="monitoring.googleapis.com/uptime_check/check_passed" resource.type="uptime_url" metric.label."check_id"="${checkName}"`,
-                comparison: "COMPARISON_GT",
-                thresholdValue: 1,
-                duration: {
-                  seconds: '180',
-                  nanos: 0
+          conditions: getConditions(ch)
+        }
+        
+        function getConditions (ch) {
+          let conditions =  ch.map(sn => {
+            if (notAvailable.indexOf(sn) !== -1) {
+              console.log('sn: ', sn, 'won\'t have monitoring' )
+              return 'na'
+            } else {
+
+              const checkDisplayName = `${config.name}-${sn} status`
+              const ch = checks2.find(c => c.displayName === checkDisplayName)
+              if (!ch) {
+                throw 'Can\'t find check for ' + checkDisplayName
+              }
+              const chnp = ch.name.split('/')
+              const checkName = chnp[chnp.length-1]
+              return {
+                displayName: `${sn} not responding`,
+                conditionThreshold: {
+                  aggregations: [
+                    {
+                      groupByFields: ['resource.*'],
+                      alignmentPeriod: {
+                        seconds: '1200',
+                        nanos: 0
+                      },
+                      perSeriesAligner: 'ALIGN_NEXT_OLDER',
+                      crossSeriesReducer: 'REDUCE_COUNT_FALSE'
+                    }
+                  ],
+                  denominatorAggregations: [],
+                  filter: `metric.type="monitoring.googleapis.com/uptime_check/check_passed" resource.type="uptime_url" metric.label."check_id"="${checkName}"`,
+                  comparison: "COMPARISON_GT",
+                  thresholdValue: 1,
+                  duration: {
+                    seconds: '180',
+                    nanos: 0
+                  },
+                  trigger: {
+                    count: 1,
+                    type: 'count'
+                  },
+                  denominatorFilter: ''
                 },
-                trigger: {
-                  count: 1,
-                  type: 'count'
-                },
-                denominatorFilter: ''
-              },
-              condition: 'conditionThreshold'
+                condition: 'conditionThreshold'
+              }
             }
           })
+          let filtered =  conditions.filter(cond => { return (cond !== 'na')})
+          console.log('filtered COnditions: ', filtered)
+          return filtered
         }
         if (nc) {
           alertPolicy.notificationChannels = [nc.name]
@@ -441,7 +470,9 @@ class Swarm {
     // configure docker to rotate logs
     await utils.remotelyExec(machine, zone,
       `sudo bash -c 'echo {\\"log-driver\\": \\"json-file\\", \\"log-opts\\": {\\"max-size\\": \\"1000m\\", \\"max-file\\": \\"5\\"}} > /etc/docker/daemon.json'`
-    )
+      )
+    
+    
     await utils.remotelyExec(machine, zone,
       // SIGHUP reloads configuration, but it doesn't affect logging driver's configuration
       // `sudo kill -SIGHUP $(pidof dockerd)`
@@ -473,6 +504,20 @@ SHELL_SCREENRC`
     } else {
       await wait(1000) // need to wait while till new docker daemon starts up after being killed
     }
+
+    // install openvpn to be able to connect to external GPU rigs
+    if (this._openvpn) {
+      await installOpenvpn(machine, zone)
+      console.log(`${machine} : OpenVPN installed`)
+      await uploadOvpnFile(this._openvpn, `${machine}:/tmp`)
+      // await uploadOvpnFile(`../../genesis/fix-routes.sh`, `${machine}:/tmp`)
+      console.log(`${machine} : OpenVPN config ${this._openvpn} uploaded`)
+      // await runOpenvpn(machine, zone)
+      // console.log(`${machine} : OpenVPN config ${this._openvpn} running`)
+      // await wait(10000) // wait a while till openvpn connects, @FIXME add a proper check to make sure the connection was successful
+      // await utils.remotelyExec(machine, zone,
+      //   `sudo ifconfig`)
+    }
   }
 
   async setupMachine2(machine, zone) {
@@ -491,7 +536,8 @@ SHELL_SCREENRC`
     this.setEnv(this._managerName, (err, env) => {
       console.log('env before network: ', env)
       if (err) return cb(err)
-      exec(`docker network create -d overlay --subnet=10.0.0.0/16 --gateway=10.0.0.1 ${networkName}`, {
+      // exec(`docker network create -d overlay ${networkName}`, {
+      exec(`docker network create -d overlay --attachable ${networkName}`, {
         env: env
       }, (err, output) => {
         if (err) console.error('create network err: ', err)
@@ -545,38 +591,8 @@ SHELL_SCREENRC`
   }
 
   setEnv (machineName, cb) {
-    console.log(`executing d-m env ${machineName}`)
-    exec(`docker-machine env ${machineName}`, (err, stdout) => {
-      console.log(`done exec d-m env`, err, stdout)
-      console.log('===')
-      // if (err) throw err
-      if (err) {
-        console.error(err, `\nRetrying setEnv ${machineName}`)
-        this.setEnv(machineName, cb)
-      } else {
-        // get all the values in the double quotes
-        // example env output
-        // export DOCKER_TLS_VERIFY="1"
-        // export DOCKER_HOST="tcp://12.345.678.90:2376"
-        // export DOCKER_CERT_PATH="/machine/machines/swarm-manager"
-        // export DOCKER_MACHINE_NAME="swarm-manager"
-        // # Run this command to configure your shell:
-        // # eval $(docker-machine env swarm-manager)
-
-        let parsed = stdout.match(/(["'])(?:(?=(\\?))\2.)*?\1/g)
-        if (parsed.length !== 4) {
-          throw new Error('env parsing mismatch!')
-        }
-        let env = {
-          DOCKER_TLS_VERIFY: parsed[0].substr(1,parsed[0].length -2),
-          DOCKER_HOST: parsed[1].substr(1, parsed[1].length-2),
-          DOCKER_CERT_PATH: parsed[2].substr(1, parsed[2].length-2),
-          DOCKER_MACHINE_NAME: parsed[3].substr(1, parsed[3].length-2)
-        }
-
-        cb(null, env)
-      }
-    })
+    // moved to helpers
+    utils.setDockerEnv(machineName, cb)
   }
 
   unsetEnv (cb) {
@@ -592,7 +608,23 @@ SHELL_SCREENRC`
     return res
   }
 
+  reprovisionMachines (machinesArr) {
+    return new Promise((resolve, reject) => {
+      exec(`docker-machine provision ${machinesArr.join(' ')}`, (err, res) => {
+        if (err) {
+          reject(err)
+        } else {
+          resolve(res)
+        }
+      })
+    })
+  }
+
   async createSwarm (config) {
+    const parsedCompose = parseComposeAndGetAddresses(config.name)
+    const api = new Api(parsedCompose)
+    this._api = api
+    
     const runninMachines = await this.getRunningMachinesList(config.name)
     console.log(`running machines:`, runninMachines)
     if (runninMachines.length) {
@@ -605,8 +637,13 @@ SHELL_SCREENRC`
         console.log(`Found already running machines: ${runninMachines}`)
         console.log(`not removing them. If you want to remove them, run`)
         console.log(chalk.inverse(`docker-machine rm -y -f ${runninMachines.join(' ')}`))
+
+        // reprovision
+        // await this.reprovisionMachines(runninMachines)
+        
         try {
           await this.stopStack('livepeer')
+          await this.stopStack('gpu')
           await this.stopStack('streamer')
         } catch (e) {
           if (e) console.log('stopping stack error ', e)
@@ -623,13 +660,15 @@ SHELL_SCREENRC`
             break
           }
         }
-        return true
+        return { notCreatedNow: true }
       } else {
         await this.tearDown(config.name)
       }
     }
-    await this.createSwarmCreateMachines(config)
-    return false
+    let resp = await this.createSwarmCreateMachines(config)
+    
+    resp.notCreatedNow = false
+    return resp
   }
 
   createSwarmCreateMachines (config) {
@@ -638,6 +677,7 @@ SHELL_SCREENRC`
       this.createMachines(config, (err) => {
         if (err) throw err
         // init the swarm.
+        // TODO , make sure init runs on the right network interface if using openvpn
         this.init(`${config.name}-manager`, (err, stdout) => {
           if (err) throw err
           // get the swarm-token and the manager's ip.
@@ -647,6 +687,12 @@ SHELL_SCREENRC`
               this.getSwarmToken(`${config.name}-manager`, next)
             },
             internalIP: (next) => {
+              // if (config.openvpn) {
+              //   // use tun0 interface instead of gcp IP
+              //   console.log(`[Openvpn] : using TUN0 instead of GCP internal networking`)
+              //   utils.getInterfaceIP(`${config.name}-manager`, config.machines.zone, `tun0`, next)
+              // } else {
+              // }
               this.getInternalIP(`${config.name}-manager`, next)
             },
             networkId: (next) => {
@@ -654,6 +700,14 @@ SHELL_SCREENRC`
             }
           }, (err, result) => {
             if (err) throw err
+            // FIXME , standardize the value in internalIP
+            if (Array.isArray(result.internalIP)) {
+
+            } else {
+              let tempIpArr = [result.internalIP]
+              result.internalIP = tempIpArr
+            }
+
             console.log('result: ', result)
             console.log(`adding ${config.machines.num - 1} workers to the swarm, token ${result.token[0]}, ip: ${result.internalIP[0]}`)
             timesLimit(
@@ -684,12 +738,28 @@ SHELL_SCREENRC`
                     })
                 })
                 */
-              }, (err, results) => {
+              }, async (err, results) => {
                 if (err) throw err
-                resolve({
-                  token: result.token[0].trim(),
-                  internalIP: result.internalIP[0].trim()
-                })
+
+                // add GPU host to swarm
+                // IMPORTANT this requires the dev machine to have an ovpn running to be able to connect to the gpu machine.
+                if (config.gpu) {
+                  let ip = await this.getPubIP(`${config.name}-manager`)
+                  console.log('manager IP : ', ip)
+
+                  resolve({
+                    token: result.token[0].trim(),
+                    internalIP: result.internalIP[0].trim(),
+                    pubIP: ip
+                  })
+
+                } else {
+                  // 
+                  resolve({
+                    token: result.token[0].trim(),
+                    internalIP: result.internalIP[0].trim()
+                  })
+                }
               })
           })
         })
@@ -938,7 +1008,7 @@ SHELL_SCREENRC`
 
   openExternalAccess (name, cb) {
     exec(`gcloud compute firewall-rules create ${name}-swarm \
-    --allow tcp \
+    --allow tcp,udp \
     --description "open tcp ports for the test-harness" \
     --target-tags ${name}-cluster`, (err, output) => {
       if (err) console.log('firewall Error ', err)

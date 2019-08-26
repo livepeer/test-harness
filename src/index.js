@@ -10,6 +10,8 @@ const NetworkCreator = require('./networkcreator')
 const Swarm = require('./swarm')
 const Api = require('./api')
 const utils = require('./utils/helpers')
+const GpuTranscoder = require('./gpu/gpu')
+const { runOpenvpn } = require('./ovpn')
 const { wait, parseComposeAndGetAddresses, needToCreateGeth, saveLocalDockerImage, loadLocalDockerImageToSwarm,
   pushDockerImageToSwarmRegistry } = require('./utils/helpers')
 const { prettyPrintDeploymentInfo } = require('./helpers')
@@ -66,8 +68,8 @@ class TestHarness {
     })
   }
 
-  getDockerComposePath(config) {
-    return path.join(this.distDir, DIST_DIR, config.name, 'docker-compose.yml')
+  getDockerComposePath(config, filename) {
+    return path.join(this.distDir, DIST_DIR, config.name, filename || 'docker-compose.yml')
   }
 
 
@@ -131,9 +133,14 @@ class TestHarness {
 Plese note now GCP logging is truned off by default and should be turned on explicitly.`)
       process.exit(3)
     }
-    this.swarm = new Swarm(config.name)
 
     this._config = config
+    this.swarm = new Swarm(config.name)
+
+    if (config.gpu) {
+      this.gpu = new GpuTranscoder(this._config, {swarm: this.swarm})
+    }
+
     if (config.localBuild && config.publicImage) {
       console.log(chalk.red('Should specify either localBuild or publicImage'))
       process.exit(2)
@@ -260,13 +267,7 @@ Plese note now GCP logging is truned off by default and should be turned on expl
     return experiment
   }
 
-  async runSwarm(config) {
-    // copy binaries to the manager instance.
-    // I have a slow connection . so i'm not uploading the binary for testing.
-    // TODO UNCOMMENT THIS BEFORE MERGE
-    // this.networkCreator.loadBinaries(`${DIST_DIR}/${config.name}`, (err) => {
-    //   if (err) throw err
-    // })
+  async preSwarm (config) {
     config.machines = config.machines || {
       num: DEFAULT_MACHINES,
       zone: 'us-east1-b',
@@ -286,19 +287,67 @@ Plese note now GCP logging is truned off by default and should be turned on expl
       await this.networkCreator.compressAndCopyBinaries(`${DIST_DIR}/${config.name}`)
     }
 
-    const notCreatedNow = await this.swarm.createSwarm(config)
-    // result = {internalIp, token, networkId}
+  }
+
+  async setupSwarm (config) {
+    const swarmInfo = await this.swarm.createSwarm(config)
+    // result = {internalIp, token, networkId, notCreatedNow}
     console.log('swarm created')
-    if (!notCreatedNow) {
+    const ri = await this.swarm.getRunningMachinesList(config.name)
+    console.log(`running machines: "${ri}"`)
+    ri.sort()
+    
+    if (!swarmInfo.notCreatedNow) {
       await this.swarm.createRegistry()
     }
+    
+    // if (config.openvpn) {
+    //   Promise.all(ri.map(async m => {
+    //     console.log(`running OVPN on ${m}`)
+    //     await runOpenvpn(m, config.machines.zone);
+    //   }))
+    //   // await runOpenvpn(ri, config.machines.zone)
+    //   console.log('OVPN clients running')
+    // }
+    
     if (config.metrics) {
-      const ri = await this.swarm.getRunningMachinesList(config.name)
-      console.log(`running machines: "${ri}"`)
-      ri.sort()
       const workersIPS = await Promise.all(ri.map(wn => this.swarm.getPubIP(wn)))
       console.log(`ips:`, workersIPS)
       this.networkCreator.machinesCreated(workersIPS)
+    }
+
+    return swarmInfo
+  }
+
+  async setupGPU (config, swarmInfo) {
+    let gpuSwarmState = await this.gpu._getSwarmStatus()
+    
+    if (!swarmInfo.notCreatedNow) {
+      if (gpuSwarmState && gpuSwarmState === 'active') {
+        console.log('WARNING: gpu instance is already in a swarm, which means it is being used by another test-harness deployment. leaving swarm is going to break that...')
+        console.log('leaving swarm')
+        await this.gpu.leaveSwarm() 
+      }
+  
+      console.log('joining swarm')
+      await this.gpu.joinSwarm(swarmInfo.token, `${swarmInfo.pubIP}:2377`)
+    }
+    
+    console.log('generating gpu stack')
+    await this.gpu.generateDockerStack()
+    console.log('deploying GPU stack')
+    await this.gpu.deployStack()
+  }
+
+  async runSwarm(config) {
+    
+    await this.preSwarm(config)
+    
+    let swarmInfo = await this.setupSwarm(config)
+
+    if (config.gpu) {
+      console.log('adding GPU to swarm')
+      await this.setupGPU(config, swarmInfo)  
     }
 
     // if (err) throw err
@@ -359,8 +408,14 @@ Plese note now GCP logging is truned off by default and should be turned on expl
   }
 
   assignTranscoders2Orchs (config) {
-    const orchs = this.getTypeCountAndNames('orchestrator', config)
-    const transcoders = this.getTypeCountAndNames('transcoder', config)
+    let orchs, transcoders
+    if (config.gpu) {
+      orchs = this.getTypeCountAndNames('orchestrator', config)
+      transcoders = this.getTypeCountAndNames('gpu', config)
+    } else {
+      orchs = this.getTypeCountAndNames('orchestrator', config)
+      transcoders = this.getTypeCountAndNames('transcoder', config)
+    }
 
     let transcoderNames = transcoders.matchedNames
     let numOrchs = orchs.count
@@ -606,7 +661,7 @@ Plese note now GCP logging is truned off by default and should be turned on expl
         utils.remotelyExec(
           `${config.name}-manager`,
           config.machines.zone,
-          `cd /tmp/config && sudo docker stack deploy -c docker-compose.yml livepeer`,
+          `cd /tmp/config && sudo docker  -c docker-compose.yml livepeer`,
           (err, outputBuf) => {
             if (err) {
               reject(err)
@@ -644,6 +699,11 @@ Plese note now GCP logging is truned off by default and should be turned on expl
     console.log('docker image pushed')
     try {
       await this.swarm.deployComposeFile(this.getDockerComposePath(config), 'livepeer', managerName)
+
+      if (config.gpu) {
+        await this.swarm.deployComposeFile(this.getDockerComposePath(config, 'gpu-stack.yml'), 'gpu', managerName)
+      }
+
       const results = await this.fundAccounts(config)
       return results
     } catch(e) {

@@ -586,6 +586,8 @@ class NetworkCreator extends EventEmitter {
           // append it to output as output.<node_generate_id> = props
           if (type === 'streamer') {
             this._generateStreamerService(group, type, i, volumes, next)
+          } else if (type === 'gpu') {
+            next(null, {})
           } else {
             this._generateService(group, type, i, volumes, next)
           }
@@ -593,11 +595,16 @@ class NetworkCreator extends EventEmitter {
         (err, nodes) => {
           if (err) throw err
           // console.log(`finished ${type}, ${JSON.stringify(nodes)}`)
-          nodes.forEach((node, i) => {
-            output[`${group}_${i}`] = node
-          })
-          // console.log('output', output)
-          callback(null)
+          if (type === 'gpu') {
+            // skip this one
+            return callback(null)
+          } else {
+            nodes.forEach((node, i) => {
+              output[`${group}_${i}`] = node
+            })
+            // console.log('output', output)
+            callback(null)
+          }
         }
       )
     }, (err) => {

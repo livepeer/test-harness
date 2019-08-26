@@ -3,6 +3,8 @@
 const fs = require('fs')
 const path = require('path')
 const YAML = require('yaml')
+const composefile = require('composefile')
+const writeYaml = require('write-yaml')
 const { spawn, exec } = require('child_process')
 const ethUtil = require('ethereumjs-util')
 const ethAbi = require('ethereumjs-abi')
@@ -75,6 +77,104 @@ function remotelyExec (machineName, zone, command, cb) {
   })
 }
 
+/**
+ * copy a file between your machine and any docker-machine provisioned instance.
+ * @param {string} origin source_machine:path
+ * @param {string} destination destination_machine:path
+ * @param {string} opts scp flags, check docker-machine scp -h for more info
+ */
+async function scp (origin, destination, opts) {
+  return new Promise((resolve, reject) => {
+    if (!opts) {
+      opts = ''
+    }
+
+    exec(`docker-machine scp ${opts} ${origin} ${destination}`, (err, res) => {
+      if (err) {
+        reject(err)
+      } else {
+        resolve(res)
+      }
+    })
+  })
+}
+
+function getSubnet (ip, range) {
+  let ipArr = ip.split('.')
+  if (ipArr.length !== 4) {
+    throw new Error(`bad IP : ${ip} , ip.length: ${ipArr.length}`)
+  }
+
+  ipArr[3] = 0
+  return `${ipArr.join('.')}/${range}`
+}
+
+/**
+ * 
+ * @param {string} machine docker-machine hostname
+ * @param {string} zone gcp zone name
+ * @param {string} interface network interface to get IP for , for example tun0
+ */
+async function getInterfaceIP (machine, zone, interface, cb) {
+  return new Promise((resolve, reject) => {
+    remotelyExec(machine, zone,
+      // `ip addr show ${interface} | grep "inet\b" | awk '{print $2}' | cut -d/ -f1`
+      // `ip -f inet addr show ${interface} | grep "inet\b" | awk '{print $2}' | cut -d/ -f1 `, 
+      `ip -f inet addr show ${interface} | grep "inet" | awk '{$1=""; print $2}'`, 
+      (err, res) => {
+        if (err) {
+          reject(err)
+        } else {
+          if (res.startsWith('undefined')) {
+            res = res.slice(9, res.length - 1)
+          }
+          resolve(res)
+        }
+        console.log('-------------------------------------------------------------------------------')
+        console.log('getInterfaceIP : ', res)
+        console.log('-------------------------------------------------------------------------------')
+        if (cb) {
+          cb(err, res)
+        }
+      })
+
+  })
+}
+
+function setDockerEnv (machineName, cb) {
+  console.log(`executing d-m env ${machineName}`)
+    exec(`docker-machine env ${machineName}`, (err, stdout) => {
+      console.log(`done exec d-m env`, err, stdout)
+      console.log('===')
+      // if (err) throw err
+      if (err) {
+        console.error(err, `\nRetrying setEnv ${machineName}`)
+        setDockerEnv(machineName, cb)
+      } else {
+        // get all the values in the double quotes
+        // example env output
+        // export DOCKER_TLS_VERIFY="1"
+        // export DOCKER_HOST="tcp://12.345.678.90:2376"
+        // export DOCKER_CERT_PATH="/machine/machines/swarm-manager"
+        // export DOCKER_MACHINE_NAME="swarm-manager"
+        // # Run this command to configure your shell:
+        // # eval $(docker-machine env swarm-manager)
+
+        let parsed = stdout.match(/(["'])(?:(?=(\\?))\2.)*?\1/g)
+        if (parsed.length !== 4) {
+          throw new Error('env parsing mismatch!')
+        }
+        let env = {
+          DOCKER_TLS_VERIFY: parsed[0].substr(1,parsed[0].length -2),
+          DOCKER_HOST: parsed[1].substr(1, parsed[1].length-2),
+          DOCKER_CERT_PATH: parsed[2].substr(1, parsed[2].length-2),
+          DOCKER_MACHINE_NAME: parsed[3].substr(1, parsed[3].length-2)
+        }
+
+        cb(null, env)
+      }
+    })
+}
 
 function fundAccount (address, valueInEth, containerId, cb) {
   // NOTE: this requires the geth container to be running and account[0] to be unlocked.
@@ -149,6 +249,10 @@ function wait(pauseTimeMs, suppressLogs) {
 
 function getDockerComposePath (configName) {
   return path.join(__dirname, '../../dist', configName, 'docker-compose.yml')
+}
+
+function getConfigFolderPath (configName) {
+  return path.join(__dirname, '../../dist', configName)
 }
 
 function needToCreateGeth (config) {
@@ -301,7 +405,66 @@ async function _loadLocalDockerImageToSwarm(swarm, managerName) {
   })
 }
 
+function getRandomPort (origin) {
+  let usedPorts = [8545, 8546, 30303, 8080, 3000, 3001, 3333, 9090]
+  // TODO, ugh, fix this terrible recursive logic, use an incrementer like a gentleman
+  let port = origin + Math.floor(Math.random() * 999)
+  if (usedPorts.indexOf(port) === -1) {
+    usedPorts.push(port)
+    return port
+  } else {
+    return getRandomPort(origin)
+  }
+}
+
+function saveYaml (outputFolder, name, content) {
+  // console.log(`===== saving ${name} into ${outputFolder}`)
+  // console.log(content)
+  // fs.writeFileSync(path.join(outputFolder, name), YAML.stringify(content))
+  writeYaml.sync(path.join(outputFolder, name), content)
+}
+
+function updateServiceUri (configName, serviceName, pubIP, ports) {
+  let parsedCompose = null
+  try {
+    const file = fs.readFileSync(getDockerComposePath(configName), 'utf-8')
+    parsedCompose = YAML.parse(file)
+  } catch (e) {
+    throw e
+  }
+
+  if (!parsedCompose || !parsedCompose.services) {
+    console.log('parsedCompose doesn\'t have services Map', parsedCompose)
+    return
+  }
+
+  if (parsedCompose.services[serviceName]) {
+    const service = parsedCompose.services[serviceName]
+    let commandArr = service.command.split(' ')
+    let serviceAddrFlag = commandArr.indexOf('-serviceAddr')
+    if (serviceAddrFlag === -1) {
+      console.error('could not find -serviceAddr flag')
+      return
+    }
+
+    console.log(commandArr[serviceAddrFlag], commandArr[serviceAddrFlag + 1])
+    commandArr[serviceAddrFlag+1] = `${pubIP}:${ports['8935']}`
+    console.log(commandArr[serviceAddrFlag], commandArr[serviceAddrFlag + 1])
+    service.command = commandArr.join(' ')
+    parsedCompose.services[serviceName] = service
+    // store yaml again
+    saveYaml(getConfigFolderPath(configName), `docker-compose.yml`, parsedCompose)
+    // parsedCompose.outputFolder = getConfigFolderPath(configName)
+    // parsedCompose.filename = `docker-compose-yml`
+    
+    // composefile(parsedCompose, noob)
+  }
+}
+
+let noob = () => { console.log('noob Done')}
+
 module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount,
   getNames, spread, wait, parseComposeAndGetAddresses,
-  getIds, getConstrain, needToCreateGeth, needToCreateGethFaucet, needToCreateGethTxFiller, saveLocalDockerImage, loadLocalDockerImageToSwarm, pushDockerImageToSwarmRegistry
+  getIds, getConstrain, needToCreateGeth, needToCreateGethFaucet, needToCreateGethTxFiller, saveLocalDockerImage, loadLocalDockerImageToSwarm, pushDockerImageToSwarmRegistry,
+  scp, getInterfaceIP, getSubnet, setDockerEnv, getRandomPort, saveYaml, updateServiceUri, getConfigFolderPath
 }
