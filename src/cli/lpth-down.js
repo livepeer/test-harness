@@ -25,7 +25,7 @@ async function run(parsedCompose) {
     const swarm = new Swarm(name)
     if (config.gpu) {
       const gpu = new GpuTranscoder(config, {swarm: swarm})
-      await gpu.leaveSwarm()
+      await gpu.leaveSwarm(1)
     }
 
     console.log(`Removing VM instances for ${name}`)
