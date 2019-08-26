@@ -4,6 +4,7 @@ const program = require('commander')
 const path = require('path')
 const { parseConfigFromCommandLine } = require('./helpers.js')
 const Swarm = require('../swarm')
+const GpuTranscoder = require('../gpu/gpu')
 const dockercompose = require('docker-compose')
 
 async function run(parsedCompose) {
@@ -22,6 +23,11 @@ async function run(parsedCompose) {
     process.exit(0)
   } else {
     const swarm = new Swarm(name)
+    if (config.gpu) {
+      const gpu = new GpuTranscoder(config, {swarm: swarm})
+      await gpu.leaveSwarm()
+    }
+
     console.log(`Removing VM instances for ${name}`)
     await swarm.tearDown(name)
     console.log(`experiment ${name} VM instances removed.`)

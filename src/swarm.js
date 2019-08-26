@@ -621,6 +621,10 @@ SHELL_SCREENRC`
   }
 
   async createSwarm (config) {
+    const parsedCompose = parseComposeAndGetAddresses(config.name)
+    const api = new Api(parsedCompose)
+    this._api = api
+    
     const runninMachines = await this.getRunningMachinesList(config.name)
     console.log(`running machines:`, runninMachines)
     if (runninMachines.length) {

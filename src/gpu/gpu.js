@@ -231,7 +231,7 @@ class GpuTranscoder {
         })
     }
 
-    leaveSwarm () {
+    leaveSwarm (shutdown) {
         return new Promise((resolve, reject) => {
             this._sshExec(this._sshParams, `sudo docker swarm leave`).then((stdout) => {
                 console.log('leaveSwarm: ', stdout)
@@ -239,7 +239,9 @@ class GpuTranscoder {
                 if (stdout === 'Node left the swarm.') {
                     return resolve(true)
                 }
-
+                if (shutdown) { 
+                    pool.killAll()
+                }
                 resolve(stdout)
             }).catch(reject)
         })
