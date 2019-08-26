@@ -9,7 +9,7 @@ The test-harness supports livepeer deployments with GPU transcoders thats outsid
 
 ## Example configuration
 
-```json
+```js
 {
     name: 'ya-gpu',
     publicImage: true,
