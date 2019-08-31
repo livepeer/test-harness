@@ -60,7 +60,7 @@ function remotelyExec (machineName, zone, command, cb) {
     })
 
     builder.on('close', (code, signal) => {
-      console.log(`[remotelyExec] child process exited with code ${code} , signal: ${signal}`)
+      console.log(`[remotelyExec] child process '${command} ${args.join(' ')}' exited with code ${code} (${!!code}), signal: ${signal}`)
       setTimeout(() => {
         if (code) {
           reject(code)
@@ -68,7 +68,7 @@ function remotelyExec (machineName, zone, command, cb) {
           resolve(output)
         }
         if (cb) {
-          cb(null, output)
+          cb(code ? code : null, output)
         }
       }, 1)
     })
@@ -131,6 +131,26 @@ function spread (items, plts, reverse) {
     oi = ++oi % plts.length
   }
   return reverse ? rres : res
+}
+
+function waitcb(name, pauseTimeMs, suppressLogs, cb) {
+  return err => {
+    if (err) {
+      console.log(`Donw ${name}. Not waiting ${pauseTimeMs}ms because of error=${err}`)
+      cb(err)
+      return
+    }
+    if (!suppressLogs) {
+      console.log(`Waiting for ${pauseTimeMs} ms`)
+    }
+    setTimeout(() => {
+      if (!suppressLogs) {
+        console.log(`Done waiting ${pauseTimeMs}ms.`)
+      }
+      console.log(`Done waiting for ${name}, calling cb (${cb})`)
+      cb(null)
+    }, pauseTimeMs)
+  }
 }
 
 function wait(pauseTimeMs, suppressLogs) {
@@ -302,6 +322,6 @@ async function _loadLocalDockerImageToSwarm(swarm, managerName) {
 }
 
 module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount,
-  getNames, spread, wait, parseComposeAndGetAddresses,
+  getNames, spread, wait, waitcb, parseComposeAndGetAddresses,
   getIds, getConstrain, needToCreateGeth, needToCreateGethFaucet, needToCreateGethTxFiller, saveLocalDockerImage, loadLocalDockerImageToSwarm, pushDockerImageToSwarmRegistry
 }

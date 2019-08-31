@@ -8,7 +8,7 @@ const Api = require('./api')
 const { PROJECT_ID, GCE_VM_IMAGE } = require('./constants')
 const monitoring = require('@google-cloud/monitoring')
 const utils = require('./utils/helpers')
-const { wait, parseComposeAndGetAddresses, getConstrain } = require('./utils/helpers')
+const { wait, waitcb, parseComposeAndGetAddresses, getConstrain } = require('./utils/helpers')
 const DIST_DIR = '../dist'
 
 // assume for a one run we only work with one config
@@ -31,29 +31,30 @@ class Swarm {
     this._machines = null
   }
 
+  getMachineType (config, machineName) {
+    const cm = config.machines
+    if (cm.machine2serviceType.has(machineName)) {
+      switch (cm.machine2serviceType.get(machineName)) {
+      case 'streamer':
+        return cm.streamerMachineType
+      case 'broadcaster':
+        return cm.broadcasterMachineType
+      case 'orchestrator':
+        return cm.orchestratorMachineType
+      case 'transcoder':
+        return cm.transcoderMachineType
+      }
+    } else {
+      return cm.managerMachineType
+    }
+  }
+
   createMachines (config, cb) {
     this._updateMachines = config.updateMachines
     this._installNodeExporter = config.installNodeExporter
     this._installGoogleMonitoring = config.installGoogleMonitoring
     const machinesCount = config.machines.num || 3
     const name = config.name || 'testharness-' + shortid.generate()
-    const getMachineType = machineName => {
-      const cm = config.machines
-      if (cm.machine2serviceType.has(machineName)) {
-        switch (cm.machine2serviceType.get(machineName)) {
-        case 'streamer':
-          return cm.streamerMachineType
-        case 'broadcaster':
-          return cm.broadcasterMachineType
-        case 'orchestrator':
-          return cm.orchestratorMachineType
-        case 'transcoder':
-          return cm.transcoderMachineType
-        }
-      } else {
-        return cm.managerMachineType
-      }
-    }
 
     if (Array.isArray(config.machines.zones)) {
       let numberOfZones = config.machines.zones.length
@@ -67,7 +68,7 @@ class Swarm {
         groups[config.machines.zones[j]].push({
           name: `${name}-worker-${i + 1}`,
           zone: config.machines.zones[j],
-          machineType: getMachineType(`${name}-worker-${i + 1}`),
+          machineType: this.getMachineType(config, `${name}-worker-${i + 1}`),
           tags: config.machines.tags || `${name}-cluster`
         })
 
@@ -95,6 +96,7 @@ class Swarm {
         this.setupGCEMonitoring(config).then(() => cb(null), cb)
       })
     } else {
+      /*
       parallel([
         (done) => {
           this.createMachine({
@@ -105,7 +107,7 @@ class Swarm {
           }, done)
         },
         (done) => {
-          timesLimit(machinesCount - 1, 50, (i, next) => {
+          timesLimit(machinesCount - 1, 30, (i, next) => {
             // create workers
             const  mName = `${name}-worker-${i + 1}`
             this.createMachine({
@@ -113,15 +115,62 @@ class Swarm {
               zone: config.machines.zone,
               machineType: getMachineType(mName),
               tags: config.machines.tags || `${name}-cluster`
-            }, next)
+            }, waitcb(mName, 3000, false, next))
           }, done)
         }
       ], (err) => {
-        if (err) return cb(err)
+        if (err) {
+          console.log(`Error creating machines in parallel: ${err}`)
+          cb(err)
+          return
+        }
+        console.log(`Done creating machines in parallel.`)
         this.setupGCEMonitoring(config).then(() => cb(null), cb)
+      })
+      */
+      this.createMachinesUsual(config, name, machinesCount).then(() => {
+        console.log(`Done createMachinesUsual`)
+        cb()
+      }, err => {
+        console.log(`Done createMachinesUsual with err: ${err}`)
+        cb(err)
+      }).catch(err => {
+        console.log(`===== second catch of ${err}`)
+        process.exit(44)
       })
     }
   }
+
+  async createMachinesUsual(config, name, machinesCount) {
+    console.log(`Creating manger machine`)
+    try {
+      const managerCreateTask = this.createMachine({
+        name: `${name}-manager`,
+        zone: config.machines.zone,
+        machineType: config.machines.managerMachineType,
+        tags: config.machines.tags || `${name}-cluster`
+      })
+      let machinesCreationTasks = [managerCreateTask]
+      for (let i = 1; i < machinesCount; i++) {
+        // create workers
+        const  mName = `${name}-worker-${i}`
+        machinesCreationTasks.push(this.createMachine({
+          name: mName,
+          zone: config.machines.zone,
+          machineType: this.getMachineType(config, mName),
+          tags: config.machines.tags || `${name}-cluster`
+        }))
+      }
+      await Promise.all(machinesCreationTasks)
+      console.log(`Done creating machines in parallel.`)
+      await this.setupGCEMonitoring(config)
+      console.log(`Done calling setupGCEMonitoring`)
+    } catch (e) {
+      console.log(`Error in createMachinesUsual: ${e}`)
+      throw(e)
+    }
+  }
+  
 
   async setupGCEMonitoring(config) {
     const zone = config.machines.zone || this._defaults.zone
@@ -388,6 +437,49 @@ class Swarm {
   }
 
   createMachine (opts, cb) {
+    return new Promise((resolve, reject) => {
+      const zone = opts.zone || this._defaults.zone
+      let tr = 0
+      console.log(`running create machine ${opts.name} try ${tr}`)
+      const intCb = err => {
+        if (!err) {
+          this.setupMachine(opts.name, zone).then(() => {
+            console.log(`Success setting up machine ${opts.name}, calling ${cb}`)
+            if (cb) {
+              cb(null)
+            }
+            resolve()
+          }, err => {
+            console.log(`Setup of machine ${opts.name} is rejected: ${err}`)
+            if (cb) {
+              console.log(`Calling ${cb}`)
+              cb(err)
+            }
+            if (err) { reject(err) } else { resolve() }
+          })
+        } else {
+          tr++
+          if (tr > 8) {
+            console.error(`Tried to created machine ${opts.name} for five times and failed.`)
+            process.exit(14)
+          }
+          setTimeout(() => {
+            this.tearDownOne(opts.name, err => {
+              if (err) {
+                console.log(`Error removing ${opts.name}`)
+              }
+              setTimeout(() => {
+                this._createMachine(opts, intCb)
+              }, 2000)
+            })
+          }, Math.random()*2500|0)
+        }
+      }
+      this._createMachine(opts, intCb)
+    })
+  }
+
+  _createMachine (opts, cb) {
     const zone = opts.zone || this._defaults.zone
     let driver = opts.driver || this._defaults.driver
     // TODO sanitize user opts here
@@ -411,6 +503,8 @@ class Swarm {
       opts.tags || this._defaults.tags,
       `--${driver}-project`,
       this._defaults.projectId,
+      // `--google-use-internal-ip`,
+      // '--google-use-internal-ip-only',
       `--${driver}-machine-image`,
       GCE_VM_IMAGE
     ]
@@ -431,9 +525,11 @@ class Swarm {
     builder.on('close', (code) => {
       console.log(`[createMachine] child process exited with code ${code}`)
       if (code !== 0 && !stderr.match(/already exists/g) ) {
-        return cb(`[createMachine err] child process exited with code ${code}`)
+        cb(`[createMachine err] child process exited with code ${code}`)
+        return
       }
-      this.setupMachine(opts.name, zone).then(() => cb(null)).catch(cb)
+      cb(null)
+      // this.setupMachine(opts.name, zone).then(() => cb(null)).catch(cb)
     })
   }
 
@@ -473,6 +569,7 @@ SHELL_SCREENRC`
     } else {
       await wait(1000) // need to wait while till new docker daemon starts up after being killed
     }
+    console.log(`Done setting up machine ${machine}, exiting.`)
   }
 
   async setupMachine2(machine, zone) {
@@ -549,7 +646,6 @@ SHELL_SCREENRC`
     exec(`docker-machine env ${machineName}`, (err, stdout) => {
       console.log(`done exec d-m env`, err, stdout)
       console.log('===')
-      // if (err) throw err
       if (err) {
         console.error(err, `\nRetrying setEnv ${machineName}`)
         this.setEnv(machineName, cb)
@@ -565,7 +661,8 @@ SHELL_SCREENRC`
 
         let parsed = stdout.match(/(["'])(?:(?=(\\?))\2.)*?\1/g)
         if (parsed.length !== 4) {
-          throw new Error('env parsing mismatch!')
+          cb(new Error('env parsing mismatch!'))
+          return
         }
         let env = {
           DOCKER_TLS_VERIFY: parsed[0].substr(1,parsed[0].length -2),
@@ -636,10 +733,18 @@ SHELL_SCREENRC`
     return new Promise((resolve, reject) => {
       // createMachines
       this.createMachines(config, (err) => {
-        if (err) throw err
+        if (err) {
+          console.log(`Error calling createMachines: ${err}`)
+          reject(err)
+          return
+        }
         // init the swarm.
         this.init(`${config.name}-manager`, (err, stdout) => {
-          if (err) throw err
+          if (err) {
+            console.log(`Error calling Swarm.init: ${err}`)
+            reject(err)
+            return
+          }
           // get the swarm-token and the manager's ip.
           // create the docker network.
           parallel({
@@ -653,7 +758,11 @@ SHELL_SCREENRC`
               this.createNetwork(`testnet`, config.name, next)
             }
           }, (err, result) => {
-            if (err) throw err
+            if (err) {
+              console.log(`Swarm.init 1 error: ${err}`)
+              reject(err)
+              return
+            }
             console.log('result: ', result)
             console.log(`adding ${config.machines.num - 1} workers to the swarm, token ${result.token[0]}, ip: ${result.internalIP[0]}`)
             timesLimit(
@@ -685,7 +794,11 @@ SHELL_SCREENRC`
                 })
                 */
               }, (err, results) => {
-                if (err) throw err
+                if (err) {
+                  console.log(`Swarm.init 2 error: ${err}`)
+                  reject(err)
+                  return
+                }
                 resolve({
                   token: result.token[0].trim(),
                   internalIP: result.internalIP[0].trim()
@@ -699,7 +812,11 @@ SHELL_SCREENRC`
 
   init (managerName, cb) {
     this.setEnv(managerName, (err, env) => {
-      if (err) throw err
+      if (err) {
+        console.log(`Error callint setEnv in Swarm.init: ${err}`)
+        cb(err)
+        return
+      }
       console.log('env before init: ', env)
       exec(`docker swarm init`, {
         env: env
@@ -714,7 +831,11 @@ SHELL_SCREENRC`
 
   getSwarmToken (managerName, cb) {
     this.setEnv(managerName, (err, env) => {
-      if (err) throw err
+      if (err) {
+        console.log(`Error callint setEnv in Swarm.getSwarmToken: ${err}`)
+        cb(err)
+        return
+      }
       // type can be either manager or worker
       // right now this defaults to worker
       exec(`docker swarm join-token -q worker`, {env: env}, cb)
@@ -723,7 +844,11 @@ SHELL_SCREENRC`
 
   join (machineName, token, managerIP, cb) {
     this.setEnv(machineName, (err, env) => {
-      if (err) throw err
+      if (err) {
+        console.log(`Error callint setEnv in Swarm.join: ${err}`)
+        cb(err)
+        return
+      }
       // TODO get the managers internal IP automatically.
       console.log(`adding ${machineName}..`, env, managerIP)
       console.log(`docker swarm join --token ${token} ${managerIP}:2377`)
@@ -736,7 +861,10 @@ SHELL_SCREENRC`
       this.setEnv(managerName, (err, env) => {
         if (err) {
           reject(err)
-          cb(err)
+          if (cb) {
+            cb(err)
+          }
+          return
         }
         console.log(`running docker stack deploy on ${managerName} (using ${filePath})`)
         let builder = spawn('docker', ['stack', 'deploy', '--compose-file', filePath, prefix], {env: {...process.env, ...env}})
@@ -784,7 +912,14 @@ SHELL_SCREENRC`
     console.log(`Stopping stack ${stackName} on ${this._managerName}`)
     return new Promise((resolve, reject) => {
       this.setEnv(this._managerName, (err, env) => {
-        if (err) throw err
+      if (err) {
+        console.log(`Error callint setEnv in Swarm.stopStack: ${err}`)
+        reject(err)
+        if (cb) {
+          cb(err)
+        }
+        return
+      }
         const cmd = `docker stack rm ${stackName}`
         console.log('running:', cmd)
         exec(cmd, {env: env}, (e, r) => {
@@ -849,8 +984,9 @@ SHELL_SCREENRC`
     return new Promise((resolve, reject) => {
       this.setEnv(machineName, (err, env) => {
         if (err) {
+          console.log(`Error callint setEnv in Swarm._runDocker: ${err}`)
           reject(err)
-          throw err
+          return
         }
         const cmd = 'docker ' + args
         exec(cmd, {env}, (err, r) => {
@@ -913,7 +1049,7 @@ SHELL_SCREENRC`
       this.setEnv(this._managerName, (err, env) => {
         if (err) {
           reject(err)
-          throw err
+          return
         }
         exec(`docker service create --name registry --network testnet --publish published=5000,target=5000 registry:2`,
           {env: env}, err => {
@@ -952,12 +1088,12 @@ SHELL_SCREENRC`
       this.setEnv(this._managerName, (err, env) => {
         if (err) {
           reject(err)
-          throw err
+          return
         }
         exec(`docker service scale livepeer_${serviceName}=0`, {env}, (err, output) => {
           if (err) {
             reject(err)
-            throw err
+            return
           }
           exec(`docker service scale livepeer_${serviceName}=1`, {env}, (err, out) => {
             if (err) {
@@ -977,10 +1113,16 @@ SHELL_SCREENRC`
   restartServices (services, cb) {
     console.log(`swarm.restartServices ${services}`)
     this.setEnv(this._managerName, (err, env) => {
-      if (err) throw err
+      if (err) {
+        cb(err)
+        return
+      }
       eachLimit(services, 3, (serviceName, next) => {
         exec(`docker service scale livepeer_${serviceName}=0`, {env}, (err, output) => {
-          if (err) throw err
+          if (err) {
+            cb(err)
+            return
+          }
           exec(`docker service scale livepeer_${serviceName}=1`, {env}, next)
         })
       }, cb)
@@ -989,7 +1131,10 @@ SHELL_SCREENRC`
 
   isSwarmActive (cb) {
     this.setEnv(this._managerName, (err, env) => {
-      if (err) throw err
+      if (err) {
+        cb(err)
+        return
+      }
       exec(`docker node ls -q`, {env}, (err, output) => {
         if (err) return cb(null, false)
         console.log('isSwarmActive: ', output)
@@ -1000,13 +1145,17 @@ SHELL_SCREENRC`
 
   doesMachineExist (machineName, cb) {
     exec(`gcloud compute instances list --quiet --format=json --filter="name:${machineName}"`, (err, output) => {
-      if (err) throw err
+      if (err) {
+        cb(err)
+        return
+      }
       console.log(typeof output)
       let jsoned = null
       try {
         jsoned = JSON.parse(output)
       } catch (e) {
-        throw e
+        cb(e)
+        return
       }
       if (jsoned && jsoned.length > 0) {
         cb(null, jsoned[0])
@@ -1020,7 +1169,10 @@ SHELL_SCREENRC`
     const name = config.name
     const zone = config.machines.zone
     exec(`cp -r ./scripts/* ${path.resolve(__dirname, `${DIST_DIR}/${name}`)}`, (err, stdout) => {
-      if (err) throw err
+      if (err) {
+        cb(err)
+        return
+      }
       console.log('manager_setup.sh copied')
       parallel({
         upload: (done) => {
@@ -1038,14 +1190,20 @@ SHELL_SCREENRC`
             done)
         }
       }, (err, result) => {
-        if (err) throw err
+        if (err) {
+          cb(err)
+          return
+        }
         this.rsync(
           `${name}-manager`,
           zone,
           `gs://lp_testharness_assets`,
           `/tmp/assets`,
           (err) => {
-            if (err) throw err
+            if (err) {
+              cb(err)
+              return
+            }
             utils.remotelyExec(
               `${name}-manager`,
               zone,
@@ -1068,16 +1226,23 @@ SHELL_SCREENRC`
     // 3. deploy new stack.
     // 4. profit.
     this.stopStack(`livepeer`, (err, resp) => {
-      // if (err) throw err
       if (err) console.log('livepeer stack is not there.')
-      cb()
+      cb(err)
     })
+  }
+
+  // removes one machine
+  tearDownOne (machine, cb) {
+    exec(`docker-machine rm -y ${machine}`, cb)
   }
 
   tearDown (name, cb) {
     return new Promise((resolve, reject) => {
       exec(`docker-machine ls -q --filter "name=^${name}-([a-z]+)"`, (err, output) => {
-        if (err) throw err
+        if (err) {
+          cb(err)
+          return
+        }
         if (!output) {
           resolve(null)
           if (cb) {
