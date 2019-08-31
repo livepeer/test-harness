@@ -1,0 +1,55 @@
+{
+  "variables": {
+    "aws_access_key": "",
+    "aws_secret_key": ""
+  },
+  "builders": [
+    {
+      "type": "googlecompute",
+      "project_id": "test-harness-226018",
+      "source_image_family": "ubuntu-minimal-1804-lts",
+      "ssh_username": "packer",
+      "zone": "us-central1-b",
+      "image_name": "test-harness-base-{{timestamp}}",
+      "image_family": "test-harness-base"
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "shell",
+      "pause_before": "30s",
+      "inline": [
+        "sudo apt-get update",
+        "sudo apt-get -y upgrade",
+        "sudo apt-get install -y curl wget vim iputils-ping apt-transport-https ca-certificates ca-certificates software-properties-common python3-pip",
+        "sudo curl -sSO https://dl.google.com/cloudagents/install-monitoring-agent.sh",
+        "sudo bash install-monitoring-agent.sh",
+        "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -",
+        "sudo apt-key fingerprint 0EBFCD88",
+        "sudo add-apt-repository  \"deb [arch=amd64] https://download.docker.com/linux/ubuntu  $(lsb_release -cs) stable\"",
+        "sudo apt-get update",
+        "sudo apt-get install -y docker-ce docker-ce-cli containerd.io",
+        "sudo apt-get -y autoremove",
+        "sudo -H pip3 install ansible",
+        "ansible-galaxy install cloudalchemy.node-exporter"
+      ]
+    },
+    {
+      "type": "file",
+      "source": "daemon.json",
+      "destination": "/tmp/"
+    },
+    {
+      "type": "file",
+      "source": "nodepb.yml",
+      "destination": "/tmp/"
+    },
+    {
+      "type": "shell",
+      "inline": [
+        "sudo cp /tmp/daemon.json /etc/docker/daemon.json",
+        "sudo ansible-playbook  /tmp/nodepb.yml"
+      ]
+    }
+  ]
+}
