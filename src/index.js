@@ -131,7 +131,6 @@ class TestHarness {
 Plese note now GCP logging is truned off by default and should be turned on explicitly.`)
       process.exit(3)
     }
-    this.swarm = new Swarm(config.name)
 
     this._config = config
     if (config.localBuild && config.publicImage) {
@@ -196,6 +195,7 @@ Plese note now GCP logging is truned off by default and should be turned on expl
     let o2t = this.assignTranscoders2Orchs(config)
     config.o2t = o2t
     this.networkCreator = new NetworkCreator(config)
+    this.swarm = new Swarm(config.name, config)
     this.networkCreator.generateComposeFile(`${DIST_DIR}/${config.name}`, (err) => {
       if (err) return handleError(err)
 

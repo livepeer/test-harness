@@ -9,6 +9,8 @@ const { PROJECT_ID, GCE_VM_IMAGE } = require('./constants')
 const monitoring = require('@google-cloud/monitoring')
 const utils = require('./utils/helpers')
 const { wait, waitcb, parseComposeAndGetAddresses, getConstrain } = require('./utils/helpers')
+const DockerMachine = require('./clouds/docker_machine')
+
 const DIST_DIR = '../dist'
 
 // assume for a one run we only work with one config
@@ -16,7 +18,7 @@ let service2IP = null
 let worker1IP = null
 
 class Swarm {
-  constructor (name) {
+  constructor (name, config = {}) {
     this._defaults = {
       driver: 'google',
       zone: 'us-east1-b',
@@ -29,6 +31,11 @@ class Swarm {
     this._managerName = `${name}-manager` || null
     this._name = name
     this._machines = null
+    this._cloud = new DockerMachine(name, {
+      updateMachines: config.updateMachines,
+      installNodeExporter: config.installNodeExporter,
+      installGoogleMonitoring: config.installGoogleMonitoring,
+    }, this._defaults.zone, this._defaults.machineType, this._defaults.projectId)
   }
 
   getMachineType (config, machineName) {
@@ -144,25 +151,35 @@ class Swarm {
   async createMachinesUsual(config, name, machinesCount) {
     console.log(`Creating manger machine`)
     try {
-      const managerCreateTask = this.createMachine({
-        name: `${name}-manager`,
-        zone: config.machines.zone,
-        machineType: config.machines.managerMachineType,
-        tags: config.machines.tags || `${name}-cluster`
-      })
+      // const managerCreateTask = this.createMachine({
+      //   name: this._managerName,
+      //   zone: config.machines.zone,
+      //   machineType: config.machines.managerMachineType,
+      //   tags: config.machines.tags || `${name}-cluster`
+      // })
+      const tags = config.machines.tags || `${name}-cluster`
+      const managerCreateTask = this._cloud.createMachine(this._managerName, config.machines.zone, config.machines.managerMachineType, tags)
       let machinesCreationTasks = [managerCreateTask]
       for (let i = 1; i < machinesCount; i++) {
         // create workers
         const  mName = `${name}-worker-${i}`
-        machinesCreationTasks.push(this.createMachine({
-          name: mName,
-          zone: config.machines.zone,
-          machineType: this.getMachineType(config, mName),
-          tags: config.machines.tags || `${name}-cluster`
-        }))
+        machinesCreationTasks.push(this._cloud.createMachine(mName, config.machines.zone, this.getMachineType(config, mName), tags))
+        // machinesCreationTasks.push(this.createMachine({
+        //   name: mName,
+        //   zone: config.machines.zone,
+        //   machineType: this.getMachineType(config, mName),
+        //   tags: config.machines.tags || `${name}-cluster`
+        // }))
       }
       await Promise.all(machinesCreationTasks)
       console.log(`Done creating machines in parallel.`)
+      let setupMachinesTasks = [this._cloud.setupMachine(this._managerName, config.machines.zone)]
+      for (let i = 1; i < machinesCount; i++) {
+        const  mName = `${name}-worker-${i}`
+        setupMachinesTasks.push(this._cloud.setupMachine(mName, config.machines.zone))
+      }
+      await Promise.all(setupMachinesTasks)
+      console.log(`Done setup machine tasks.`)
       await this.setupGCEMonitoring(config)
       console.log(`Done calling setupGCEMonitoring`)
     } catch (e) {
@@ -170,7 +187,6 @@ class Swarm {
       throw(e)
     }
   }
-  
 
   async setupGCEMonitoring(config) {
     const zone = config.machines.zone || this._defaults.zone
@@ -1231,10 +1247,6 @@ SHELL_SCREENRC`
     })
   }
 
-  // removes one machine
-  tearDownOne (machine, cb) {
-    exec(`docker-machine rm -y ${machine}`, cb)
-  }
 
   tearDown (name, cb) {
     return new Promise((resolve, reject) => {
