@@ -8,8 +8,9 @@ const { wait, remotelyExec } = require('../utils/helpers')
  * Abstracts VMs creation by docker-machine
  */
 class DockerMachine {
-  constructor(deploymentName, machinesConfig, zone = 'us-east1-b', machineType = 'n1-standard-1', projectId = PROJECT_ID) {
+  constructor(context, deploymentName, machinesConfig, zone = 'us-east1-b', machineType = 'n1-standard-1', projectId = PROJECT_ID) {
     this.deploymentName = deploymentName
+    this._context = context
     this._machinesConfig = machinesConfig
     this._defaults = {
       zone,

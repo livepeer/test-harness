@@ -6,6 +6,7 @@ const Api = require('./api')
 
 async function prettyPrintDeploymentInfo(parsedCompose) {
   const api = new Api(parsedCompose)
+  const swarm = new Swarm(parsedCompose.configName, parsedCompose.config)
   const oPorts = await api.getPortsArray(['orchestrators'])
   const bPorts = await api.getPortsArray(['broadcasters'])
   const tPorts = await api.getPortsArray(['transcoders'])

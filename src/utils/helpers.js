@@ -19,6 +19,60 @@ function functionEncodedABI (name, params, values) {
   return ethUtil.bufferToHex(Buffer.concat([ethUtil.sha3(name).slice(0, 4), ethAbi.rawEncode(params, values)]))
 }
 
+function trim(data) {
+  if (data) {
+    return String.prototype.trim.call(data)
+  }
+  return data
+}
+
+/**
+ * Locally executes command
+ * 
+ * @param {string} command to execute
+ * @param {Array<string>} args arguments to pass to command
+ * @returns {Promise}
+ */
+function asyncExec(command, args, quiet = true) {
+  return new Promise((resolve, reject) => {
+    console.log(`Running local command '${command} ${args.join(' ')}'`)
+    let builder = spawn(command, args)
+    let output = '', errOutput = ''
+
+    builder.stdout.on('data', (data) => {
+      if (data) {
+        const trimmed = String.prototype.trim.call(data)
+        if (!quiet) {
+          console.log(`stdout: ${trimmed}`)
+        }
+        output += data
+      }
+    })
+
+    builder.stderr.on('data', (data) => {
+      if (data) {
+        if (data == '.') return
+        if (!quiet) {
+          const trimmed = String.prototype.trim.call(data)
+          console.log(`stderr: ${trimmed}`)
+        }
+        errOutput += data
+      }
+    })
+
+    builder.on('message', (msg, sendHandle) => {
+      console.log(`[asyncExec] msg: ${JSON.stringify(msg)}`)
+    })
+
+    builder.on('close', (code, signal) => {
+      console.log(`[asyncExec] child process '${command} ${args.join(' ')}' exited with code ${code} (${!!code}), signal: ${signal}`)
+      setTimeout(() => {
+        resolve([code, trim(output), trim(errOutput)])
+      }, 1)
+    })
+  })
+}
+
 function remotelyExec (machineName, zone, command, cb) {
   // reference : https://stackoverflow.com/a/39104844
   return new Promise((resolve, reject) => {
@@ -171,6 +225,11 @@ function getDockerComposePath (configName) {
   return path.join(__dirname, '../../dist', configName, 'docker-compose.yml')
 }
 
+function getDistPath (configName) {
+  return path.join(__dirname, '../../dist', configName)
+}
+
+
 function needToCreateGeth (config) {
     switch ((config.blockchain||{}).name) {
       case 'rinkeby':
@@ -205,6 +264,11 @@ function parseComposeAndGetAddresses (configName) {
     parsedCompose = YAML.parse(file)
   } catch (e) {
     throw e
+  }
+  try {
+    const file = fs.readFileSync(path.join(getDistPath(configName), 'config.yaml'), 'utf-8')
+    parsedCompose.config = YAML.parse(file)
+  } catch (e) {
   }
 
   parsedCompose.addresses = Object.keys(parsedCompose.services).map(name => {
@@ -279,7 +343,7 @@ async function saveLocalDockerImage() {
   return new Promise((resolve, reject) => {
     // exec(`docker save -o /tmp/lpnodeimage.tar lpnode:latest`, (err, stdout) =>
     const cmd = 'docker save  lpnode:latest | gzip -9 > /tmp/lpnodeimage.tar.gz'
-    exec(cmd, (err, stdout) => {
+    exec(cmd, (err) => {
       if (err) return reject(err)
       console.log('lpnode image saved')
       resolve()
@@ -287,12 +351,7 @@ async function saveLocalDockerImage() {
   })
 }
 
-async function pushDockerImageToSwarmRegistry(managerName, zone) {
-  console.log('Pushing image to swarm registry')
-  const locTag = `sudo docker tag lpnode:latest localhost:5000/lpnode:latest && sudo docker push localhost:5000/lpnode:latest `
-  await remotelyExec(managerName, zone, locTag)
-}
-
+/*
 async function loadLocalDockerImageToSwarm(swarm, managerName) {
   let err = null
   for (let i = 0; i < 10; i++) {
@@ -320,8 +379,9 @@ async function _loadLocalDockerImageToSwarm(swarm, managerName) {
     })
   })
 }
+*/
 
 module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount,
-  getNames, spread, wait, waitcb, parseComposeAndGetAddresses,
-  getIds, getConstrain, needToCreateGeth, needToCreateGethFaucet, needToCreateGethTxFiller, saveLocalDockerImage, loadLocalDockerImageToSwarm, pushDockerImageToSwarmRegistry
+  getNames, spread, wait, waitcb, parseComposeAndGetAddresses, asyncExec, trim,
+  getIds, getConstrain, needToCreateGeth, needToCreateGethFaucet, needToCreateGethTxFiller, saveLocalDockerImage
 }

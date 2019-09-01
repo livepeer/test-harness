@@ -27,7 +27,7 @@ async function run(parsedCompose) {
     }
     const th = new TestHarness()
     console.log(`Redeploying services for ${name}`)
-    await swarm.deployComposeFile(th.getDockerComposePath({name}), 'livepeer', managerName)
+    await swarm.deployComposeFile(th.getDockerComposePath({name}), 'livepeer')
     process.exit(0)
   }
   // console.log('Running docker-compose down...')

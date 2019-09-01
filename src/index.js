@@ -4,14 +4,15 @@ const path = require('path')
 const chalk = require('chalk')
 const { exec } = require('child_process')
 const { each, eachLimit, timesLimit, filter, map } = require('async')
+const YAML = require('yaml')
+const fs = require('fs')
 const dockercompose = require('docker-compose')
 
 const NetworkCreator = require('./networkcreator')
 const Swarm = require('./swarm')
 const Api = require('./api')
 const utils = require('./utils/helpers')
-const { wait, parseComposeAndGetAddresses, needToCreateGeth, saveLocalDockerImage, loadLocalDockerImageToSwarm,
-  pushDockerImageToSwarmRegistry } = require('./utils/helpers')
+const { wait, parseComposeAndGetAddresses, needToCreateGeth, saveLocalDockerImage } = require('./utils/helpers')
 const { prettyPrintDeploymentInfo } = require('./helpers')
 
 const DIST_DIR = '../dist'
@@ -68,6 +69,10 @@ class TestHarness {
 
   getDockerComposePath(config) {
     return path.join(this.distDir, DIST_DIR, config.name, 'docker-compose.yml')
+  }
+  
+  _getDistPath(config) {
+    return path.join(this.distDir, DIST_DIR, config.name)
   }
 
 
@@ -194,6 +199,7 @@ Plese note now GCP logging is truned off by default and should be turned on expl
     // return
     let o2t = this.assignTranscoders2Orchs(config)
     config.o2t = o2t
+    config.context = config.context || {}
     this.networkCreator = new NetworkCreator(config)
     this.swarm = new Swarm(config.name, config)
     this.networkCreator.generateComposeFile(`${DIST_DIR}/${config.name}`, (err) => {
@@ -201,18 +207,19 @@ Plese note now GCP logging is truned off by default and should be turned on expl
 
       // process.exit(9)
       if (config.local) {
-        this.runLocal(config)
+        this.runLocal()
           .then(r => cb(null, r))
           .catch(cb)
       } else {
-        this.runSwarm(config)
+        this.runSwarm()
           .then(r => cb(null, r))
           .catch(cb)
       }
     })
   }
 
-  async runLocal(config) {
+  async runLocal() {
+    const config = this._config
     // copy binaries
     // build lpnode:latest
     // run geth:pm
@@ -260,20 +267,24 @@ Plese note now GCP logging is truned off by default and should be turned on expl
     return experiment
   }
 
-  async runSwarm(config) {
+  async runSwarm() {
+    const config = this._config
     // copy binaries to the manager instance.
     // I have a slow connection . so i'm not uploading the binary for testing.
     // TODO UNCOMMENT THIS BEFORE MERGE
     // this.networkCreator.loadBinaries(`${DIST_DIR}/${config.name}`, (err) => {
     //   if (err) throw err
     // })
-    config.machines = config.machines || {
-      num: DEFAULT_MACHINES,
-      zone: 'us-east1-b',
-      machineType: 'n1-standard-2'
-    }
 
-    config.machines.tags = `${config.name}-cluster`
+    if (config.machines.tags && !Array.isArray(config.machines.tags)) {
+      config.machines.tags = [config.machines.tags]
+    } else if (!config.machines.tags) {
+      config.machines.tags = []
+    }
+    const tag = `${config.name}-cluster`
+    if (!config.machines.tags.includes(tag)) {
+      config.machines.tags.push(tag)
+    }
 
     console.log('machines config', config.machines)
 
@@ -286,13 +297,14 @@ Plese note now GCP logging is truned off by default and should be turned on expl
       await this.networkCreator.compressAndCopyBinaries(`${DIST_DIR}/${config.name}`)
     }
 
-    const notCreatedNow = await this.swarm.createSwarm(config)
+    const notCreatedNow = await this.swarm.createSwarm()
     // result = {internalIp, token, networkId}
     console.log('swarm created')
     if (!notCreatedNow) {
       await this.swarm.createRegistry()
     }
     if (config.metrics) {
+      // TODO fix 
       const ri = await this.swarm.getRunningMachinesList(config.name)
       console.log(`running machines: "${ri}"`)
       ri.sort()
@@ -313,6 +325,7 @@ Plese note now GCP logging is truned off by default and should be turned on expl
   }
 
   async setupEnd(config, experiment) {
+    this.saveConfig()
     this.api = new Api(experiment.parsedCompose, experiment.baseUrl)
     let setupSuccess = false
 
@@ -630,20 +643,12 @@ Plese note now GCP logging is truned off by default and should be turned on expl
     const managerName = `${configName}-manager`
     if (config.localBuild) {
       await saveLocalDockerImage()
-      await loadLocalDockerImageToSwarm(this.swarm, managerName)
-      await pushDockerImageToSwarmRegistry(managerName, config.machines.zone)
+      await this.swarm.moveLocallySavedDockerImageToSwarm()
+      await this.swarm.pushDockerImageToSwarmRegistry()
     }
-
-    /*
-    await utils.remotelyExec(managerName, config.machines.zone,
-       locTag + `sudo docker pull darkdragon/test-streamer:latest &&
-       sudo docker tag darkdragon/test-streamer:latest localhost:5000/streamer:latest &&
-       sudo docker push localhost:5000/streamer:latest
-      `)
-    */
     console.log('docker image pushed')
     try {
-      await this.swarm.deployComposeFile(this.getDockerComposePath(config), 'livepeer', managerName)
+      await this.swarm.deployComposeFile(this.getDockerComposePath(config), 'livepeer')
       const results = await this.fundAccounts(config)
       return results
     } catch(e) {
@@ -651,6 +656,14 @@ Plese note now GCP logging is truned off by default and should be turned on expl
       console.error(e)
       process.exit(11)
     }
+  }
+
+  saveConfig() {
+    const config = this._config
+    const distPath = this._getDistPath(config)
+    const savedCfgName = path.join(distPath, 'config.yaml')
+    const data = YAML.stringify(config)
+    fs.writeFileSync(savedCfgName, data)
   }
 
   async fundAccounts(config) {
