@@ -81,8 +81,8 @@ class NetworkCreator extends EventEmitter {
     } else {
       this.config = config
     }
+    this.config.context.portsUsed = {}
 
-    this.ports = {}
     this.nodes = {}
     this.hasGeth = false
     this.hasMetrics = false
@@ -117,13 +117,14 @@ class NetworkCreator extends EventEmitter {
     return [c, machine2serviceType]
   }
 
+  /*
   isPortUsed (port) {
     if (Object.keys(this.ports).indexOf(port.toString()) === -1) {
       return false
     }
-
     return true
   }
+  */
 
   loadBinaries (dist, cb) {
     return new Promise((resolve, reject) => {
@@ -396,10 +397,12 @@ class NetworkCreator extends EventEmitter {
     console.log(`generate service serviceName: ${serviceName}`)
     const nodes = this.config.nodes[gname]
     const flags = nodes.flags || ''
+    const port = getRandomPort(7934)
+    this.config.context.portsUsed[port] = true
     const generated = {
       image: 'livepeer/streamtester:latest',
       ports: [
-        `${getRandomPort(7934)}:7934`,
+        `${port}:7934`,
       ],
       command: '/root/streamtester -server -serverAddr 0.0.0.0:7934 ' + flags,
       hostname: serviceName,
@@ -463,15 +466,21 @@ class NetworkCreator extends EventEmitter {
     if (this.config.publicImage) {
       image = (typeof this.config.publicImage === 'string') ? this.config.publicImage : 'livepeer/go-livepeer:edge'
     }
+    const port1 = getRandomPort(8935)
+    this.config.context.portsUsed[port1] = true
+    const port2 = getRandomPort(7935)
+    this.config.context.portsUsed[port2] = true
+    const port3 = getRandomPort(1935)
+    this.config.context.portsUsed[port3] = true
     const generated = {
       // image: (this.config.local || this.config.localBuild) ? 'lpnode:latest' : 'localhost:5000/lpnode:latest',
       // image: this.config.local ? 'lpnode:latest' : 'localhost:5000/lpnode:latest',
       image,
       // image: 'localhost:5000/lpnode:latest',
       ports: [
-        `${getRandomPort(8935)}:8935`,
-        `${getRandomPort(7935)}:7935`,
-        `${getRandomPort(1935)}:1935`
+        `${port1}:8935`,
+        `${port2}:7935`,
+        `${port3}:1935`
       ],
       // TODO fix the serviceAddr issue
       command: this.getNodeOptions(gname, nodes, i),

@@ -7,6 +7,7 @@ const axios = require('axios')
 const Compute = require('@google-cloud/compute')
 const { PROJECT_ID, GCE_VM_IMAGE, GCE_CUSTOM_VM_IMAGE } = require('../constants')
 const { asyncExec, trim } = require('../utils/helpers')
+const { wait } = require('../utils/helpers')
 
 function toArray(value) {
   if (value && !Array.isArray(value)) {
@@ -249,8 +250,8 @@ class GoogleCloud {
       process.exit(207)
     }
     const hasExtIP = await this._hasExternalIP(machineName)
-    const intIPArg = !hasExtIP ? '--internal-ip' : ''
-    const [code, out, errOut] = await asyncExec('gcloud', `compute scp ${intIPArg} --zone ${zone} ${src} ${machineName}:${dst}`.split(' '), false)
+    const intIPArg = !hasExtIP ? ' --internal-ip' : ''
+    const [code, out, errOut] = await asyncExec('gcloud', `compute scp${intIPArg} --zone ${zone} ${src} ${machineName}:${dst}`.split(' '), false)
     if (code) {
       console.log(`Error copying file ${src} to ${machineName} to ${dst}: ${errOut}`)
       process.exit(208)
@@ -367,6 +368,7 @@ fi
 async function test() {
   const name = 'd100real'
   const gc = new GoogleCloud({}, name, {})
+  // await gc.scp('/tmp/lpnodeimage.tar.gz', 'dsmall-manager', '/tmp/lpnodeimage.tar.gz')
   // await gc.closePorts()
   // await gc.openPortsForDeployment([1935, 7934])
   // const isInside = await gc.isInsideCloud()

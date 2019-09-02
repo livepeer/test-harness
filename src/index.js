@@ -205,6 +205,7 @@ Plese note now GCP logging is truned off by default and should be turned on expl
     this.networkCreator.generateComposeFile(`${DIST_DIR}/${config.name}`, (err) => {
       if (err) return handleError(err)
 
+      // console.log(this.networkCreator)
       // process.exit(9)
       if (config.local) {
         this.runLocal()

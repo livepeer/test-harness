@@ -4,7 +4,7 @@ const chalk = require('chalk')
 const { exec, spawn } = require('child_process')
 const { each, eachLimit, eachOfLimit, timesLimit, parallel } = require('async')
 const Api = require('./api')
-const { PROJECT_ID, GCE_VM_IMAGE, PORTS_TO_OPEN } = require('./constants')
+const { PROJECT_ID, GCE_VM_IMAGE } = require('./constants')
 const monitoring = require('@google-cloud/monitoring')
 const utils = require('./utils/helpers')
 const { wait, waitcb, parseComposeAndGetAddresses, getConstrain } = require('./utils/helpers')
@@ -158,7 +158,10 @@ class Swarm {
       console.log(`Done creating machines in parallel.`)
       if (!isInsideCloud) {
         // TODO get ports to open from config (every time different)
-        await this._cloud.openPortsForDeployment(PORTS_TO_OPEN)
+        const portsUsed = Object.keys(config.context.portsUsed).map(port => parseInt(port))
+        if (portsUsed.length) {
+          await this._cloud.openPortsForDeployment(portsUsed)
+        }
       }
       let setupMachinesTasks = [this._cloud.setupMachine(this._managerName, config.machines.zone)]
       for (let i = 1; i < machinesCount; i++) {
