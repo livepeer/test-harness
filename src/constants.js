@@ -16,4 +16,5 @@ module.exports = {
     STREAMER_PORT: '7934',
   },
   NODE_TYPES: ['broadcaster', 'transcoder', 'orchestrator', 'streamer'],
+  PORTS_TO_OPEN: [1935, 7934, 7935, 8935],
 }

@@ -299,10 +299,12 @@ Plese note now GCP logging is truned off by default and should be turned on expl
 
     const notCreatedNow = await this.swarm.createSwarm()
     // result = {internalIp, token, networkId}
-    console.log('swarm created')
+    console.log(`Swarm created ${!notCreatedNow ? 'now' : ''}`)
+    /*
     if (!notCreatedNow) {
       await this.swarm.createRegistry()
     }
+    */
     if (config.metrics) {
       // TODO fix 
       const ri = await this.swarm.getRunningMachinesList(config.name)
@@ -640,7 +642,6 @@ Plese note now GCP logging is truned off by default and should be turned on expl
   async finishSetup(config) {
     const configName = config.name
     console.log('== finish setup ' + configName)
-    const managerName = `${configName}-manager`
     if (config.localBuild) {
       await saveLocalDockerImage()
       await this.swarm.moveLocallySavedDockerImageToSwarm()

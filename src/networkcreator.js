@@ -387,6 +387,10 @@ class NetworkCreator extends EventEmitter {
     return deps
   }
 
+  // _getRandomPort(port) {
+  //   return this.config.local ? getRandomPort(port) : port
+  // }
+
   _generateStreamerService (gname, type, i, volumes, cb) {
     let serviceName = this._getHostnameForService(gname, i)
     console.log(`generate service serviceName: ${serviceName}`)

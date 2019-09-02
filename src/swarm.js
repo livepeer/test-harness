@@ -4,7 +4,7 @@ const chalk = require('chalk')
 const { exec, spawn } = require('child_process')
 const { each, eachLimit, eachOfLimit, timesLimit, parallel } = require('async')
 const Api = require('./api')
-const { PROJECT_ID, GCE_VM_IMAGE } = require('./constants')
+const { PROJECT_ID, GCE_VM_IMAGE, PORTS_TO_OPEN } = require('./constants')
 const monitoring = require('@google-cloud/monitoring')
 const utils = require('./utils/helpers')
 const { wait, waitcb, parseComposeAndGetAddresses, getConstrain } = require('./utils/helpers')
@@ -18,7 +18,7 @@ let service2IP = null
 let worker1IP = null
 
 class Swarm {
-  constructor (name, config = {}) {
+  constructor(name, config = {}) {
     this._defaults = {
       driver: 'google',
       zone: 'us-east1-b',
@@ -45,25 +45,29 @@ class Swarm {
     }, this._defaults.zone, this._defaults.machineType, this._defaults.projectId)
   }
 
-  getMachineType (machineName) {
+  getMachineType(machineName) {
     const cm = this._config.machines
     if (cm.machine2serviceType.has(machineName)) {
       switch (cm.machine2serviceType.get(machineName)) {
-      case 'streamer':
-        return cm.streamerMachineType
-      case 'broadcaster':
-        return cm.broadcasterMachineType
-      case 'orchestrator':
-        return cm.orchestratorMachineType
-      case 'transcoder':
-        return cm.transcoderMachineType
+        case 'streamer':
+          return cm.streamerMachineType
+        case 'broadcaster':
+          return cm.broadcasterMachineType
+        case 'orchestrator':
+          return cm.orchestratorMachineType
+        case 'transcoder':
+          return cm.transcoderMachineType
       }
     } else {
       return cm.managerMachineType
     }
   }
 
-  async createMachines() {
+  getServiceAtMachine(machineName) {
+    return this._config.machines.machine2serviceType.get(machineName)
+  }
+
+  async _createMachines() {
     const config = this._config
     this._updateMachines = config.updateMachines
     this._installNodeExporter = config.installNodeExporter
@@ -119,16 +123,6 @@ class Swarm {
       */
     } else {
       await this.createMachinesUsual(machinesCount)
-      // this.createMachinesUsual(machinesCount).then(() => {
-      //   console.log(`Done createMachinesUsual`)
-      //   cb()
-      // }, err => {
-      //   console.log(`Done createMachinesUsual with err: ${err}`)
-      //   cb(err)
-      // }).catch(err => {
-      //   console.log(`===== second catch of ${err}`)
-      //   process.exit(44)
-      // })
     }
   }
 
@@ -136,6 +130,7 @@ class Swarm {
     console.log(`Creating ${machinesCount} machines`)
     const config = this._config
     const name = config.name
+    const isInsideCloud = await this._cloud.isInsideCloud()
     try {
       // const managerCreateTask = this.createMachine({
       //   name: this._managerName,
@@ -145,24 +140,29 @@ class Swarm {
       // })
       const tags = config.machines.tags
       const zone = config.machines.zone
-      const managerCreateTask = this._cloud.createMachine(this._managerName, zone, config.machines.managerMachineType, tags)
-      let machinesCreationTasks = [managerCreateTask]
+      // first create manager machine
+      const managerCreateTask = await this._cloud.createMachine(this._managerName, zone, config.machines.managerMachineType, tags, !isInsideCloud, GoogleCloud.SWARM_ROLE_MANAGER)
+      const managerInternalIP = await this._cloud.getInternalIP(this._managerName)
+      const token = await this._getSwarmTokenWithRetries()
+      console.log(`Using swarm token ${chalk.green(token)} and internal ip ${chalk.green(managerInternalIP)}`)
+      let machinesCreationTasks = []
       for (let i = 1; i < machinesCount; i++) {
         // create workers
-        const  mName = `${name}-worker-${i}`
-        machinesCreationTasks.push(this._cloud.createMachine(mName, zone, this.getMachineType(mName), tags))
-        // machinesCreationTasks.push(this.createMachine({
-        //   name: mName,
-        //   zone: config.machines.zone,
-        //   machineType: this.getMachineType(config, mName),
-        //   tags: config.machines.tags || `${name}-cluster`
-        // }))
+        const mName = `${name}-worker-${i}`
+        const makeExternal = !isInsideCloud && (['broadcaster', 'streamer'].includes(this.getServiceAtMachine(mName)) || config.allExternalIPs)
+        // const makeExternal = !isInsideCloud
+        machinesCreationTasks.push(this._cloud.createMachine(mName, zone, this.getMachineType(mName),
+          tags, makeExternal, GoogleCloud.SWARM_ROLE_WORKER, { token, managerInternalIP }))
       }
       await Promise.all(machinesCreationTasks)
       console.log(`Done creating machines in parallel.`)
+      if (!isInsideCloud) {
+        // TODO get ports to open from config (every time different)
+        await this._cloud.openPortsForDeployment(PORTS_TO_OPEN)
+      }
       let setupMachinesTasks = [this._cloud.setupMachine(this._managerName, config.machines.zone)]
       for (let i = 1; i < machinesCount; i++) {
-        const  mName = `${name}-worker-${i}`
+        const mName = `${name}-worker-${i}`
         setupMachinesTasks.push(this._cloud.setupMachine(mName, config.machines.zone))
       }
       await Promise.all(setupMachinesTasks)
@@ -171,7 +171,7 @@ class Swarm {
       console.log(`Done calling setupGCEMonitoring`)
     } catch (e) {
       console.log(`Error in createMachinesUsual: ${e}`)
-      throw(e)
+      throw (e)
     }
   }
 
@@ -181,10 +181,10 @@ class Swarm {
     const parsedCompose = parseComposeAndGetAddresses(config.name)
 
     // const client = new monitoring.MetricServiceClient()
-    const gc = new monitoring.v3.GroupServiceClient({projectId: PROJECT_ID})
+    const gc = new monitoring.v3.GroupServiceClient({ projectId: PROJECT_ID })
     const formattedName = gc.projectPath(PROJECT_ID);
     // console.log('Formatted name:', formattedName)
-    const [groups] = await gc.listGroups({name: formattedName})
+    const [groups] = await gc.listGroups({ name: formattedName })
     // console.log('====== groups:', groups)
     // const group = await gc.getGroup({name: formattedName})
     // console.log('====== group:', group)
@@ -210,7 +210,7 @@ class Swarm {
     const allPorts = oPorts.concat(bPorts).concat(tPorts)
     // console.log(allPorts)
     const ucClient = new monitoring.v3.UptimeCheckServiceClient()
-    const [checks] = await ucClient.listUptimeCheckConfigs({parent: formattedName})
+    const [checks] = await ucClient.listUptimeCheckConfigs({ parent: formattedName })
     // console.log('uptime chekcs:', JSON.stringify(checks, null, 2))
     const servicesNames = Object.keys(parsedCompose.services).filter(sn => {
       return sn.startsWith('transcoder') || sn.startsWith('orchestrator') || sn.startsWith('broadcaster') || sn === 'geth'
@@ -249,7 +249,8 @@ class Swarm {
             nanos: 0
           },
           contentMatchers,
-      }})
+        }
+      })
       // console.log(`Uptime check for service ${sn} created:`, upResp)
     }
     let nc = null
@@ -257,7 +258,7 @@ class Swarm {
       // configure aler policies
       const ncClient = new monitoring.v3.NotificationChannelServiceClient()
       const displayName = config.name + '-alerts'
-      const [channels] = await ncClient.listNotificationChannels({name: formattedName})
+      const [channels] = await ncClient.listNotificationChannels({ name: formattedName })
       console.log('Existing notification channels:', channels)
       nc = channels.find(c => c.displayName === displayName)
       if (!nc) {
@@ -276,9 +277,9 @@ class Swarm {
       }
     }
     const apClient = new monitoring.v3.AlertPolicyServiceClient()
-    const [alertPolicies] = await apClient.listAlertPolicies({name: formattedName})
+    const [alertPolicies] = await apClient.listAlertPolicies({ name: formattedName })
     // console.log('Existing alert policies:', JSON.stringify(alertPolicies, null, 2))
-    const [checks2] = await ucClient.listUptimeCheckConfigs({parent: formattedName})
+    const [checks2] = await ucClient.listUptimeCheckConfigs({ parent: formattedName })
     // console.log(`Existing checks:`, JSON.stringify(checks2, null, 2))
     // return
     const chunked = chunk(servicesNames, 6)
@@ -299,7 +300,7 @@ class Swarm {
               throw 'Can\t find check for ' + checkDisplayName
             }
             const chnp = ch.name.split('/')
-            const checkName = chnp[chnp.length-1]
+            const checkName = chnp[chnp.length - 1]
             return {
               displayName: `${sn} not responding`,
               conditionThreshold: {
@@ -351,32 +352,32 @@ class Swarm {
 
   async teardownGCEMonitoring(config) {
     return
-    const gc = new monitoring.v3.GroupServiceClient({projectId: PROJECT_ID})
+    const gc = new monitoring.v3.GroupServiceClient({ projectId: PROJECT_ID })
     const formattedName = gc.projectPath(PROJECT_ID);
     // console.log('Formatted name:', formattedName)
-    const [groups] = await gc.listGroups({name: formattedName})
+    const [groups] = await gc.listGroups({ name: formattedName })
     // console.log('====== groups:', groups)
     for (let group of groups) {
       if (group.displayName === config.name) {
-        await gc.deleteGroup({name: group.name})
+        await gc.deleteGroup({ name: group.name })
         console.log(`Groupd ${group.name} deleted.`)
       }
     }
     const apClient = new monitoring.v3.AlertPolicyServiceClient()
-    const [alertPolicies] = await apClient.listAlertPolicies({name: formattedName})
+    const [alertPolicies] = await apClient.listAlertPolicies({ name: formattedName })
     // console.log('Existing alert policies:', JSON.stringify(alertPolicies, null, 2))
     for (let policy of alertPolicies) {
       const apDisplayName = config.name + '-alert-group-'
       if (policy.displayName.startsWith(apDisplayName)) {
-        await apClient.deleteAlertPolicy({name: policy.name})
+        await apClient.deleteAlertPolicy({ name: policy.name })
         console.log(`Alert policy ${policy.name} deleted.`)
       }
     }
     const ucClient = new monitoring.v3.UptimeCheckServiceClient()
-    const [checks] = await ucClient.listUptimeCheckConfigs({parent: formattedName})
+    const [checks] = await ucClient.listUptimeCheckConfigs({ parent: formattedName })
     for (let check of checks) {
       if (check.displayName.startsWith(config.name + '-')) {
-        await ucClient.deleteUptimeCheckConfig({name: check.name})
+        await ucClient.deleteUptimeCheckConfig({ name: check.name })
         console.log(`Uptime check ${check.name} deleted.`)
       }
     }
@@ -384,46 +385,46 @@ class Swarm {
       // configure aler policies
       const ncClient = new monitoring.v3.NotificationChannelServiceClient()
       const displayName = config.name + '-alerts'
-      const [channels] = await ncClient.listNotificationChannels({name: formattedName})
+      const [channels] = await ncClient.listNotificationChannels({ name: formattedName })
       // console.log('Existing notification channels:', channels)
       const nc = channels.find(c => c.displayName === displayName)
       if (nc) {
-        await ncClient.deleteNotificationChannel({name: nc.name, force: true})
+        await ncClient.deleteNotificationChannel({ name: nc.name, force: true })
         console.log(`Notification channel ${nc.name} deleted.`)
       }
     }
   }
 
-  async deleteAllStackDriverChecks (config) {
+  async deleteAllStackDriverChecks(config) {
     console.log('deleting unused checks.')
     const reserved = ['shareddemo']
-    const gc = new monitoring.v3.GroupServiceClient({projectId: PROJECT_ID})
+    const gc = new monitoring.v3.GroupServiceClient({ projectId: PROJECT_ID })
     const formattedName = gc.projectPath(PROJECT_ID)
     // console.log('Formatted name:', formattedName)
-    const [groups] = await gc.listGroups({name: formattedName})
+    const [groups] = await gc.listGroups({ name: formattedName })
     // console.log('====== groups:', groups)
     for (let group of groups) {
       if (reserved.indexOf(group.displayName) === -1) {
-        await gc.deleteGroup({name: group.name})
+        await gc.deleteGroup({ name: group.name })
         console.log(`Groupd ${group.name} deleted.`)
       }
     }
     const apClient = new monitoring.v3.AlertPolicyServiceClient()
-    const [alertPolicies] = await apClient.listAlertPolicies({name: formattedName})
+    const [alertPolicies] = await apClient.listAlertPolicies({ name: formattedName })
     // console.log('Existing alert policies:', JSON.stringify(alertPolicies, null, 2))
     for (let policy of alertPolicies) {
       if (policy.displayName.startsWith(`shareddemo`)) {
       } else {
-        await apClient.deleteAlertPolicy({name: policy.name})
+        await apClient.deleteAlertPolicy({ name: policy.name })
         console.log(`Alert policy ${policy.name} deleted.`)
       }
     }
     const ucClient = new monitoring.v3.UptimeCheckServiceClient()
-    const [checks] = await ucClient.listUptimeCheckConfigs({parent: formattedName})
+    const [checks] = await ucClient.listUptimeCheckConfigs({ parent: formattedName })
     for (let check of checks) {
       if (check.displayName.startsWith(`shareddemo`)) {
       } else {
-        await ucClient.deleteUptimeCheckConfig({name: check.name})
+        await ucClient.deleteUptimeCheckConfig({ name: check.name })
         console.log(`Uptime check ${check.name} deleted.`)
       }
     }
@@ -431,11 +432,11 @@ class Swarm {
       // configure aler policies
       const ncClient = new monitoring.v3.NotificationChannelServiceClient()
       const displayName = config.name + '-alerts'
-      const [channels] = await ncClient.listNotificationChannels({name: formattedName})
+      const [channels] = await ncClient.listNotificationChannels({ name: formattedName })
       // console.log('Existing notification channels:', channels)
       const nc = channels.find(c => c.displayName === displayName)
       if (nc) {
-        await ncClient.deleteNotificationChannel({name: nc.name, force: true})
+        await ncClient.deleteNotificationChannel({ name: nc.name, force: true })
         console.log(`Notification channel ${nc.name} deleted.`)
       }
     }
@@ -591,11 +592,11 @@ SHELL_SCREENRC`
   }
   */
 
-  async _createNetwork (networkName) {
+  async _createNetwork(networkName) {
     return await this._cloud.remotelyExec(this._managerName, `sudo docker network create -d overlay --subnet=10.0.0.0/16 --gateway=10.0.0.1 ${networkName}`)
   }
 
-  scp (origin, destination, opts, cb) {
+  scp(origin, destination, opts, cb) {
     return new Promise((resolve, reject) => {
       exec(`docker-machine scp ${opts} ${origin} ${destination}`, (err, res) => {
         if (err) {
@@ -645,7 +646,7 @@ SHELL_SCREENRC`
   }
   */
 
-  setEnv (machineName, cb) {
+  setEnv(machineName, cb) {
     console.log(`executing d-m env ${machineName}`)
     const er = new Error()
     console.log(er.stack)
@@ -672,10 +673,10 @@ SHELL_SCREENRC`
           return
         }
         let env = {
-          DOCKER_TLS_VERIFY: parsed[0].substr(1,parsed[0].length -2),
-          DOCKER_HOST: parsed[1].substr(1, parsed[1].length-2),
-          DOCKER_CERT_PATH: parsed[2].substr(1, parsed[2].length-2),
-          DOCKER_MACHINE_NAME: parsed[3].substr(1, parsed[3].length-2)
+          DOCKER_TLS_VERIFY: parsed[0].substr(1, parsed[0].length - 2),
+          DOCKER_HOST: parsed[1].substr(1, parsed[1].length - 2),
+          DOCKER_CERT_PATH: parsed[2].substr(1, parsed[2].length - 2),
+          DOCKER_MACHINE_NAME: parsed[3].substr(1, parsed[3].length - 2)
         }
 
         cb(null, env)
@@ -683,11 +684,11 @@ SHELL_SCREENRC`
     })
   }
 
-  unsetEnv (cb) {
+  unsetEnv(cb) {
     exec(`. $(docker-machine env --unset)`, cb)
   }
 
-  _getMachinesToCreateNames (config) {
+  _getMachinesToCreateNames(config) {
     const res = [`${config.name}-manager`]
     for (let i = 1; i < config.machines.num; i++) {
       res.push(`${config.name}-worker-${i}`)
@@ -696,7 +697,7 @@ SHELL_SCREENRC`
     return res
   }
 
-  async createSwarm () {
+  async createSwarm() {
     const config = this._config
     const runninMachines = await this._cloud.getRunningMachinesList(config.name)
     console.log(`running machines:`, runninMachines)
@@ -733,14 +734,16 @@ SHELL_SCREENRC`
         await this.tearDown(config.name)
       }
     }
-    await this._createSwarmCreateMachines()
+    // await this._createSwarmCreateMachines()
+    await this._createMachines()
     return false
   }
 
+  /*
   async _createSwarmCreateMachines() {
     const config = this._config
-    await this.createMachines()
-        // init the swarm.
+    await this._createMachines()
+    // init the swarm.
     const [initResCode, initStdout, initStderr] = await this._init()
     if (initResCode != 0) {
       const errstr = (`Error calling Swarm.init: code ${initResCode} stdout: ${initStdout} stderr: ${initStderr}`)
@@ -763,9 +766,22 @@ SHELL_SCREENRC`
     await Promise.all(joinTasks)
     console.log('Done joining workers to swarm.')
   }
+  */
 
   async _init() {
     return await this._cloud.remotelyExec(this._managerName, `sudo docker swarm init`)
+  }
+
+  async _getSwarmTokenWithRetries() {
+    for (let i = 0; i < 9; i++) {
+      const [code, token, err] = await this._getSwarmToken()
+      if (code === 0 && token) {
+        return token
+      }
+      console.log(`Couldn't get token, waiting to try again, error: ${err}`)
+      await wait(2000)
+    }
+    throw new Error(`Can't get swarm token from manager machine.`)
   }
 
   async _getSwarmToken() {
@@ -788,7 +804,10 @@ SHELL_SCREENRC`
   async deployComposeFile(filePath, prefix) {
     console.log(`running docker stack deploy on ${this._managerName} (using ${filePath})`)
     await this._cloud.scp(filePath, this._managerName, '/tmp/docker-compose.yml')
-    await this._cloud.remotelyExec(this._managerName, `sudo docker stack deploy --compose-file /tmp/docker-compose.yml ${prefix}`)
+    const [code, stdout, stderr] = await this._cloud.remotelyExec(this._managerName, `sudo docker stack deploy --compose-file /tmp/docker-compose.yml ${prefix}`)
+    if (code !== 0) {
+      console.log(`Error running stack deploy: ${stderr}`)
+    }
     // let builder = spawn('docker', ['stack', 'deploy', '--compose-file', filePath, prefix], {env: {...process.env, ...env}})
     /*
     return new Promise((resolve, reject) => {
@@ -920,7 +939,7 @@ SHELL_SCREENRC`
           return
         }
         const cmd = 'docker ' + args
-        exec(cmd, {env}, (err, r) => {
+        exec(cmd, { env }, (err, r) => {
           err ? reject(err) : resolve(r)
         })
       })
@@ -934,14 +953,14 @@ SHELL_SCREENRC`
    * @param {number} stdioFd File descriptor of file to which save STDIO of logs
    * @param {number} stderrFd File descriptor of file to which save STDERR of logs:w
    */
-  saveLogs (serviceName, managerName, stdioFd, stderrFd) {
+  saveLogs(serviceName, managerName, stdioFd, stderrFd) {
     return new Promise((resolve, reject) => {
       this.setEnv(managerName, (err, denv) => {
         if (err) {
           reject(err)
         } else {
-          const env = {...process.env, ...denv}
-          const subprocess = spawn(`docker`, ['service', 'logs', serviceName], {env, stdio: [ 'ignore', stdioFd, stderrFd ]})
+          const env = { ...process.env, ...denv }
+          const subprocess = spawn(`docker`, ['service', 'logs', serviceName], { env, stdio: ['ignore', stdioFd, stderrFd] })
           subprocess.on('error', (err) => {
             reject(err)
           })
@@ -957,17 +976,17 @@ SHELL_SCREENRC`
     })
   }
 
-  getLogs (serviceName, managerName) {
+  getLogs(serviceName, managerName) {
     return new Promise((resolve, reject) => {
       this.setEnv(managerName, (err, env) => {
         if (err) {
           reject(err)
         } else {
-          exec(`docker service logs ${serviceName}`, {env}, (err, stdout, stderr) => {
+          exec(`docker service logs ${serviceName}`, { env }, (err, stdout, stderr) => {
             if (err) {
               reject(err)
             } else {
-              resolve({stdout, stderr})
+              resolve({ stdout, stderr })
             }
           })
         }
@@ -975,29 +994,13 @@ SHELL_SCREENRC`
     })
   }
 
-  async createRegistry () {
+  /*
+  async createRegistry() {
     return await this._cloud.remotelyExec(this._managerName, `sudo docker service create --name registry --network testnet --publish published=5000,target=5000 registry:2`)
-    /*
-    return new Promise((resolve, reject) => {
-      this.setEnv(this._managerName, (err, env) => {
-        if (err) {
-          reject(err)
-          return
-        }
-        exec(`docker service create --name registry --network testnet --publish published=5000,target=5000 registry:2`,
-          {env: env}, err => {
-            if (err) {
-              reject(err)
-            } else (
-              resolve()
-            )
-          })
-      })
-    })
-    */
   }
+  */
 
-  rsync (machine, zone, bucket, path, cb) {
+  rsync(machine, zone, bucket, path, cb) {
     utils.remotelyExec(
       machine,
       zone,
@@ -1006,17 +1009,17 @@ SHELL_SCREENRC`
     )
   }
 
-  _openExternalAccess (name, cb) {
+  _openExternalAccess(name, cb) {
     exec(`gcloud compute firewall-rules create ${name}-swarm \
     --allow tcp \
     --description "open tcp ports for the test-harness" \
     --target-tags ${name}-cluster`, (err, output) => {
-      if (err) console.log('firewall Error ', err)
-      cb(null, output)
-    })
+        if (err) console.log('firewall Error ', err)
+        cb(null, output)
+      })
   }
 
-  restartService (serviceName, cb) {
+  restartService(serviceName, cb) {
     console.log(`swarm.restartService ${serviceName}`)
     return new Promise((resolve, reject) => {
       this.setEnv(this._managerName, (err, env) => {
@@ -1024,12 +1027,12 @@ SHELL_SCREENRC`
           reject(err)
           return
         }
-        exec(`docker service scale livepeer_${serviceName}=0`, {env}, (err, output) => {
+        exec(`docker service scale livepeer_${serviceName}=0`, { env }, (err, output) => {
           if (err) {
             reject(err)
             return
           }
-          exec(`docker service scale livepeer_${serviceName}=1`, {env}, (err, out) => {
+          exec(`docker service scale livepeer_${serviceName}=1`, { env }, (err, out) => {
             if (err) {
               reject(err)
             } else {
@@ -1044,7 +1047,7 @@ SHELL_SCREENRC`
     })
   }
 
-  restartServices (services, cb) {
+  restartServices(services, cb) {
     console.log(`swarm.restartServices ${services}`)
     this.setEnv(this._managerName, (err, env) => {
       if (err) {
@@ -1052,24 +1055,24 @@ SHELL_SCREENRC`
         return
       }
       eachLimit(services, 3, (serviceName, next) => {
-        exec(`docker service scale livepeer_${serviceName}=0`, {env}, (err, output) => {
+        exec(`docker service scale livepeer_${serviceName}=0`, { env }, (err, output) => {
           if (err) {
             cb(err)
             return
           }
-          exec(`docker service scale livepeer_${serviceName}=1`, {env}, next)
+          exec(`docker service scale livepeer_${serviceName}=1`, { env }, next)
         })
       }, cb)
     })
   }
 
-  isSwarmActive (cb) {
+  isSwarmActive(cb) {
     this.setEnv(this._managerName, (err, env) => {
       if (err) {
         cb(err)
         return
       }
-      exec(`docker node ls -q`, {env}, (err, output) => {
+      exec(`docker node ls -q`, { env }, (err, output) => {
         if (err) return cb(null, false)
         console.log('isSwarmActive: ', output)
         cb(null, true)
@@ -1077,7 +1080,7 @@ SHELL_SCREENRC`
     })
   }
 
-  doesMachineExist (machineName, cb) {
+  doesMachineExist(machineName, cb) {
     exec(`gcloud compute instances list --quiet --format=json --filter="name:${machineName}"`, (err, output) => {
       if (err) {
         cb(err)
@@ -1099,7 +1102,7 @@ SHELL_SCREENRC`
     })
   }
 
-  setupManager (config, cb) {
+  setupManager(config, cb) {
     const name = config.name
     const zone = config.machines.zone
     exec(`cp -r ./scripts/* ${path.resolve(__dirname, `${DIST_DIR}/${name}`)}`, (err, stdout) => {
@@ -1154,7 +1157,7 @@ SHELL_SCREENRC`
     })
   }
 
-  updateStack (cb) {
+  updateStack(cb) {
     // 1. remove old stack.
     // 2. update docker-compose.yml.
     // 3. deploy new stack.
@@ -1168,9 +1171,15 @@ SHELL_SCREENRC`
 
   async tearDown(name) {
     const rml = await this._cloud.getRunningMachinesList(name)
+    try {
     console.log(`${chalk.red('Removing')} machines: ${rml.map(n => chalk.green(n)).join(' ')}!`)
     await Promise.all(rml.map(n => this._cloud.removeMachine(n)))
     console.log(`Done removing machines.`)
+    } catch (err) {
+      console.error(`Error removing machines: `, err)
+    }
+    console.log('Removing firewall rules')
+    await this._cloud.closePorts()
     /*
     return new Promise((resolve, reject) => {
       exec(`docker-machine ls -q --filter "name=^${name}-([a-z]+)"`, (err, output) => {
@@ -1254,7 +1263,7 @@ SHELL_SCREENRC`
     return ip
   }
 
-  static async getPublicIPOfService (parsedCompose, serviceName) {
+  static async getPublicIPOfService(parsedCompose, serviceName) {
     const configName = parsedCompose.configName
     if (!service2IP) {
       const swarm = new Swarm(configName)
@@ -1281,7 +1290,7 @@ SHELL_SCREENRC`
 }
 
 function chunk(arr, n) {
-  return Array(Math.ceil(arr.length/n)).fill().map((_,i) => arr.slice(i*n,i*n+n))
+  return Array(Math.ceil(arr.length / n)).fill().map((_, i) => arr.slice(i * n, i * n + n))
 }
 
 async function test() {

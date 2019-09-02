@@ -3,6 +3,7 @@
 
 const chalk = require('chalk')
 const { exec, spawn } = require('child_process')
+const axios = require('axios')
 const Compute = require('@google-cloud/compute')
 const { PROJECT_ID, GCE_VM_IMAGE, GCE_CUSTOM_VM_IMAGE } = require('../constants')
 const { asyncExec, trim } = require('../utils/helpers')
@@ -14,10 +15,18 @@ function toArray(value) {
   return value
 }
 
+// const SWARM_ROLE_MANAGER = 'manager'
+// const SWARM_ROLE_WORKER = 'worker'
+
+
+
 /**
  * Abstracts VMs creation by directly using Google Cloud's API
  */
 class GoogleCloud {
+  static SWARM_ROLE_MANAGER = 'manager'
+  static SWARM_ROLE_WORKER = 'worker'
+
   constructor(context, deploymentName, machinesConfig, zone = 'us-east1-b', machineType = 'n1-standard-1', projectId = PROJECT_ID) {
     this.deploymentName = deploymentName
     this._machinesConfig = machinesConfig
@@ -27,12 +36,68 @@ class GoogleCloud {
       machineType,
       projectId,
     }
-    this._compute = new Compute()
+    this._compute = new Compute({
+      projectId
+    })
     if (!context.machine2zone) {
       context.machine2zone = {}
     }
     if (!context.machine2ip) {
       context.machine2ip = {}
+    }
+  }
+
+  /**
+   * Returns true if currently running inside Google's Cloud
+   * 
+   * @returns {boolean}
+   */
+  async isInsideCloud() {
+    try {
+      const res = await axios.get('http://metadata.google.internal')
+      return res.headers['metadata-flavor'] === 'Google'
+    } catch {
+    }
+    return false
+  }
+
+  /**
+   * Opens up specified ports for all the machines in the deployment
+   * with external IPs
+   * 
+   * @param {Array<number>} portsList 
+   */
+  async openPortsForDeployment(portsList) {
+    const ruleName = `${this.deploymentName}-swarm-new`
+    const rule = this._compute.firewall(ruleName)
+    const [nRule, operation] = await rule.create({
+      protocols: {
+        tcp: portsList
+      },
+      targetTags: [this.deploymentName + '-cluster']
+    })
+    await operation.promise()
+    console.log(`Firewall rule ${chalk.green(ruleName)} for deploymenet ${chalk.green(this.deploymentName)} for opening ports ${portsList.map(p => chalk.green(p)).join(' ')} created.`)
+  }
+
+  async closePorts() {
+    await this._removeFirewallRule(`${this.deploymentName}-swarm`)
+    await this._removeFirewallRule(`${this.deploymentName}-swarm-new`)
+  }
+
+  async _removeFirewallRule(ruleName) {
+    const rule = this._compute.firewall(ruleName)
+    try {
+      const [ruleObj] = await rule.get()
+      // console.log(ruleObj)
+      // const [me] = await ruleObj.getMetadata()
+      // console.log(me)
+      ruleObj.delete()
+      console.log(`Submitted request to delete ${chalk.green(ruleName)} firewall rule.`)
+    } catch (err) {
+      if (err.code !== 404) {
+        console.error('Unexpected error:', err)
+      }
     }
   }
 
@@ -43,7 +108,7 @@ class GoogleCloud {
    * @param {string} machineType type of machine
    * @param {string|array} tags tags
    */
-  async createMachine(name, zone, machineType, tags) {
+  async createMachine(name, zone, machineType, tags, addExternalIP = true, swarmRole = '', initValues = {}) {
     const zoneName = zone || this._defaults.zone
     this._context.machine2zone[name] = zoneName
     // Create a new VM using the latest OS image of your choice.
@@ -53,7 +118,9 @@ class GoogleCloud {
     const vmConfig = {
       os: `${this._defaults.projectId}/${GCE_CUSTOM_VM_IMAGE}`,
       machineType,
-      networkInterfaces: [
+    }
+    if (addExternalIP) {
+      vmConfig.networkInterfaces = [
         {
           "kind": "compute#networkInterface",
           // "subnetwork": "projects/test-harness-226018/regions/us-central1/subnetworks/default",
@@ -67,10 +134,22 @@ class GoogleCloud {
           ],
           "aliasIpRanges": []
         }
-      ],
+      ]
     }
     if (tags) {
       vmConfig.tags = toArray(tags)
+    }
+    const startupScript = this._getStartupScript(swarmRole, initValues)
+    if (startupScript) {
+      vmConfig.metadata = {
+        kind: 'compute#metadata',
+        items: [
+          {
+            key: 'startup-script',
+            value: startupScript
+          }
+        ]
+      }
     }
     const [vm, operation, _apiResponse] = await gZone.createVM(name, vmConfig)
     // `operation` lets you check the status of long-running tasks.
@@ -79,6 +158,7 @@ class GoogleCloud {
     this._updateIPFromMeta(name, meta)
     // Complete!
     console.log(`Virtual machine ${name} with tags ${tags} created!`)
+    return vm
   }
 
   /**
@@ -111,16 +191,23 @@ class GoogleCloud {
   }
 
   async getInternalIP(machineName) {
-    return (this._context.machine2ip[machineName] || {}).internalIP
+    return await this._getIP(machineName, 'internalIP')
   }
 
   async getExternalIP(machineName) {
-    const ip = (this._context.machine2ip[machineName] || {}).externalIP
-    if (ip) {
-      return ip
+    return await this._getIP(machineName, 'externalIP')
+  }
+
+  async _getIP(machineName, typ) {
+    if ((this._context.machine2ip[machineName] || {}).hasOwnProperty(typ)) {
+      return (this._context.machine2ip[machineName] || {})[typ]
     }
     await this._updateIP(machineName)
-    return (this._context.machine2ip[machineName] || {}).externalIP
+    return (this._context.machine2ip[machineName] || {})[typ]
+  }
+
+  async _hasExternalIP(machineName) {
+    return await this._getIP(machineName, 'hasExternalIP')
   }
 
   async _updateIP(machineName) {
@@ -141,7 +228,7 @@ class GoogleCloud {
     if (!externalIP) {
       externalIP = internalIP
     }
-    this._context.machine2ip[machineName] = { internalIP, externalIP }
+    this._context.machine2ip[machineName] = { internalIP, externalIP, hasExternalIP: externalIP !== internalIP }
   }
 
   async getRunningMachinesList(name) {
@@ -161,7 +248,9 @@ class GoogleCloud {
       console.log(chalk.red(`Can't find zone for ${machineName}`))
       process.exit(207)
     }
-    const [code, out, errOut] = await asyncExec('gcloud', `compute scp --zone ${zone} ${src} ${machineName}:${dst}`.split(' '), false)
+    const hasExtIP = await this._hasExternalIP(machineName)
+    const intIPArg = !hasExtIP ? '--internal-ip' : ''
+    const [code, out, errOut] = await asyncExec('gcloud', `compute scp ${intIPArg} --zone ${zone} ${src} ${machineName}:${dst}`.split(' '), false)
     if (code) {
       console.log(`Error copying file ${src} to ${machineName} to ${dst}: ${errOut}`)
       process.exit(208)
@@ -193,14 +282,19 @@ class GoogleCloud {
    * @param {string} command command to execute
    * @returns [number, string, string] returns array with exit code, standard output and stderr output
    */
-  remotelyExec(machineName, command, quiet = true) {
+  async remotelyExec(machineName, command, quiet = true) {
     const zone = this._context.machine2zone[machineName]
     if (!zone) {
       console.log(`Trying to execute '${chalk.yellow(command)}' on '${chalk.green(machineName)}, but zone for it was not found.`)
       process.exit(22)
     }
+    const hasExtIP = await this._hasExternalIP(machineName)
     return new Promise((resolve) => {
-      let args = ['compute', 'ssh', machineName, '--zone', zone, '--', command]
+      let args = ['compute', 'ssh', machineName, '--zone', zone]
+      if (!hasExtIP) {
+        args.push('--internal-ip')
+      }
+      args.push('--', command)
 
       console.log('gcloud ' + args.join(' '))
       console.log(`Running remote command '${command}'`)
@@ -241,14 +335,47 @@ class GoogleCloud {
     })
   }
 
+  _getStartupScript(swarmRole, values = {}) {
+    switch (swarmRole) {
+      case GoogleCloud.SWARM_ROLE_MANAGER:
+        return `#!/bin/bash
+docker node ls
+if [ $? -ne 0 ]
+then
+  echo "Initializing Swarm"
+  docker swarm init
+  docker network create -d overlay --subnet=10.0.0.0/16 --gateway=10.0.0.1 ${values.network || 'testnet'}
+  docker service create --name registry --network testnet --publish published=5000,target=5000 registry:2
+fi
+`
+      case GoogleCloud.SWARM_ROLE_WORKER:
+        return `#!/bin/bash
+if [ "$(docker info --format '{{.Swarm.LocalNodeState}}')" = "inactive" ]
+then
+  echo "Joining Swarm"
+  docker swarm join --token ${values.token} ${values.managerInternalIP}:2377
+else
+  echo "Already in Swarm"
+fi
+`
+      default:
+        break;
+    }
+  }
 }
 
 async function test() {
-  const name = 'dlongtest'
+  const name = 'd100real'
   const gc = new GoogleCloud({}, name, {})
-  const eip = await gc.getExternalIP('ivan-workstation')
-  const iip = await gc.getInternalIP('ivan-workstation')
-  return [iip, eip]
+  // await gc.closePorts()
+  // await gc.openPortsForDeployment([1935, 7934])
+  // const isInside = await gc.isInsideCloud()
+  // return isInside
+  // const r = await gc.createMachine(name + '-w-1', 'us-central1-b', 'n1-highcpu-16')
+  // return r
+  // const eip = await gc.getExternalIP('ivan-workstation')
+  // const iip = await gc.getInternalIP('ivan-workstation')
+  // return [iip, eip]
   // const rml = await gc.getRunningMachinesList(name)
   // console.log(rml)
   // await gc.scp('/tmp/lpnodeimage.tar.gz', 'ivan-workstation', '/tmp/lpnodeimage.tar.gz')
