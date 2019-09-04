@@ -47,7 +47,7 @@ async function run(parsedCompose) {
   // console.log(oPorts)
   // console.log(parsedCompose.config)
   for (let po of oPorts) {
-    const ip = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, po.name)
+    const { ip } = await Swarm.getPublicIPOfService(parsedCompose, po.name)
     const url = `http://${ip}:${po['7935']}/status`
     let status = chalk.green('OK')
     try {
@@ -69,12 +69,12 @@ async function run(parsedCompose) {
     console.log(`====> ${chalk.yellowBright(po.name)} is ${status}`)
   }
   for (let po of bPorts) {
-    const ip = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, po.name)
+    const { ip } = await Swarm.getPublicIPOfService(parsedCompose, po.name)
     const url = `http://${ip}:${po['7935']}/status`
     await checkAndPrint('broadcaster', po.name, url)
   }
   for (let po of sPorts) {
-    const ip = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, po.name)
+    const { ip } = await Swarm.getPublicIPOfService(parsedCompose, po.name)
     const url = `http://${ip}:${po['7934']}/stats`
     await checkAndPrint('streamer', po.name, url)
   }

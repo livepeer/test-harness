@@ -15,6 +15,7 @@ const DIST_DIR = '../dist'
 
 // assume for a one run we only work with one config
 let service2IP = null
+let service2Machine = null
 let worker1IP = null
 
 class Swarm {
@@ -1267,6 +1268,9 @@ SHELL_SCREENRC`
   }
 
   static async getPublicIPOfService(parsedCompose, serviceName) {
+    if (parsedCompose.isLocal) {
+      return 'localhost'
+    }
     const configName = parsedCompose.configName
     if (!service2IP) {
       const swarm = new Swarm(configName)
@@ -1283,13 +1287,14 @@ SHELL_SCREENRC`
       const worker2IP = ri.reduce((a, v, i) => a.set(v, workersIPS[i]), new Map())
       worker1IP = workersIPS[0]
       service2IP = new Map()
+      service2Machine = new Map()
       Object.keys(parsedCompose.services).forEach(sn => {
         service2IP.set(sn, worker2IP.get(getConstrain(parsedCompose.services[sn])) || worker1IP)
+        service2Machine.set(sn, getConstrain(parsedCompose.services[sn]))
       })
     }
-    return service2IP.get(serviceName)
+    return { ip: service2IP.get(serviceName), machine: service2Machine.get(serviceName) }
   }
-
 }
 
 function chunk(arr, n) {

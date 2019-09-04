@@ -46,8 +46,11 @@ const st = new Streamer({})
 const swarm = new Swarm(configName)
 
 async function getIP(name) {
-  return parsedCompose.overrideBroadcasterHost ? parsedCompose.overrideBroadcasterHost :
-    parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, name)
+  if (parsedCompose.overrideBroadcasterHost) {
+    return parsedCompose.overrideBroadcasterHost
+  }
+  const { ip } = await Swarm.getPublicIPOfService(parsedCompose, name)
+  return ip
 }
 
 async function fromLocalStream() {

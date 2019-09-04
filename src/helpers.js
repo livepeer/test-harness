@@ -14,20 +14,20 @@ async function prettyPrintDeploymentInfo(parsedCompose) {
   const c = chalk.cyan
   console.log('==================================================================================')
   for (let po of oPorts) {
-    const ip = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, po.name)
-    console.log(`===== ${chalk.green(po.name)}:`)
+    const { ip, machine } = await Swarm.getPublicIPOfService(parsedCompose, po.name)
+    console.log(`===== ${chalk.green(po.name)} on (${chalk.green(machine)}):`)
     console.log(`./livepeer_cli -host ${ip} -http ${po['7935']}`)
   }
 
   for (let po of tPorts) {
-    const ip = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, po.name)
-    console.log(`===== ${chalk.green(po.name)}:`)
+    const { ip, machine } = await Swarm.getPublicIPOfService(parsedCompose, po.name)
+    console.log(`===== ${chalk.green(po.name)} on (${chalk.green(machine)}):`)
     console.log(`./livepeer_cli -host ${ip} -http ${po['7935']}`)
   }
 
   for (let po of bPorts) {
-    const ip = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, po.name)
-    console.log(`===== ${chalk.green(po.name)}:`)
+    const { ip, machine } = await Swarm.getPublicIPOfService(parsedCompose, po.name)
+    console.log(`===== ${chalk.green(po.name)} on (${chalk.green(machine)}):`)
     console.log(`./livepeer_cli -host ${ip} -http ${po['7935']}`)
     console.log(`curl ` + c(`http://${ip}:${po['7935']}/status`))
     console.log(`curl ` + c(`http://${ip}:${po['8935']}/stream/current.m3u8`))
@@ -36,24 +36,24 @@ async function prettyPrintDeploymentInfo(parsedCompose) {
   }
 
   for (let po of sPorts) {
-    const ip = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, po.name)
-    console.log(`===== ${chalk.green(po.name)}:`)
+    const { ip, machine } = await Swarm.getPublicIPOfService(parsedCompose, po.name)
+    console.log(`===== ${chalk.green(po.name)} on (${chalk.green(machine)}):`)
     console.log(`curl ` + c(`http://${ip}:${po['7934']}/stats`))
   }
 
   if (parsedCompose.hasMetrics) {
-    const ip = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, 'prometheus')
+    const { ip } = await Swarm.getPublicIPOfService(parsedCompose, 'prometheus')
     if (ip) {
       console.log(`\nPrometheus (Grafana): ` + c(`http://${ip}:3001`))
     }
   }
 
   if (parsedCompose.hasGeth) {
-    const ethRpc = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, 'geth')
-    const ethFaucet = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, 'gethFaucet')
+    const ethRpc = await Swarm.getPublicIPOfService(parsedCompose, 'geth')
+    const ethFaucet = await Swarm.getPublicIPOfService(parsedCompose, 'gethFaucet')
     console.log(`===== ${chalk.green('Blockchain')}:`)
-    console.log(`Geth JSON-RPC:  ${c(`http://${ethRpc}:8545`)}`)
-    console.log(`ETH Faucet:  ${c(`http://${ethFaucet}:3333`)}`)
+    console.log(`Geth JSON-RPC:  ${c(`http://${ethRpc.ip}:8545`)}`)
+    console.log(`ETH Faucet:  ${c(`http://${ethFaucet.ip}:3333`)}`)
   }
 }
 
