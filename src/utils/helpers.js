@@ -187,6 +187,22 @@ function spread (items, plts, reverse) {
   return reverse ? rres : res
 }
 
+function spreadObj (items, plts, reverse) {
+  const res = {}
+  const rres = {}
+  for (let i = 0, oi = 0; i < items.length; i++) {
+    const oname = plts[oi]
+    const p = res[oname] || []
+    p.push(items[i])
+    res[oname] = p
+    // const rp = rres.get(items[i]) || new Set()
+    // rp.add(oname)
+    rres[items[i]] = oname
+    oi = ++oi % plts.length
+  }
+  return reverse ? rres : res
+}
+
 function waitcb(name, pauseTimeMs, suppressLogs, cb) {
   return err => {
     if (err) {
@@ -379,9 +395,28 @@ async function _loadLocalDockerImageToSwarm(swarm, managerName) {
     })
   })
 }
+
+function joinMaps (ma, mb) {
+  const c = new Map()
+  for (let t of ma) {
+    c.set(t[0], t[1])
+  }
+  for (let t of mb) {
+    c.set(t[0], t[1])
+  }
+  return c
+}
+
+function reverseMap (ma) {
+  const c = new Map()
+  for (let t of ma) {
+    c.set(t[1], t[0])
+  }
+  return c
+}
 */
 
 module.exports = {contractId, functionSig, functionEncodedABI, remotelyExec, fundAccount, fundRemoteAccount,
-  getNames, spread, wait, waitcb, parseComposeAndGetAddresses, asyncExec, trim,
+  getNames, spread, spreadObj, wait, waitcb, parseComposeAndGetAddresses, asyncExec, trim,
   getIds, getConstrain, needToCreateGeth, needToCreateGethFaucet, needToCreateGethTxFiller, saveLocalDockerImage
 }

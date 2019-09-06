@@ -48,8 +48,8 @@ class Swarm {
 
   getMachineType(machineName) {
     const cm = this._config.machines
-    if (cm.machine2serviceType.has(machineName)) {
-      switch (cm.machine2serviceType.get(machineName)) {
+    if (cm.machine2serviceType[machineName]) {
+      switch (cm.machine2serviceType[machineName]) {
         case 'streamer':
           return cm.streamerMachineType
         case 'broadcaster':
@@ -65,7 +65,7 @@ class Swarm {
   }
 
   getServiceAtMachine(machineName) {
-    return this._config.machines.machine2serviceType.get(machineName)
+    return this._config.machines.machine2serviceType[machineName]
   }
 
   async _createMachines() {

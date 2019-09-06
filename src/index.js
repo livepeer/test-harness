@@ -176,10 +176,10 @@ Plese note now GCP logging is truned off by default and should be turned on expl
         console.log(`Should specify ${chalk.yellowBright('transcoderMachineType')}.`)
         process.exit(3)
       }
-      if (configHasInstancesOfType(config, 'streamer') && !config.machines.streamerMachineType) {
-        console.log(`Should specify ${chalk.yellowBright('streamerMachineType')}.`)
-        process.exit(3)
-      }
+    }
+    if (configHasInstancesOfType(config, 'streamer')) {
+      console.log(`Streamer type groups are ${chalk.yellowBright('deprected')}. Please use ${chalk.green('deployStreamers')} configuration option instead.`)
+      process.exit(3)
     }
     for (let groupName of Object.keys(config.nodes)) {
       if (!config.nodes[groupName].type) {
@@ -418,20 +418,20 @@ Plese note now GCP logging is truned off by default and should be turned on expl
     let count = 0
     let matchedNames = []
     let groupNames = Object.keys(config.nodes)
-    console.log('groupNames, ', groupNames)
+    // console.log('groupNames, ', groupNames)
     if (!groupNames) {
       return { count, matchedNames }
     }
 
     groupNames.forEach((name, i) => {
       if (config.nodes[name].type === type) {
-        console.log('got group ', name)
+        // console.log('got group ', name)
         count += config.nodes[name].instances
         matchedNames.push(name)
       }
     })
-    console.log('matchedNames ', matchedNames)
-    console.log({ count, matchedNames, type })
+    // console.log('matchedNames ', matchedNames)
+    // console.log({ count, matchedNames, type })
     return { count, matchedNames, type }
   }
 

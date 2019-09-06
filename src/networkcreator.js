@@ -11,7 +11,7 @@ const composefile = require('composefile')
 const { timesLimit, each, eachLimit } = require('async')
 const log = require('debug')('livepeer:test-harness:network')
 const Pool = require('threads').Pool
-const { getNames, spread, needToCreateGeth, needToCreateGethFaucet, needToCreateGethTxFiller } = require('./utils/helpers')
+const { getNames, spread, spreadObj, needToCreateGeth, needToCreateGethFaucet, needToCreateGethTxFiller } = require('./utils/helpers')
 const { PROJECT_ID, NODE_TYPES } = require('./constants')
 const YAML = require('yaml')
 const mConfigs = require('./configs')
@@ -50,24 +50,6 @@ function countNeededMachines (config, type = undefined) {
   return type ? machines : machines + 1
 }
 
-function joinMaps (ma, mb) {
-  const c = new Map()
-  for (let t of ma) {
-    c.set(t[0], t[1])
-  }
-  for (let t of mb) {
-    c.set(t[0], t[1])
-  }
-  return c
-}
-
-function reverseMap (ma) {
-  const c = new Map()
-  for (let t of ma) {
-    c.set(t[1], t[0])
-  }
-  return c
-}
 
 class NetworkCreator extends EventEmitter {
   constructor (config, isToml) {
@@ -86,6 +68,7 @@ class NetworkCreator extends EventEmitter {
     this.nodes = {}
     this.hasGeth = false
     this.hasMetrics = false
+    this._context = config.context
     if (!config.local) {
       const neededMachines = countNeededMachines(config)
       // setting config.machines.num property, because it is used by a lot of code downpath
@@ -98,33 +81,30 @@ class NetworkCreator extends EventEmitter {
       console.log('_serviceConstraints: ', this._serviceConstraints)
       console.log('machine2serviceType: ', machine2serviceType)
       config.machines.machine2serviceType = machine2serviceType
+      this._context._serviceConstraints = this._serviceConstraints
+      this._context._machine2serviceType = machine2serviceType
       // process.exit(11)
     }
   }
 
   getServiceConstraints (workers, config) {
     let j  = 0
-    let machine2serviceType = new Map()
+    let machine2serviceType = {}
     const c = Object.keys(config.nodes).reduce((ac, groupName, i) => {
       const n = config.nodes[groupName]
       const needed = n.instances
       const services = getNames(groupName + '_', needed)
-      ac = joinMaps(ac, spread(services, workers.slice(j, j+needed), true))
-      machine2serviceType = joinMaps(machine2serviceType, spread(workers.slice(j, j+needed), new Array(needed).fill(n.type), true))
+      ac = {...ac, ...spreadObj(services, workers.slice(j, j+needed), true)}
+      if (config.deployStreamers && n.type === 'broadcaster') {
+        const services = getNames('streamer' + '_' + groupName + '_', needed)
+        ac = {...ac, ...spreadObj(services, workers.slice(j, j+needed), true)}
+      }
+      machine2serviceType = {...machine2serviceType, ...spreadObj(workers.slice(j, j+needed), new Array(needed).fill(n.type), true)}
       j += needed
       return ac
-    }, new Map())
+    }, {})
     return [c, machine2serviceType]
   }
-
-  /*
-  isPortUsed (port) {
-    if (Object.keys(this.ports).indexOf(port.toString()) === -1) {
-      return false
-    }
-    return true
-  }
-  */
 
   loadBinaries (dist, cb) {
     return new Promise((resolve, reject) => {
@@ -220,27 +200,14 @@ class NetworkCreator extends EventEmitter {
           resolve()
         }
       })
-      //
-      // exec(`docker build -t lpnode:latest ./containers/lpnode/`, (err, stdout, stderr) => {
-      //   if (err) throw err
-      //   console.log('stdout: ', stdout)
-      //   console.log('stderr: ', stderr)
-      // })
     })
   }
 
   async buildLocalLpImage(cb) {
     console.log('building local lpnode...')
     return new Promise((resolve, reject) => {
-      // const lpnodeDir = path.resolve(__dirname, '../containers/lpnode')
       const builder = spawn('docker', [
         'tag', 'livepeerbinary:debian', 'lpnode:latest',
-        // 'build',
-        // '-t',
-        // 'lpnode:latest',
-        // '-f',
-        // path.join(lpnodeDir, 'Dockerfile.local'),
-        // lpnodeDir
       ])
 
       builder.stdout.on('data', (data) => {
@@ -266,12 +233,6 @@ class NetworkCreator extends EventEmitter {
         }
       })
     })
-    //
-    // exec(`docker build -t lpnode:latest ./containers/lpnode/`, (err, stdout, stderr) => {
-    //   if (err) throw err
-    //   console.log('stdout: ', stdout)
-    //   console.log('stderr: ', stderr)
-    // })
   }
 
   generateComposeFile (outputPath, cb) {
@@ -382,21 +343,12 @@ class NetworkCreator extends EventEmitter {
       deps.push('loki')
       deps.push('logspout')
     }
-    // if (type === 'transcoder') {
-    //   deps.push(`orchestrator_${i}`)
-    // }
     return deps
   }
 
-  // _getRandomPort(port) {
-  //   return this.config.local ? getRandomPort(port) : port
-  // }
-
   _generateStreamerService (gname, type, i, volumes, cb) {
-    let serviceName = this._getHostnameForService(gname, i)
+    let serviceName = this._getHostnameForService(gname, i, type)
     console.log(`generate service serviceName: ${serviceName}`)
-    const nodes = this.config.nodes[gname]
-    const flags = nodes.flags || ''
     const port = getRandomPort(7934)
     this.config.context.portsUsed[port] = true
     const generated = {
@@ -404,7 +356,7 @@ class NetworkCreator extends EventEmitter {
       ports: [
         `${port}:7934`,
       ],
-      command: '/root/streamtester -server -serverAddr 0.0.0.0:7934 ' + flags,
+      command: '/root/streamtester -server -serverAddr 0.0.0.0:7934 -v 6 ',
       hostname: serviceName,
       networks: {
         testnet: {
@@ -432,16 +384,16 @@ class NetworkCreator extends EventEmitter {
         placement: {
           constraints: [
             'node.role == worker',
-            'node.hostname == ' + this._serviceConstraints.get(serviceName)
+            'node.hostname == ' + this._serviceConstraints[serviceName]
           ]
         }
       }
     }
-    cb(null, generated)
+    return generated
   }
 
-  _getHostnameForService(gname, i) {
-    return `${gname}_${i}`
+  _getHostnameForService(gname, i, typ) {
+    return typ ? `${typ}_${gname}_${i}` : `${gname}_${i}`
   }
 
   _getHostsByType(type) {
@@ -519,7 +471,7 @@ class NetworkCreator extends EventEmitter {
           placement: {
             constraints: [
               'node.role == worker',
-              'node.hostname == ' + this._serviceConstraints.get(serviceName)
+              'node.hostname == ' + this._serviceConstraints[serviceName]
             ]
           }
         }
@@ -582,14 +534,8 @@ class NetworkCreator extends EventEmitter {
     }
 
     let groups = Object.keys(this.config.nodes)
-    // if (!groups || groups.length < 1) {
-    //   groups = ['broadcaster', 'orchestrator', 'transcoder']
-    // }
     eachLimit(groups, 1, (group, callback) => {
       let type = this.config.nodes[`${group}`].type
-      // if (!type) {
-      //   // type = group.slice(0, group.length - 1)
-      // }
       console.log(`generating group ${group} type: ${type} nodes ${this.config.nodes[`${group}`].instances}`)
       timesLimit(
         this.config.nodes[`${group}`].instances,
@@ -597,11 +543,10 @@ class NetworkCreator extends EventEmitter {
         (i, next) => {
           // generate separate services with the forwarded ports.
           // append it to output as output.<node_generate_id> = props
-          if (type === 'streamer') {
-            this._generateStreamerService(group, type, i, volumes, next)
-          } else {
-            this._generateService(group, type, i, volumes, next)
+          if (this.config.deployStreamers && type === 'broadcaster') {
+            output[`streamer_${group}_${i}`] = this._generateStreamerService(group, 'streamer', i, volumes)
           }
+          this._generateService(group, type, i, volumes, next)
         },
         (err, nodes) => {
           if (err) throw err
