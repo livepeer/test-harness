@@ -68,11 +68,38 @@ async function run(parsedCompose) {
     }
     console.log(`====> ${chalk.yellowBright(po.name)} is ${status}`)
   }
+  const bStatusUrls = []
   for (let po of bPorts) {
     const { ip } = await Swarm.getPublicIPOfService(parsedCompose, po.name)
     const url = `http://${ip}:${po['7935']}/status`
+    bStatusUrls.push(ip + ':' + po['7935'])
     await checkAndPrint('broadcaster', po.name, url)
   }
+  // check Bs for transcoding options
+  try {
+    const statuses = await Promise.all(bStatusUrls.map(host => axios.get(`http://${host}/getBroadcastConfig`)))
+    const options = statuses.map(st => st.data.TranscodingOptions)
+    
+    for (let [j, opt] of options.entries()) {
+      const optArr = opt.split(',')
+      for (let i = 0; i < optArr.length; i++) {
+        if (optArr.indexOf(optArr[i], i+1) !== -1) {
+          console.log(`There is ${chalk.red('duplicates')} in transcoding options ${chalk.yellowBright(opt)} of ${chalk.green(bPorts[j].name)}`)
+          break
+        }
+      }
+    }
+    if (options.length) {
+      if (!options.every(o => o === options[0])) {
+        console.log(`${chalk.red('Error')} - not all transcoding options are equal!`)
+        console.log('Options are:', options)
+      }
+    }
+  } catch (err) {
+    console.log(err)
+
+  }
+
   for (let po of sPorts) {
     const { ip } = await Swarm.getPublicIPOfService(parsedCompose, po.name)
     const url = `http://${ip}:${po['7934']}/stats`
