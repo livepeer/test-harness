@@ -1269,7 +1269,7 @@ SHELL_SCREENRC`
 
   static async getPublicIPOfService(parsedCompose, serviceName) {
     if (parsedCompose.isLocal) {
-      return 'localhost'
+      return { ip: 'localhost', machine: 'localhost' }
     }
     const configName = parsedCompose.configName
     if (!service2IP) {
