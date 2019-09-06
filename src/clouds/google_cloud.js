@@ -199,16 +199,17 @@ class GoogleCloud {
     return await this._getIP(machineName, 'externalIP')
   }
 
+  async hasExternalIP(machineName) {
+    return await this._getIP(machineName, 'hasExternalIP')
+  }
+
+
   async _getIP(machineName, typ) {
     if ((this._context.machine2ip[machineName] || {}).hasOwnProperty(typ)) {
       return (this._context.machine2ip[machineName] || {})[typ]
     }
     await this._updateIP(machineName)
     return (this._context.machine2ip[machineName] || {})[typ]
-  }
-
-  async _hasExternalIP(machineName) {
-    return await this._getIP(machineName, 'hasExternalIP')
   }
 
   async _updateIP(machineName) {
@@ -249,7 +250,7 @@ class GoogleCloud {
       console.log(chalk.red(`Can't find zone for ${machineName}`))
       process.exit(207)
     }
-    const hasExtIP = await this._hasExternalIP(machineName)
+    const hasExtIP = await this.hasExternalIP(machineName)
     const intIPArg = !hasExtIP ? ' --internal-ip' : ''
     const [code, out, errOut] = await asyncExec('gcloud', `compute scp${intIPArg} --zone ${zone} ${src} ${machineName}:${dst}`.split(' '), false)
     if (code) {
@@ -289,7 +290,7 @@ class GoogleCloud {
       console.log(`Trying to execute '${chalk.yellow(command)}' on '${chalk.green(machineName)}, but zone for it was not found.`)
       process.exit(22)
     }
-    const hasExtIP = await this._hasExternalIP(machineName)
+    const hasExtIP = await this.hasExternalIP(machineName)
     return new Promise((resolve) => {
       let args = ['compute', 'ssh', machineName, '--zone', zone]
       if (!hasExtIP) {

@@ -150,7 +150,8 @@ class Swarm {
       for (let i = 1; i < machinesCount; i++) {
         // create workers
         const mName = `${name}-worker-${i}`
-        const makeExternal = !isInsideCloud && (['broadcaster', 'streamer'].includes(this.getServiceAtMachine(mName)) || config.allExternalIPs)
+        // const makeExternal = !isInsideCloud && (['broadcaster', 'streamer'].includes(this.getServiceAtMachine(mName)) || config.allExternalIPs)
+        const makeExternal = !isInsideCloud && ['broadcaster'].includes(this.getServiceAtMachine(mName)) && config.giveExternalIPToBroadcasters
         // const makeExternal = !isInsideCloud
         machinesCreationTasks.push(this._cloud.createMachine(mName, zone, this.getMachineType(mName),
           tags, makeExternal, GoogleCloud.SWARM_ROLE_WORKER, { token, managerInternalIP }))
@@ -616,22 +617,7 @@ SHELL_SCREENRC`
   }
 
   async getPubIP(machineName) {
-    // console.log(`getPubIP(${machineName})`)
     return await this._cloud.getExternalIP(machineName)
-    /*
-    return new Promise((resolve, reject) => {
-      exec(`docker-machine ip ${machineName}`, (err, ip) => {
-        if (err) {
-          reject(err)
-        } else {
-          resolve(ip.trim())
-        }
-        if (cb) {
-          cb(err, ip.trim())
-        }
-      })
-    })
-    */
   }
 
   /*
@@ -1278,9 +1264,18 @@ SHELL_SCREENRC`
       console.log(`running machines: "${ri}"`)
       ri.sort()
       // ri.splice(0, 1)
-      let workersIPS
+      const managerIP = await swarm.getPubIP(`${configName}-manager`)
+      const workersIPS = []
       try {
-        workersIPS = await Promise.all(ri.map(wn => swarm.getPubIP(wn)))
+        // workersIPS = await Promise.all(ri.map(wn => swarm.getPubIP(wn)))
+        for (let inst of ri) {
+          let hasExtIP = await swarm._cloud.hasExternalIP(inst)
+          if (!hasExtIP) {
+            workersIPS.push(managerIP)
+          } else {
+            workersIPS.push(await swarm.getPubIP(inst))
+          }
+        }
       } catch (e) {
         console.log('getPublicIPOfService Error: ', e)
       }
