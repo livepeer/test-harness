@@ -374,35 +374,59 @@ Plese note now GCP logging is truned off by default and should be turned on expl
     return res
   }
 
-  assignTranscoders2Orchs (config) {
-    const orchs = this.getTypeCountAndNames('orchestrator', config)
-    const transcoders = this.getTypeCountAndNames('transcoder', config)
+  _getMainZoneFromConfig (config) {
+    return config.machines && config.machines.zone || 'us-east1-b'
+  }
 
-    let transcoderNames = transcoders.matchedNames
-    let numOrchs = orchs.count
+  _getZonesUsed (config) {
+    const zones = new Set()
+    const mainZone = this._getMainZoneFromConfig(config)
+    for (let nGroupName of Object.keys(config.nodes)) {
+      zones.add(config.nodes[nGroupName].zone || mainZone)
+    }
+    return zones
+  }
+
+  assignTranscoders2Orchs (config) {
+    const zones = this._getZonesUsed(config)
+    console.log('Zones used:', zones)
     const res = {}
     const tres = {}
-    // const bnames = Array.from({length: numBroad}, (_, i) => `broadcaster_${i}`)
-    let tnames = []
-    let onames = []
-    for (let i = 0; i < transcoderNames.length; i++) {
-      tnames = tnames.concat(Array.from({length: config.nodes[transcoderNames[i]].instances}, (_, j) => `${transcoderNames[i]}_${j}`))
-    }
-
-    for (let i = 0; i < orchs.matchedNames.length; i++) {
-      let count = config.nodes[orchs.matchedNames[i]].instances
-      let groupNames = Array.from({length: count}, (_, j) => `${orchs.matchedNames[i]}_${j}`)
-      onames = onames.concat(groupNames)
-    }
-
-    for (let i = 0, oi = 0; i < tnames.length; i++) {
-      const oname = `${onames[oi]}`
-      if (!res[oname]) {
-        res[oname] = []
+    for (let zone of zones.values()) {
+      console.log(`Processing zone ${zone}`)
+      const orchs = this.getTypeCountAndNames('orchestrator', config, zone)
+      const transcoders = this.getTypeCountAndNames('transcoder', config, zone)
+      console.log('orchs:', orchs)
+      console.log('trans:', transcoders)
+      if (transcoders.count && !orchs.count) {
+        console.log(`Erorr: there is transcoders in zone ${chalk.green(zone)}, but there is no orchestrators in the same zone!`)
+        process.exit(87)
       }
-      res[oname].push(tnames[i])
-      tres[tnames[i]] = oname
-      oi = ++oi % numOrchs
+
+      let transcoderNames = transcoders.matchedNames
+      let numOrchs = orchs.count
+      // const bnames = Array.from({length: numBroad}, (_, i) => `broadcaster_${i}`)
+      let tnames = []
+      let onames = []
+      for (let i = 0; i < transcoderNames.length; i++) {
+        tnames = tnames.concat(Array.from({length: config.nodes[transcoderNames[i]].instances}, (_, j) => `${transcoderNames[i]}_${j}`))
+      }
+
+      for (let i = 0; i < orchs.matchedNames.length; i++) {
+        let count = config.nodes[orchs.matchedNames[i]].instances
+        let groupNames = Array.from({length: count}, (_, j) => `${orchs.matchedNames[i]}_${j}`)
+        onames = onames.concat(groupNames)
+      }
+
+      for (let i = 0, oi = 0; i < tnames.length; i++) {
+        const oname = `${onames[oi]}`
+        if (!res[oname]) {
+          res[oname] = []
+        }
+        res[oname].push(tnames[i])
+        tres[tnames[i]] = oname
+        oi = ++oi % numOrchs
+      }
     }
     console.log('assignTranscoders2Orchs: ', tres)
     return tres
@@ -414,7 +438,8 @@ Plese note now GCP logging is truned off by default and should be turned on expl
    * @param  {Object} config the configuration object
    * @return {int, array}        returns a count and an array of matched group names.
    */
-  getTypeCountAndNames (type, config) {
+  getTypeCountAndNames (type, config, zone) {
+    const mainZone = this._getMainZoneFromConfig(config)
     let count = 0
     let matchedNames = []
     let groupNames = Object.keys(config.nodes)
@@ -426,8 +451,10 @@ Plese note now GCP logging is truned off by default and should be turned on expl
     groupNames.forEach((name, i) => {
       if (config.nodes[name].type === type) {
         // console.log('got group ', name)
-        count += config.nodes[name].instances
-        matchedNames.push(name)
+        if (!zone || zone === (config.nodes[name].zone || mainZone)) {
+          matchedNames.push(name)
+          count += config.nodes[name].instances
+        }
       }
     })
     // console.log('matchedNames ', matchedNames)

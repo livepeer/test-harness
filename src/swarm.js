@@ -150,6 +150,7 @@ class Swarm {
       for (let i = 1; i < machinesCount; i++) {
         // create workers
         const mName = `${name}-worker-${i}`
+        const zone = config.context.machine2zone[mName]
         // const makeExternal = !isInsideCloud && (['broadcaster', 'streamer'].includes(this.getServiceAtMachine(mName)) || config.allExternalIPs)
         const makeExternal = !isInsideCloud && ['broadcaster'].includes(this.getServiceAtMachine(mName)) && config.giveExternalIPToBroadcasters
         // const makeExternal = !isInsideCloud

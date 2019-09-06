@@ -75,7 +75,7 @@ class NetworkCreator extends EventEmitter {
       config.machines.num = neededMachines
       console.log(`For this config ${chalk.green(neededMachines)} machines should be created`)
       const workers = getNames(`${config.name}-worker-`, neededMachines-1, 1)
-      const [_serviceConstraints, machine2serviceType] = this.getServiceConstraints(workers, config)
+      const [_serviceConstraints, machine2serviceType, machine2zone] = this.getServiceConstraints(workers, config)
       this._serviceConstraints = _serviceConstraints
 
       console.log('_serviceConstraints: ', this._serviceConstraints)
@@ -83,13 +83,18 @@ class NetworkCreator extends EventEmitter {
       config.machines.machine2serviceType = machine2serviceType
       this._context._serviceConstraints = this._serviceConstraints
       this._context._machine2serviceType = machine2serviceType
+      this._context.machine2zone = machine2zone
+      console.log(`machine2zone:`, this._context.machine2zone)
       // process.exit(11)
     }
   }
 
+
   getServiceConstraints (workers, config) {
     let j  = 0
     let machine2serviceType = {}
+    const defaultZone = config.machines.zone
+    let machine2zone = {}
     const c = Object.keys(config.nodes).reduce((ac, groupName, i) => {
       const n = config.nodes[groupName]
       const needed = n.instances
@@ -100,10 +105,12 @@ class NetworkCreator extends EventEmitter {
         ac = {...ac, ...spreadObj(services, workers.slice(j, j+needed), true)}
       }
       machine2serviceType = {...machine2serviceType, ...spreadObj(workers.slice(j, j+needed), new Array(needed).fill(n.type), true)}
+      const zone = n.zone || defaultZone
+      machine2zone = {...machine2zone, ...spreadObj(workers.slice(j, j+needed), new Array(needed).fill(zone), true)}
       j += needed
       return ac
     }, {})
-    return [c, machine2serviceType]
+    return [c, machine2serviceType, machine2zone]
   }
 
   loadBinaries (dist, cb) {
@@ -366,6 +373,9 @@ class NetworkCreator extends EventEmitter {
       environment: {
         type: 'streamer'
       },
+      labels: {
+        type: 'streamer'
+      },
       restart: 'unless-stopped',
     }
     if (!this.config.local) {
@@ -444,7 +454,8 @@ class NetworkCreator extends EventEmitter {
         }
       },
       labels: {
-        zone: this._getZoneFromConfig()
+        zone: this._getZoneFromConfig(),
+        type
       },
       restart: 'unless-stopped',
       volumes: [vname + ':/root/.lpData']
