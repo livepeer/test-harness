@@ -14,6 +14,7 @@ th.run({
   standardSetup: true, // request token, register orchestartors, etc...
   name: 'test123',
   email: null, // email to send alerts to
+  deployStreamers: true, // creates streamer's instances - one per broadcaster
   blockchain: {
     // keep these to run a private testnet.
     name: 'lpTestNet',
@@ -23,10 +24,6 @@ th.run({
     txFiller: true
   },
   nodes: {
-    streamers: {
-      instances: 2,
-      type: 'streamer',
-    },
     transcoders: {
       // how many containers to run as transcoders.
       instances: 2,

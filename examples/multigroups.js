@@ -11,6 +11,7 @@ th.run({
   standardSetup: true, // request token, register orchestartors, etc...
   metrics: true,
   name: '', // specify unique config name here
+  deployStreamers: true, // creates streamer's instances - one per broadcaster
   email: null, // email to send alerts to
   discordUserId: null, // id of Discord user to send alert from Prometheus to (use `Copy ID` on profile to get)
   livepeerBinaryPath: null, // this will use the livepeer binary in the GCP bucket.
@@ -21,10 +22,6 @@ th.run({
     controllerAddress: '0x77A0865438f2EfD65667362D4a8937537CA7a5EF',
   },
   machines: {
-    // total VM instances number
-    num: 4,
-    orchestartorsMachines: 2,
-    broadcastersMachines: 1,
     // zone: 'europe-west3-c',
     zone: 'us-east1-b',
     // machineType: 'n1-highcpu-2',
