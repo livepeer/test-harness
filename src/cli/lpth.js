@@ -19,6 +19,7 @@ program
   .command('utils [options]', 'various utils for quick debugging')
   .command('info <config>', 'prints list of endpoints of deployed services')
   .command('health <config>', 'connects to every instances to check if it is alive')
+  .command('ssh <config> <vm_or_service_name>', 'connects ssh to VM instance')
   .command('down [name]', 'runs `docker-compose down` or removes VMs in cloud')
   .command('update [name]', 'runs `docker-compose down` and `docker-compose up` for local deployments\nor `docker stack deploy` for cloud deployment')
   .command('test [name]', 'Test deployment by streaming video into it and calculating success rate')

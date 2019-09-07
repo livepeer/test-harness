@@ -114,6 +114,7 @@ class GoogleCloud {
     this._context.machine2zone[name] = zoneName
     // Create a new VM using the latest OS image of your choice.
     const gZone = this._compute.zone(zoneName)
+    const isManager = name.endsWith('-manager')
 
     // Start the VM create task
     const vmConfig = {
@@ -139,6 +140,24 @@ class GoogleCloud {
     }
     if (tags) {
       vmConfig.tags = toArray(tags)
+    }
+    if (isManager) {
+      vmConfig.serviceAccounts = [
+        {
+          email: '926323785560-compute@developer.gserviceaccount.com',
+          scopes: [
+             "https://www.googleapis.com/auth/cloud-platform" // full access
+            // 'https://www.googleapis.com/auth/compute.instances.set_metadata',
+            // 'https://www.googleapis.com/auth/compute.projects.get',
+            // 'https://www.googleapis.com/auth/devstorage.read_only',
+            // 'https://www.googleapis.com/auth/logging.write',
+            // 'https://www.googleapis.com/auth/monitoring.write',
+            // 'https://www.googleapis.com/auth/service.management.readonly',
+            // 'https://www.googleapis.com/auth/servicecontrol',
+            // 'https://www.googleapis.com/auth/trace.append'
+          ]
+        }
+      ]
     }
     const startupScript = this._getStartupScript(swarmRole, initValues)
     if (startupScript) {

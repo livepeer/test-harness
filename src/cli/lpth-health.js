@@ -96,8 +96,9 @@ async function run(parsedCompose) {
       }
     }
   } catch (err) {
-    console.log(err)
-
+    if (!err.code) {
+      console.log(err)
+    }
   }
 
   for (let po of sPorts) {
