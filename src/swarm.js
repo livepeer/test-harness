@@ -77,54 +77,7 @@ class Swarm {
       console.log(chalk.red('Something wrong - machines not counted'))
       process.exit(21)
     }
-    const machinesCount = config.machines.num
-    const name = config.name
-
-    if (Array.isArray(config.machines.zones)) {
-      // TODO fix this? Do we need this?
-      /*
-      let numberOfZones = config.machines.zones.length
-      let machinesPerGroup = Math.floor(machinesCount / numberOfZones)
-      let groups = {}
-      for (let i = 0, j = 0; i < machinesCount - 1; i++) {
-        if (!groups[config.machines.zones[j]]) {
-          groups[config.machines.zones[j]] = []
-        }
-
-        groups[config.machines.zones[j]].push({
-          name: `${name}-worker-${i + 1}`,
-          zone: config.machines.zones[j],
-          machineType: this.getMachineType(`${name}-worker-${i + 1}`),
-          tags: config.machines.tags || `${name}-cluster`
-        })
-
-        j = ++j % numberOfZones
-      }
-      console.log('groups: ', groups)
-      parallel([
-        (done) => {
-          this.createMachine({
-            name: `${name}-manager`,
-            zone: config.machines.zones[0],
-            machineType: config.machines.managerMachineType,
-            tags: config.machines.tags || `${name}-cluster`
-          }, done)
-        },
-        (done) => {
-          eachOfLimit(groups, 3, (machinesOpts, zone, next) => {
-            eachLimit(machinesOpts, 50, (machine, n) => {
-              this.createMachine(machine, n)
-            }, next)
-          }, done)
-        }
-      ], (err) => {
-        if (err) return cb(err)
-        this.setupGCEMonitoring(config).then(() => cb(null), cb)
-      })
-      */
-    } else {
-      await this.createMachinesUsual(machinesCount)
-    }
+    await this.createMachinesUsual(config.machines.num)
   }
 
   async createMachinesUsual(machinesCount) {
@@ -602,6 +555,7 @@ SHELL_SCREENRC`
     return await this._cloud.remotelyExec(this._managerName, `sudo docker network create -d overlay --subnet=10.0.0.0/16 --gateway=10.0.0.1 ${networkName}`)
   }
 
+  /*
   scp(origin, destination, opts, cb) {
     return new Promise((resolve, reject) => {
       exec(`docker-machine scp ${opts} ${origin} ${destination}`, (err, res) => {
@@ -616,6 +570,7 @@ SHELL_SCREENRC`
       })
     })
   }
+  */
 
   async getPubIP(machineName) {
     return await this._cloud.getExternalIP(machineName)
@@ -758,6 +713,18 @@ SHELL_SCREENRC`
     console.log('Done joining workers to swarm.')
   }
   */
+
+  /**
+   * Executes provided command on remote machine
+   * 
+   * @param {string} machineName name of VM
+   * @param {string} command command to execute
+   * @param {boolean} quiet 
+   * @returns [number, string, string] returns array with exit code, standard output and stderr output
+   */
+  async remotelyExec(machineName, command, quiet = true) {
+    return await this._cloud.remotelyExec(machineName, command, quiet)
+  }
 
   async _init() {
     return await this._cloud.remotelyExec(this._managerName, `sudo docker swarm init`)

@@ -114,7 +114,6 @@ class GoogleCloud {
     this._context.machine2zone[name] = zoneName
     // Create a new VM using the latest OS image of your choice.
     const gZone = this._compute.zone(zoneName)
-    const isManager = name.endsWith('-manager')
 
     // Start the VM create task
     const vmConfig = {
@@ -141,7 +140,7 @@ class GoogleCloud {
     if (tags) {
       vmConfig.tags = toArray(tags)
     }
-    if (isManager) {
+    if (swarmRole === GoogleCloud.SWARM_ROLE_MANAGER) {
       vmConfig.serviceAccounts = [
         {
           email: '926323785560-compute@developer.gserviceaccount.com',

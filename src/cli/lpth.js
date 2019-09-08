@@ -5,6 +5,7 @@ const fs = require('fs')
 const path = require('path')
 const YAML = require('yaml')
 const utils = require('../utils/helpers')
+const Swarm = require('../swarm')
 
 function parsePath (val) {
   console.log(`parsing ${path.resolve(val)} config:`)
@@ -63,17 +64,31 @@ program
 
 // disrupt orchs in group o_b
 program
-  .command('disrupt [name] [group]')
+  .command('disrupt <name> <group>')
   .description('uses pumba to kill containers in a specified livepeer group randomly')
   .option('-i --interval <interval>', 'recurrent interval for chaos command; use with optional unit suffix: \'ms/s/m/h\'')
   .option('-d --duration <duration>', ' duration of the stop; should be smaller than recurrent interval; use with optional unit suffix: \'ms/s/m/h\'')
   .action((name, group, env) => {
     parseDockerCompose(name, async (err, experiment) => {
       if (err) throw err
+      // if (env.interval < env.duration) {
+      //   throw new Error(`interval ${env.interval} must be bigger than duration ${env.duration}`)
+      // }
       try {
         const parsedCompose = utils.parseComposeAndGetAddresses(name)
-        const outputBuf = await utils.remotelyExec(`${name}-manager`, parsedCompose.zone || DEFAULT_ZONE,
-          `sudo docker service create --name pumba --network testnet --mode global --detach=false --mount type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock gaiaadm/pumba:latest --interval ${env.interval || '20s'} --random stop --duration ${env.duration || '5s'} re2:livepeer_${group}_*`)
+        if (!parsedCompose.config || !parsedCompose.config.context) {
+          console.log(`Not working with old deployments. Please redeploy.`)
+          process.exit(23)
+        }
+        const swarm = new Swarm(parsedCompose.configName, parsedCompose.config)
+        const outputBuf = await swarm.remotelyExec(`${name}-manager`,
+          `sudo docker service create --name pumba --network testnet --mode global 
+          --detach=false 
+          --mount type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock gaiaadm/pumba:latest
+          --interval ${env.interval || '20s'}
+          --random
+          stop
+          --duration ${env.duration || '5s'} re2:^livepeer_${group}_.*`.split('\n').join(' '))
         console.log('pumba deployed', (outputBuf) ? outputBuf.toString() : null)
       } catch (e) {
         if (e) console.log('There was an error while deploying pumba, please check the docker logs ', e)
@@ -89,8 +104,12 @@ program
     parseDockerCompose(name, async (err, experiment) => {
       if (err) throw err
       const parsedCompose = utils.parseComposeAndGetAddresses(name)
-        const outputBuf = await utils.remotelyExec(`${name}-manager`, parsedCompose.zone || DEFAULT_ZONE,
-        `sudo docker service rm pumba`)
+      if (!parsedCompose.config || !parsedCompose.config.context) {
+        console.log(`Not working with old deployments. Please redeploy.`)
+        process.exit(23)
+      }
+      const swarm = new Swarm(parsedCompose.configName, parsedCompose.config)
+      const outputBuf = await swarm.remotelyExec(`${name}-manager`, `sudo docker service rm pumba`)
       console.log('pumba stopped', (outputBuf) ? outputBuf.toString() : null)
       process.exit()
     })
@@ -109,7 +128,12 @@ program
       }
 
       const parsedCompose = utils.parseComposeAndGetAddresses(name)
-      const outputBuf = await utils.remotelyExec(`${name}-manager`, parsedCompose.zone || DEFAULT_ZONE,
+      if (!parsedCompose.config || !parsedCompose.config.context) {
+        console.log(`Not working with old deployments. Please redeploy.`)
+        process.exit(23)
+      }
+      const swarm = new Swarm(parsedCompose.configName, parsedCompose.config)
+      const outputBuf = await swarm.remotelyExec(`${name}-manager`,
         `sudo docker service create \
           --name pumba_net --network testnet \
           --mode global \
@@ -119,7 +143,7 @@ program
           --interval ${env.interval || '20s'} \
           netem delay \
           -d ${env.duration} \
-          re2:livepeer_${group}_*`)
+          re2:^livepeer_${group}_.*`.split('\n').join(' '))
       console.log('pumba net deployed', (outputBuf) ? outputBuf.toString() : null)
       process.exit()
     })
@@ -132,8 +156,12 @@ program
     parseDockerCompose(name, async (err, experiment) => {
       if (err) throw err
       const parsedCompose = utils.parseComposeAndGetAddresses(name)
-      const outputBuf = await utils.remotelyExec(`${name}-manager`, parsedCompose.zone || DEFAULT_ZONE,
-        `sudo docker service rm pumba_net`)
+      if (!parsedCompose.config || !parsedCompose.config.context) {
+        console.log(`Not working with old deployments. Please redeploy.`)
+        process.exit(23)
+      }
+      const swarm = new Swarm(parsedCompose.configName, parsedCompose.config)
+      const outputBuf = await swarm.remotelyExec(`${name}-manager`, `sudo docker service rm pumba_net`)
       console.log('pumba stopped', (outputBuf) ? outputBuf.toString() : null)
       process.exit()
     })

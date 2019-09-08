@@ -16,10 +16,9 @@ const { wait, parseComposeAndGetAddresses, needToCreateGeth, saveLocalDockerImag
 const { prettyPrintDeploymentInfo } = require('./helpers')
 
 const DIST_DIR = '../dist'
-const DEFAULT_MACHINES = 5
 // const getOName = new RegExp('.*\/(orchestrator_\\d+):')
 
-const deprecatedMachinesProps = ['orchestartorsMachines', 'broadcastersMachines', 'num']
+const deprecatedMachinesProps = ['orchestartorsMachines', 'broadcastersMachines', 'num', 'zones']
 const mandatoyMachinesProps = ['orchestratorMachineType', 'managerMachineType', 'broadcasterMachineType']
 
 function configHasInstancesOfType(config, type) {
