@@ -5,7 +5,7 @@ const chalk = require('chalk')
 const { exec, spawn } = require('child_process')
 const axios = require('axios')
 const Compute = require('@google-cloud/compute')
-const { PROJECT_ID, GCE_VM_IMAGE, GCE_CUSTOM_VM_IMAGE } = require('../constants')
+const { PROJECT_ID, GCE_CUSTOM_GPU_VM_IMAGE, GCE_CUSTOM_VM_IMAGE } = require('../constants')
 const { asyncExec, trim } = require('../utils/helpers')
 const { wait } = require('../utils/helpers')
 
@@ -109,7 +109,7 @@ class GoogleCloud {
    * @param {string} machineType type of machine
    * @param {string|array} tags tags
    */
-  async createMachine(name, zone, machineType, tags, addExternalIP = true, swarmRole = '', initValues = {}) {
+  async createMachine(name, zone, machineType, tags, addExternalIP = true, swarmRole = '', initValues = {}, attributes, gpus) {
     const zoneName = zone || this._defaults.zone
     this._context.machine2zone[name] = zoneName
     // Create a new VM using the latest OS image of your choice.
@@ -117,7 +117,7 @@ class GoogleCloud {
 
     // Start the VM create task
     const vmConfig = {
-      os: `${this._defaults.projectId}/${GCE_CUSTOM_VM_IMAGE}`,
+      os: `${this._defaults.projectId}/${gpus ? GCE_CUSTOM_GPU_VM_IMAGE : GCE_CUSTOM_VM_IMAGE}`,
       machineType,
     }
     if (addExternalIP) {
@@ -145,7 +145,7 @@ class GoogleCloud {
         {
           email: '926323785560-compute@developer.gserviceaccount.com',
           scopes: [
-             "https://www.googleapis.com/auth/cloud-platform" // full access
+            "https://www.googleapis.com/auth/cloud-platform" // full access
             // 'https://www.googleapis.com/auth/compute.instances.set_metadata',
             // 'https://www.googleapis.com/auth/compute.projects.get',
             // 'https://www.googleapis.com/auth/devstorage.read_only',
@@ -159,15 +159,36 @@ class GoogleCloud {
       ]
     }
     const startupScript = this._getStartupScript(swarmRole, initValues)
-    if (startupScript) {
+    if (startupScript || attributes) {
       vmConfig.metadata = {
         kind: 'compute#metadata',
-        items: [
-          {
-            key: 'startup-script',
-            value: startupScript
-          }
-        ]
+        items: [],
+      }
+    }
+    if (startupScript) {
+      vmConfig.metadata.items.push({
+        key: 'startup-script',
+        value: startupScript
+      })
+    }
+    if (attributes) {
+      for (let key of Object.keys(attributes)) {
+        vmConfig.metadata.items.push({
+          key,
+          value: attributes[key]
+        })
+      }
+    }
+    if (gpus) {
+      vmConfig.guestAccelerators = [{
+        acceleratorType: `projects/test-harness-226018/zones/${zone}/acceleratorTypes/nvidia-tesla-v100`,
+        acceleratorCount: gpus
+      }]
+      vmConfig.scheduling = {
+        "preemptible": false,
+        "onHostMaintenance": "TERMINATE",
+        "automaticRestart": true,
+        "nodeAffinities": []
       }
     }
     const [vm, operation, _apiResponse] = await gZone.createVM(name, vmConfig)

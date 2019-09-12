@@ -201,10 +201,16 @@ Plese note now GCP logging is truned off by default and should be turned on expl
     config.context = config.context || {}
     this.networkCreator = new NetworkCreator(config)
     this.swarm = new Swarm(config.name, config)
-    this.networkCreator.generateComposeFile(`${DIST_DIR}/${config.name}`, (err) => {
+    const fullConfigFileName = path.join(DIST_DIR, config.name, 'config.yaml')
+    if (fs.existsSync(fullConfigFileName)) {
+      fs.unlinkSync(fullConfigFileName)
+    }
+    this.networkCreator.generateComposeFile(path.join(DIST_DIR, config.name), (err) => {
       if (err) return handleError(err)
 
       // console.log(this.networkCreator)
+      // console.log(this.networkCreator._context)
+      // console.log(JSON.stringify(this.networkCreator, null, 2))
       // process.exit(9)
       if (config.local) {
         this.runLocal()
@@ -676,7 +682,9 @@ Plese note now GCP logging is truned off by default and should be turned on expl
     }
     console.log('docker image pushed')
     try {
-      await this.swarm.deployComposeFile(this.getDockerComposePath(config), 'livepeer')
+      const dockerFile = this.getDockerComposePath(config)
+      console.log(`Deploying docker compose file: ${dockerFile}`)
+      await this.swarm.deployComposeFile(dockerFile, 'livepeer')
       const results = await this.fundAccounts(config)
       return results
     } catch(e) {

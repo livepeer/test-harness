@@ -80,9 +80,18 @@ class Swarm {
     await this.createMachinesUsual(config.machines.num)
   }
 
+  _getServiceOnMachine(machine) {
+    for (let serviceName of Object.keys(this._config.context._serviceConstraints)) {
+      if (this._config.context._serviceConstraints[serviceName] === machine) {
+        return serviceName
+      }
+    }
+  }
+
   async createMachinesUsual(machinesCount) {
     console.log(`Creating ${machinesCount} machines`)
     const config = this._config
+    const context = config.context
     const name = config.name
     const isInsideCloud = await this._cloud.isInsideCloud()
     try {
@@ -100,18 +109,52 @@ class Swarm {
       const token = await this._getSwarmTokenWithRetries()
       console.log(`Using swarm token ${chalk.green(token)} and internal ip ${chalk.green(managerInternalIP)}`)
       let machinesCreationTasks = []
+        console.log(context.services)
+        console.log(context._serviceConstraints)
       for (let i = 1; i < machinesCount; i++) {
         // create workers
         const mName = `${name}-worker-${i}`
-        const zone = config.context.machine2zone[mName]
+        const serviceName = this._getServiceOnMachine(mName)
+        console.log('mname:', mName, 'serviceName:', serviceName, 'hasGPU', context.services[serviceName].gpuMachine)
+        if (context.services[serviceName].gpuMachine) {
+          continue
+        }
+        const zone = context.machine2zone[mName]
         // const makeExternal = !isInsideCloud && (['broadcaster', 'streamer'].includes(this.getServiceAtMachine(mName)) || config.allExternalIPs)
         const makeExternal = !isInsideCloud && ['broadcaster'].includes(this.getServiceAtMachine(mName)) && config.giveExternalIPToBroadcasters
         // const makeExternal = !isInsideCloud
         machinesCreationTasks.push(this._cloud.createMachine(mName, zone, this.getMachineType(mName),
           tags, makeExternal, GoogleCloud.SWARM_ROLE_WORKER, { token, managerInternalIP }))
       }
+      console.log(`Creating Swarm machines`)
       await Promise.all(machinesCreationTasks)
-      console.log(`Done creating machines in parallel.`)
+      console.log(`Done creating Swarm machines.`)
+      if (context.hasGPUs) {
+        console.log(`Creating GPU machines outside swarm.`)
+        for (let serviceName of Object.keys(context.services)) {
+          const service = context.services[serviceName]
+          if (!service.gpuMachine) {
+            continue
+          }
+          const oService = config.o2t[serviceName]
+          const oMachine = context._serviceConstraints[oService]
+          console.log('oMachine:', oMachine)
+          const tMachine = context._serviceConstraints[serviceName]
+          const zone = context.machine2zone[tMachine]
+          const oIP = await this._cloud.getInternalIP(oMachine)
+          if (!oIP) {
+            console.log('zone', zone, 'tMachine', tMachine, 'oService', oService)
+            console.log('fuck')
+            process.exit(11)
+          }
+          const livepeer_flags = service.flags + ' -orchAddr ' + oIP + ':' + context.services[oService].ports['8935']
+          machinesCreationTasks.push(this._cloud.createMachine(tMachine, zone, this.getMachineType(tMachine),
+            tags, false, undefined, undefined, { livepeer_flags }, service.gpus))
+        }
+
+        await Promise.all(machinesCreationTasks)
+        console.log(`Done creating GPU machines.`)
+      }
       if (!isInsideCloud) {
         // TODO get ports to open from config (every time different)
         const portsUsed = Object.keys(config.context.portsUsed).map(port => parseInt(port))

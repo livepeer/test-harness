@@ -50,6 +50,15 @@ function countNeededMachines (config, type = undefined) {
   return type ? machines : machines + 1
 }
 
+function hasGPUs (config) {
+  for (let groupName of Object.keys(config.nodes)) {
+    const node = config.nodes[groupName]
+    if (node.instances && node.type === 'transcoder' && node.gpus) {
+      return true
+    }
+  }
+}
+
 
 class NetworkCreator extends EventEmitter {
   constructor (config, isToml) {
@@ -64,6 +73,8 @@ class NetworkCreator extends EventEmitter {
       this.config = config
     }
     this.config.context.portsUsed = {}
+    this.config.context.servicePorts = {}
+    this.config.context.services = {}
 
     this.nodes = {}
     this.hasGeth = false
@@ -71,6 +82,7 @@ class NetworkCreator extends EventEmitter {
     this._context = config.context
     if (!config.local) {
       const neededMachines = countNeededMachines(config)
+      this._context.hasGPUs = hasGPUs(config)
       // setting config.machines.num property, because it is used by a lot of code downpath
       config.machines.num = neededMachines
       console.log(`For this config ${chalk.green(neededMachines)} machines should be created`)
@@ -248,6 +260,10 @@ class NetworkCreator extends EventEmitter {
     if (!fs.existsSync(outputFolder)) {
       fs.mkdirSync(outputFolder, { recursive: true, mode: 484 })
     }
+    const fullDockerComposeFileName = path.join(outputFolder, 'docker-compose.yml')
+    if (fs.existsSync(fullDockerComposeFileName)) {
+      fs.unlinkSync(fullDockerComposeFileName)
+    }
     let output = {
       version: '3.7',
       outputFolder,
@@ -275,6 +291,8 @@ class NetworkCreator extends EventEmitter {
       if (this.config.local) {
         this.mutateConfigsToVolumes(outputFolder, output)
       }
+      console.log(`--------- writing compose file`)
+      console.log(JSON.stringify(output, null, 2))
       composefile(output, cb)
     })
   }
@@ -434,6 +452,16 @@ class NetworkCreator extends EventEmitter {
     this.config.context.portsUsed[port2] = true
     const port3 = getRandomPort(1935)
     this.config.context.portsUsed[port3] = true
+    this.config.context.servicePorts[serviceName] = {
+      '1935': port3,
+      '7935': port2,
+      '8935': port1,
+    }
+    this.config.context.services[serviceName] = {
+      ports: this.config.context.servicePorts[serviceName],
+      command: this.getNodeOptions(gname, nodes, i),
+      type,
+    }
     const generated = {
       // image: (this.config.local || this.config.localBuild) ? 'lpnode:latest' : 'localhost:5000/lpnode:latest',
       // image: this.config.local ? 'lpnode:latest' : 'localhost:5000/lpnode:latest',
@@ -518,6 +546,17 @@ class NetworkCreator extends EventEmitter {
     })
   }
 
+  _generateGPUTranscoderService(gname, i, cb) {
+    const serviceName = this._getHostnameForService(gname, i)
+    const nodes = this.config.nodes[gname]
+    this.config.context.services[serviceName] = {
+      flags: this.getNodeOptions(gname, nodes, i, true) + ' -nvidia ' + Array(nodes.gpus).fill(0).map((_, i) => i).join(','),
+      gpuMachine: true,
+      gpus: nodes.gpus,
+    }
+    cb(null)
+  }
+
   generateServices (outputFolder, cb) {
     const output = {}
     const volumes = {}
@@ -546,10 +585,20 @@ class NetworkCreator extends EventEmitter {
 
     let groups = Object.keys(this.config.nodes)
     eachLimit(groups, 1, (group, callback) => {
-      let type = this.config.nodes[`${group}`].type
-      console.log(`generating group ${group} type: ${type} nodes ${this.config.nodes[`${group}`].instances}`)
+      const numInstances = this.config.nodes[group].instances
+      let type = this.config.nodes[group].type
+      if (type === 'transcoder' && this.config.nodes[group].gpus) {
+        timesLimit(numInstances, 5, (i, next) => {
+          this._generateGPUTranscoderService(group, i, next)
+        },
+        (err, nodes) => {
+          callback(err)
+        })
+        return
+      }
+      console.log(`generating group ${group} type: ${type} nodes ${this.config.nodes[group].instances}`)
       timesLimit(
-        this.config.nodes[`${group}`].instances,
+        numInstances,
         5,
         (i, next) => {
           // generate separate services with the forwarded ports.
@@ -1097,14 +1146,25 @@ class NetworkCreator extends EventEmitter {
     return needToCreateGethTxFiller(this.config) ? txFillerService : undefined
   }
 
-  getNodeOptions (gname, nodes, i) {
+  _getOGroupForT(transcoderName) {
+    let oName = this.config.o2t[transcoderName]
+    let oGroup = oName.split('_')
+    return oGroup.slice(0, oGroup.length - 1).join('_')
+  }
+
+  getNodeOptions (gname, nodes, i, skipOrchAddr = false) {
     const output = []
     const userFlags = nodes.flags
+    const nodeType = this.config.nodes[gname].type || gname
 
     // default 0.0.0.0 binding
-    output.push(`-httpAddr 0.0.0.0:8935`)
-    output.push(`-cliAddr 0.0.0.0:7935`)
-    output.push(`-rtmpAddr 0.0.0.0:1935`)
+    if (nodeType === 'orchestrator' || nodeType === 'broadcaster') {
+      output.push(`-httpAddr 0.0.0.0:8935`)
+      output.push(`-cliAddr 0.0.0.0:7935`)
+    }
+    if (nodeType === 'broadcaster') {
+      output.push(`-rtmpAddr 0.0.0.0:1935`)
+    }
 
     if (nodes.googleStorage) {
       output.push('-gsbucket')
@@ -1120,21 +1180,21 @@ class NetworkCreator extends EventEmitter {
     // if (nodeType === 'orchestrator') {
     //   output.push('-initializeRound=true')
     // }
-    let nodeType = this.config.nodes[gname].type || gname
+    const serviceName = this._getHostnameForService(gname, i)
 
     switch (nodeType) {
       case 'transcoder':
         // output.push('-orchAddr', `https://orchestrator_${i}:8935`)
-        output.push('-orchAddr', `${this.config.o2t[`${gname}_${i}`]}:8935`)
-        let oName = this.config.o2t[`${gname}_${i}`]
-        let oGroup = oName.split('_')
-        oGroup = oGroup.slice(0, oGroup.length - 1).join('_')
-        console.log('o_group: ', oGroup)
-        if (!this.config.nodes[oGroup].orchSecret) {
+        if (!skipOrchAddr) {
+          output.push('-orchAddr', `${this.config.o2t[serviceName]}:8935`)
+        }
+        let oGroupName = this._getOGroupForT(serviceName)
+        console.log('o_group: ', oGroupName)
+        if (!this.config.nodes[oGroupName].orchSecret) {
           console.log(chalk.red(`For transcoder nodes ${chalk.yellowBright('orchSecret')} should be specified on ${chalk.yellowBright('orchestrators')} config object.`))
           process.exit(17)
         }
-        output.push('-orchSecret', `${this.config.nodes[oGroup].orchSecret}`)
+        output.push('-orchSecret', `${this.config.nodes[oGroupName].orchSecret}`)
         output.push('-transcoder')
         break
       case 'orchestrator':

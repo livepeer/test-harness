@@ -4,6 +4,7 @@ module.exports = {
   PROJECT_ID: 'test-harness-226018',
   GCE_VM_IMAGE: 'https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-minimal-1804-lts',
   GCE_CUSTOM_VM_IMAGE: 'test-harness-base',
+  GCE_CUSTOM_GPU_VM_IMAGE: 'test-harness-gpu-livepeer',
   // GCE_VM_IMAGE: 'https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-minimal-1604-lts',
   // GCE_VM_IMAGE: 'https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-minimal-1604-lts',
   // GCE_VM_IMAGE: 'https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-minimal-1804-lts',
@@ -16,4 +17,8 @@ module.exports = {
     STREAMER_PORT: '7934',
   },
   NODE_TYPES: ['broadcaster', 'transcoder', 'orchestrator', 'streamer'],
+  DEFAULT_GPU: 'v100',
+  GPUS_IN_REGION: {
+    'us-central1': ['v100'],
+  }
 }
