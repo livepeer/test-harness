@@ -1,0 +1,17 @@
+[Unit]
+Description=Livepeer service
+After=local-fs.target network-online.target network.target rsyslog.service
+# After=google-startup-scripts.service
+# Wants=google-startup-scripts.service
+
+[Service]
+User=livepeer
+Group=livepeer
+Type=simple
+Restart=always
+RestartSec=5s
+WorkingDirectory=/home/livepeer/go/src/github.com/livepeer/go-livepeer
+ExecStart=/home/livepeer/go/src/github.com/livepeer/go-livepeer/start_livepeer.sh
+
+[Install]
+WantedBy=multi-user.target

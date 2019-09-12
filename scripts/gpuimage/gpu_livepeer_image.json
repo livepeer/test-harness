@@ -1,0 +1,54 @@
+{
+  "variables": {
+    "aws_access_key": "",
+    "aws_secret_key": ""
+  },
+  "builders": [
+    {
+      "type": "googlecompute",
+      "project_id": "test-harness-226018",
+      "source_image_family": "test-harness-gpu-base",
+      "ssh_username": "packer",
+      "zone": "us-central1-b",
+      "machine_type": "n1-highcpu-16",
+      "image_name": "test-harness-gpu-livepeer-{{timestamp}}",
+      "image_family": "test-harness-gpu-livepeer"
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "shell",
+      "pause_before": "40s",
+      "inline": [
+        "sudo apt-get update",
+        "sudo apt-get install -y screen",
+        "sudo apt-get -y upgrade",
+        "sudo ldconfig /usr/lib64"
+      ]
+    },
+    {
+      "type": "shell",
+      "execute_command": "sudo bash -c \" su livepeer -c '{{ .Vars }} {{ .Path }}'\"",
+      "script": "provision_livepeer.sh"
+    },
+    {
+      "type": "file",
+      "source": "livepeer.service",
+      "destination": "/tmp/"
+    },
+    {
+      "type": "file",
+      "source": "start_livepeer.sh",
+      "destination": "/tmp/"
+    },
+    {
+      "type": "shell",
+      "inline": [
+        "sudo cp /tmp/start_livepeer.sh /home/livepeer/go/src/github.com/livepeer/go-livepeer/start_livepeer.sh",
+        "sudo chown livepeer:livepeer /home/livepeer/go/src/github.com/livepeer/go-livepeer/start_livepeer.sh",
+        "sudo cp /tmp/livepeer.service /etc/systemd/system/livepeer.service",
+        "sudo systemctl enable livepeer.service"
+      ]
+    }
+  ]
+}

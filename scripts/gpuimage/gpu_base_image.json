@@ -1,0 +1,26 @@
+{
+  "variables": {
+    "aws_access_key": "",
+    "aws_secret_key": ""
+  },
+  "builders": [
+    {
+      "type": "googlecompute",
+      "project_id": "test-harness-226018",
+      "source_image_family": "ubuntu-minimal-1804-lts",
+      "ssh_username": "packer",
+      "zone": "us-central1-b",
+      "machine_type": "n1-highcpu-16",
+      "image_name": "test-harness-gpu-base-{{timestamp}}",
+      "image_family": "test-harness-gpu-base"
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "shell",
+      "pause_before": "30s",
+      "execute_command": "sudo bash -c '{{ .Vars }} {{ .Path }}'",
+      "script": "provision_base.sh"
+    }
+  ]
+}
