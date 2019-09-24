@@ -599,9 +599,12 @@ SHELL_SCREENRC`
   }
   */
 
+  /*
   async _createNetwork(networkName) {
-    return await this._cloud.remotelyExec(this._managerName, `sudo docker network create -d overlay --subnet=10.0.0.0/16 --gateway=10.0.0.1 ${networkName}`)
+    // return await this._cloud.remotelyExec(this._managerName, `sudo docker network create -d overlay --subnet=10.0.0.0/16 --gateway=10.0.0.1 ${networkName}`)
+    return await this._cloud.remotelyExec(this._managerName, `sudo docker network create -d overlay --attachable ${networkName}`)
   }
+  */
 
   /*
   scp(origin, destination, opts, cb) {

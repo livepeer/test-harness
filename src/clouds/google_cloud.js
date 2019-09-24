@@ -391,7 +391,7 @@ if [ $? -ne 0 ]
 then
   echo "Initializing Swarm"
   docker swarm init
-  docker network create -d overlay --subnet=10.0.0.0/16 --gateway=10.0.0.1 ${values.network || 'testnet'}
+  docker network create -d overlay --attachable ${values.network || 'testnet'}
   docker service create --name registry --network testnet --publish published=5000,target=5000 registry:2
 fi
 `
