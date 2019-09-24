@@ -5,6 +5,7 @@ module.exports = {
   GCE_VM_IMAGE: 'https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-minimal-1804-lts',
   GCE_CUSTOM_VM_IMAGE: 'test-harness-base',
   GCE_CUSTOM_GPU_VM_IMAGE: 'test-harness-gpu-livepeer',
+  GCE_CUSTOM_DOCKER_GPU_VM_IMAGE: 'test-harness-docker-gpu',
   // GCE_VM_IMAGE: 'https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-minimal-1604-lts',
   // GCE_VM_IMAGE: 'https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-minimal-1604-lts',
   // GCE_VM_IMAGE: 'https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-minimal-1804-lts',

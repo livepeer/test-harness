@@ -104,7 +104,8 @@ class Swarm {
       const tags = config.machines.tags
       const zone = config.machines.zone
       // first create manager machine
-      const managerCreateTask = await this._cloud.createMachine(this._managerName, zone, config.machines.managerMachineType, tags, !isInsideCloud, GoogleCloud.SWARM_ROLE_MANAGER)
+      const managerCreateTask = await this._cloud.createMachine(this._managerName, zone, config.machines.managerMachineType, tags, true, GoogleCloud.SWARM_ROLE_MANAGER)
+      // const managerCreateTask = await this._cloud.createMachine(this._managerName, zone, config.machines.managerMachineType, tags, !isInsideCloud, GoogleCloud.SWARM_ROLE_MANAGER)
       const managerInternalIP = await this._cloud.getInternalIP(this._managerName)
       const token = await this._getSwarmTokenWithRetries()
       console.log(`Using swarm token ${chalk.green(token)} and internal ip ${chalk.green(managerInternalIP)}`)
@@ -116,15 +117,19 @@ class Swarm {
         const mName = `${name}-worker-${i}`
         const serviceName = this._getServiceOnMachine(mName)
         console.log('mname:', mName, 'serviceName:', serviceName, 'hasGPU', context.services[serviceName].gpuMachine)
-        if (context.services[serviceName].gpuMachine) {
+        const service = context.services[serviceName]
+        if (service.gpuMachine) {
           continue
         }
         const zone = context.machine2zone[mName]
         // const makeExternal = !isInsideCloud && (['broadcaster', 'streamer'].includes(this.getServiceAtMachine(mName)) || config.allExternalIPs)
-        const makeExternal = !isInsideCloud && ['broadcaster'].includes(this.getServiceAtMachine(mName)) && config.giveExternalIPToBroadcasters
+        // const makeExternal = !isInsideCloud && ['broadcaster'].includes(this.getServiceAtMachine(mName)) && config.giveExternalIPToBroadcasters
+        const makeExternal = ['broadcaster'].includes(this.getServiceAtMachine(mName)) && config.giveExternalIPToBroadcasters
         // const makeExternal = !isInsideCloud
+        console.log('===== service')
+        console.log(service)
         machinesCreationTasks.push(this._cloud.createMachine(mName, zone, this.getMachineType(mName),
-          tags, makeExternal, GoogleCloud.SWARM_ROLE_WORKER, { token, managerInternalIP }))
+          tags, makeExternal, GoogleCloud.SWARM_ROLE_WORKER, { token, managerInternalIP }, undefined, undefined, service.dockerGpus))
       }
       console.log(`Creating Swarm machines`)
       await Promise.all(machinesCreationTasks)
@@ -149,7 +154,7 @@ class Swarm {
           }
           const livepeer_flags = service.flags + ' -orchAddr ' + oIP + ':' + context.services[oService].ports['8935']
           machinesCreationTasks.push(this._cloud.createMachine(tMachine, zone, this.getMachineType(tMachine),
-            tags, false, undefined, undefined, { livepeer_flags }, service.gpus))
+            tags, false, undefined, undefined, { livepeer_flags }, service.gpus, service.dockerGpus))
         }
 
         await Promise.all(machinesCreationTasks)

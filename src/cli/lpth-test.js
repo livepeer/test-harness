@@ -9,6 +9,7 @@ const Swarm = require('../swarm')
 const { wait } = require('../utils/helpers')
 const constants = require('../constants')
 const { StreamerTester } = require('../streamertester')
+const { ChaosManager } = require('../chaosmanager')
 
 
 program
@@ -65,13 +66,13 @@ function printAllStats(streamers, allStats) {
 async function cliProgressMonitorSart(streamers) {
   let allStats
   while (true) {
-    // console.log('streamers: ', streamers)
+    // console.log('cliProgressMonitorSart streamers: ', streamers)
     allStats = await StreamerTester.StatsForMany(streamers)
     if (!allStats.length) {
       console.error('Something wrong - shouldn\'t be empty array')
       process.exit(14)
     }
-    if (allStats[0].total_segments_to_send) {
+    if (allStats[0].total_segments_to_send && !allStats[0].finished) {
       // streaming started
       break
     }
@@ -94,6 +95,7 @@ async function cliProgressMonitorSart(streamers) {
     let combinedStats = StreamerTester.CombineStats(allStats)
     bar.update(combinedStats.sent_segments)
     if (combinedStats.finished) {
+      console.log('finished')
       break
     }
     await wait(4000, true)
@@ -164,6 +166,10 @@ async function run() {
   const hasActiveStreams = allStats.some(st => st.rtmp_active_streams)
   if (program.stop) {
     if (hasActiveStreams) {
+      if (parsedCompose.config.chaos) {
+        const cm = new ChaosManager(managerIP, [])
+        await cm.clear()
+      }
       // do stop
       await StreamerTester.StopForMany(streamers)
       console.log(chalk.cyan('Streams stopped, if was running'))
@@ -184,6 +190,19 @@ async function run() {
     return
   }
   if (!hasActiveStreams) {
+    // start chaos
+    if (parsedCompose.config.chaos) {
+      const chaosTasks = parsedCompose.config.chaosTasks||[]
+      if (chaosTasks.length) {
+        const cm = new ChaosManager(managerIP, parsedCompose.config.chaosTasks)
+        await cm.clear()
+        await cm.schedule()
+        await cm.start()
+
+      } else {
+        consol.log('No chaos tasks defined, not running chaos.')
+      }
+    }
     const streams = streamers.map((streamer, i) => {
       const hostToStream = services[broadcasterServices[sm.get(i)]].hostname
       const numberOfStreams = streamsPerStreamer.get(i)

@@ -106,6 +106,14 @@ async function run(parsedCompose) {
     const url = `http://${ip}:${po['7934']}/stats`
     await checkAndPrint('streamer', po.name, url)
   }
+
+
+  if (parsedCompose.config.chaos) {
+    const managerIP = parsedCompose.isLocal ? 'localhost' : await swarm.getPubIP(`${parsedCompose.configName}-manager`)
+    const url = `http://${managerIP}:7933/version`
+    // console.log(url)
+    await checkAndPrint('chaos', 'chaos', url)
+  }
 }
 
 program

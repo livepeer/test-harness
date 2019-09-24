@@ -5,7 +5,7 @@ const chalk = require('chalk')
 const { exec, spawn } = require('child_process')
 const axios = require('axios')
 const Compute = require('@google-cloud/compute')
-const { PROJECT_ID, GCE_CUSTOM_GPU_VM_IMAGE, GCE_CUSTOM_VM_IMAGE } = require('../constants')
+const { PROJECT_ID, GCE_CUSTOM_GPU_VM_IMAGE, GCE_CUSTOM_VM_IMAGE, GCE_CUSTOM_DOCKER_GPU_VM_IMAGE } = require('../constants')
 const { asyncExec, trim } = require('../utils/helpers')
 const { wait } = require('../utils/helpers')
 
@@ -109,7 +109,7 @@ class GoogleCloud {
    * @param {string} machineType type of machine
    * @param {string|array} tags tags
    */
-  async createMachine(name, zone, machineType, tags, addExternalIP = true, swarmRole = '', initValues = {}, attributes, gpus) {
+  async createMachine(name, zone, machineType, tags, addExternalIP = true, swarmRole = '', initValues = {}, attributes, gpus, dockerGpus) {
     const zoneName = zone || this._defaults.zone
     this._context.machine2zone[name] = zoneName
     // Create a new VM using the latest OS image of your choice.
@@ -117,7 +117,7 @@ class GoogleCloud {
 
     // Start the VM create task
     const vmConfig = {
-      os: `${this._defaults.projectId}/${gpus ? GCE_CUSTOM_GPU_VM_IMAGE : GCE_CUSTOM_VM_IMAGE}`,
+      os: `${this._defaults.projectId}/${gpus ? GCE_CUSTOM_GPU_VM_IMAGE : dockerGpus ? GCE_CUSTOM_DOCKER_GPU_VM_IMAGE : GCE_CUSTOM_VM_IMAGE}`,
       machineType,
     }
     if (addExternalIP) {
@@ -179,10 +179,14 @@ class GoogleCloud {
         })
       }
     }
-    if (gpus) {
+    console.log(`+++++ vm ${name} gpus ${gpus} dockerGpus ${dockerGpus}`)
+    if (gpus || dockerGpus) {
       vmConfig.guestAccelerators = [{
-        acceleratorType: `projects/test-harness-226018/zones/${zone}/acceleratorTypes/nvidia-tesla-v100`,
-        acceleratorCount: gpus
+        // acceleratorType: `projects/test-harness-226018/zones/${zone}/acceleratorTypes/nvidia-tesla-v100`,
+        // acceleratorType: `projects/test-harness-226018/zones/${zone}/acceleratorTypes/nvidia-tesla-k80`,
+        // acceleratorType: `projects/test-harness-226018/zones/${zone}/acceleratorTypes/nvidia-tesla-t4`,
+        acceleratorType: `projects/test-harness-226018/zones/${zone}/acceleratorTypes/nvidia-tesla-p100`,
+        acceleratorCount: gpus || dockerGpus
       }]
       vmConfig.scheduling = {
         "preemptible": false,
@@ -191,6 +195,8 @@ class GoogleCloud {
         "nodeAffinities": []
       }
     }
+    console.log('-------------------------- VMCONFIG:')
+    console.log(vmConfig)
     const [vm, operation, _apiResponse] = await gZone.createVM(name, vmConfig)
     // `operation` lets you check the status of long-running tasks.
     await operation.promise()

@@ -272,7 +272,8 @@ class NetworkCreator extends EventEmitter {
       networks: {
         testnet: {
           driver: this.config.local ? 'bridge' : 'overlay',
-          external: this.config.local ? false : true
+          external: this.config.local ? false : true,
+          attachable: true,
         }
       },
       volumes: {},
@@ -290,6 +291,14 @@ class NetworkCreator extends EventEmitter {
       this.nodes = output.services
       if (this.config.local) {
         this.mutateConfigsToVolumes(outputFolder, output)
+      }
+      if (services.agent) {
+        output.networks.portainer_agent = {
+          driver: this.config.local ? 'bridge' : 'overlay',
+          // external: this.config.local ? false : true,
+          external: false,
+          attachable: true,
+        }
       }
       console.log(`--------- writing compose file`)
       console.log(JSON.stringify(output, null, 2))
@@ -461,6 +470,7 @@ class NetworkCreator extends EventEmitter {
       ports: this.config.context.servicePorts[serviceName],
       command: this.getNodeOptions(gname, nodes, i),
       type,
+      dockerGpus: nodes.dockerGpus,
     }
     const generated = {
       // image: (this.config.local || this.config.localBuild) ? 'lpnode:latest' : 'localhost:5000/lpnode:latest',
@@ -553,6 +563,7 @@ class NetworkCreator extends EventEmitter {
       flags: this.getNodeOptions(gname, nodes, i, true) + ' -nvidia ' + Array(nodes.gpus).fill(0).map((_, i) => i).join(','),
       gpuMachine: true,
       gpus: nodes.gpus,
+      dockerGpus: nodes.dockerGpus,
     }
     cb(null)
   }
@@ -562,6 +573,10 @@ class NetworkCreator extends EventEmitter {
     const volumes = {}
     const configs = {}
 
+    if (this.config.chaos) {
+      output.agent = this.generatePortainerAgentService()
+      output.chaos = this.generateSwarmChaosService()
+    }
     output.geth = this.generateGethService(volumes)
     if (!output.geth) {
       delete output.geth
@@ -1033,8 +1048,81 @@ class NetworkCreator extends EventEmitter {
     return this.config.machines && this.config.machines.zone || 'us-east1-b'
   }
 
+  generatePortainerAgentService() {
+    const agentService = {
+      image: 'portainer/agent',
+      ports: [{
+        target: 9001,
+        published: 9001,
+        protocol: 'tcp',
+        mode: 'host',
+      }],
+      environment: {
+        AGENT_CLUSTER_ADDR: 'tasks.agent'
+      },
+      networks: ['portainer_agent'],
+      volumes: [
+        '/var/run/docker.sock:/var/run/docker.sock',
+        '/var/lib/docker/volumes:/var/lib/docker/volumes'
+      ],
+      restart: 'unless-stopped',
+      labels: {
+        zone: this._getZoneFromConfig(),
+        type: 'agent'
+      }
+    }
+
+    if (!this.config.local) {
+      agentService.deploy = {
+        mode: 'global',
+        placement: {
+          constraints: ['node.platform.os == linux']
+        }
+      }
+    }
+    return agentService
+  }
+
+  generateSwarmChaosService() {
+    const swarmChaosService = {
+      image: 'darkdragon/chaos',
+      command: '/root/chaos -server -agent tcp://agent:9001 ',
+      ports: [{
+        target: 7933,
+        published: 7933,
+        protocol: 'tcp',
+        // mode: 'host',
+      }],
+      // networks: ['portainer_agent', 'testnet'],
+      hostname: 'chaos',
+      networks: {
+        testnet: {
+          aliases: ['chaos']
+        },
+        portainer_agent: {
+          aliases: ['chaos']
+        }
+      },
+      restart: 'unless-stopped',
+      labels: {
+        zone: this._getZoneFromConfig(),
+        type: 'chaos'
+      }
+    }
+
+    if (!this.config.local) {
+      swarmChaosService.deploy = {
+        replicas: 1,
+        placement: {
+          constraints: ['node.role == manager']
+        }
+      }
+    }
+    return swarmChaosService
+  }
+
   generateGethService (volumes) {
-    let gethService = {
+    const gethService = {
       image: 'livepeer/geth-with-livepeer-protocol:pm',
       ports: [
         '8545:8545',
@@ -1301,7 +1389,7 @@ class NetworkCreator extends EventEmitter {
   */
 }
 
-let usedPorts = [8545, 8546, 30303, 8080, 3000, 3001, 3333, 9090]
+let usedPorts = [8545, 8546, 30303, 8080, 3000, 3001, 3333, 9090, 7933]
 function getRandomPort (origin) {
   // TODO, ugh, fix this terrible recursive logic, use an incrementer like a gentleman
   let port = origin + Math.floor(Math.random() * 999)
