@@ -10,8 +10,9 @@ Group=livepeer
 Type=simple
 Restart=always
 RestartSec=5s
-WorkingDirectory=/home/livepeer/go/src/github.com/livepeer/go-livepeer
-ExecStart=/home/livepeer/go/src/github.com/livepeer/go-livepeer/start_livepeer.sh
-
+# WorkingDirectory=/home/livepeer/go/src/github.com/livepeer/go-livepeer
+# ExecStart=/home/livepeer/go/src/github.com/livepeer/go-livepeer/start_livepeer.sh
+WorkingDirectory=/home/livepeer/go-livepeer
+ExecStart=/home/livepeer/go-livepeer/start_livepeer.sh
 [Install]
 WantedBy=multi-user.target

@@ -12,6 +12,15 @@ export PKG_CONFIG_PATH=$HOME/compiled/lib/pkgconfig
 
 
 # GPU-ENABLED GO-LIVEPEER
-go get github.com/livepeer/go-livepeer/cmd/livepeer
-cd "$HOME/go/src/github.com/livepeer/go-livepeer"
-go build ./cmd/livepeer/livepeer.go
+# go get github.com/livepeer/go-livepeer/cmd/livepeer
+# cd "$HOME/go/src/github.com/livepeer/go-livepeer"
+# go build ./cmd/livepeer/livepeer.go
+# mv /tmp/go-livepeer $HOME
+ls -lha
+sleep 5
+cd $HOME/go-livepeer
+ls -lha
+sleep 5
+go mod download
+sleep 5
+go build cmd/livepeer/livepeer.go

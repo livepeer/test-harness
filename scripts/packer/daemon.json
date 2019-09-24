@@ -3,5 +3,12 @@
     "log-opts": {
         "max-size": "1000m",
         "max-file": "5"
-    }
+    },
+    "runtimes": {
+        "nvidia": {
+            "path": "nvidia-container-runtime",
+            "runtimeArgs": []
+        }
+    },
+    "default-runtime": "nvidia"
 }

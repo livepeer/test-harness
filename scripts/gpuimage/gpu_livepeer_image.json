@@ -9,7 +9,8 @@
       "project_id": "test-harness-226018",
       "source_image_family": "test-harness-gpu-base",
       "ssh_username": "packer",
-      "zone": "us-central1-b",
+      "zone": "europe-west4-b",
+      "disk_size": 15,
       "machine_type": "n1-highcpu-16",
       "image_name": "test-harness-gpu-livepeer-{{timestamp}}",
       "image_family": "test-harness-gpu-livepeer"
@@ -18,8 +19,9 @@
   "provisioners": [
     {
       "type": "shell",
-      "pause_before": "40s",
+      "pause_before": "20s",
       "inline": [
+        "sudo add-apt-repository ppa:longsleep/golang-backports -y",
         "sudo apt-get update",
         "sudo apt-get install -y screen",
         "sudo apt-get -y upgrade",
@@ -27,10 +29,28 @@
       ]
     },
     {
+      "type": "file",
+      "source": "/home/dark/go-livepeer",
+      "destination": "/tmp"
+    },
+    {
+      "type": "shell",
+      "inline": [
+        "set -x",
+        "ls -ls /tmp",
+        "sudo mv /tmp/go-livepeer /home/livepeer",
+        "sudo ls -ls /tmp",
+        "sudo ls -ls /home/livepeer",
+        "sudo chown -R livepeer:livepeer /home/livepeer/go-livepeer"
+      ]
+    },
+    {
+      "pause_before": "10s",
       "type": "shell",
       "execute_command": "sudo bash -c \" su livepeer -c '{{ .Vars }} {{ .Path }}'\"",
       "script": "provision_livepeer.sh"
     },
+
     {
       "type": "file",
       "source": "livepeer.service",
@@ -44,10 +64,11 @@
     {
       "type": "shell",
       "inline": [
-        "sudo cp /tmp/start_livepeer.sh /home/livepeer/go/src/github.com/livepeer/go-livepeer/start_livepeer.sh",
-        "sudo chown livepeer:livepeer /home/livepeer/go/src/github.com/livepeer/go-livepeer/start_livepeer.sh",
+        "sudo cp /tmp/start_livepeer.sh /home/livepeer/go-livepeer/start_livepeer.sh",
+        "sudo chown livepeer:livepeer /home/livepeer/go-livepeer/start_livepeer.sh",
         "sudo cp /tmp/livepeer.service /etc/systemd/system/livepeer.service",
-        "sudo systemctl enable livepeer.service"
+        "sudo systemctl enable livepeer.service",
+        "sudo df -h"
       ]
     }
   ]

@@ -9,8 +9,9 @@
       "project_id": "test-harness-226018",
       "source_image_family": "ubuntu-minimal-1804-lts",
       "ssh_username": "packer",
-      "zone": "us-central1-b",
-      "machine_type": "n1-highcpu-16",
+      "zone": "europe-west4-b",
+      "disk_size": 15,
+      "machine_type": "n1-highcpu-32",
       "image_name": "test-harness-gpu-base-{{timestamp}}",
       "image_family": "test-harness-gpu-base"
     }

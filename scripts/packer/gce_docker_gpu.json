@@ -10,7 +10,7 @@
       "source_image_family": "ubuntu-minimal-1804-lts",
       "ssh_username": "packer",
       "zone": "europe-west4-b",
-      "image_name": "test-harness-base-{{timestamp}}",
+      "image_name": "test-harness-docker-gpu",
       "image_family": "test-harness-base"
     }
   ],
@@ -35,6 +35,10 @@
       ]
     },
     {
+      "type": "shell",
+      "script": "provision_docker_gpu.sh"
+    },
+    {
       "type": "file",
       "source": "daemon.json",
       "destination": "/tmp/"
@@ -47,6 +51,7 @@
     {
       "type": "shell",
       "inline": [
+        "sudo cp /tmp/daemon.json /etc/docker/daemon.json",
         "sudo ansible-playbook  /tmp/nodepb.yml"
       ]
     }
