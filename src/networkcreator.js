@@ -455,16 +455,20 @@ class NetworkCreator extends EventEmitter {
     if (this.config.publicImage) {
       image = (typeof this.config.publicImage === 'string') ? this.config.publicImage : 'livepeer/go-livepeer:edge'
     }
-    const port1 = getRandomPort(8935)
-    this.config.context.portsUsed[port1] = true
-    const port2 = getRandomPort(7935)
-    this.config.context.portsUsed[port2] = true
-    const port3 = getRandomPort(1935)
-    this.config.context.portsUsed[port3] = true
-    this.config.context.servicePorts[serviceName] = {
-      '1935': port3,
-      '7935': port2,
-      '8935': port1,
+    const ports = []
+    if (type == 'broadcaster' || type == 'orchestrator') {
+      const port1 = getRandomPort(8935)
+      this.config.context.portsUsed[port1] = true
+      const port2 = getRandomPort(7935)
+      this.config.context.portsUsed[port2] = true
+      const port3 = getRandomPort(1935)
+      this.config.context.portsUsed[port3] = true
+      this.config.context.servicePorts[serviceName] = {
+        '1935': port3,
+        '7935': port2,
+        '8935': port1,
+      }
+      ports.push(`${port1}:8935`, `${port2}:7935`, `${port3}:1935`)
     }
     this.config.context.services[serviceName] = {
       ports: this.config.context.servicePorts[serviceName],
@@ -477,11 +481,7 @@ class NetworkCreator extends EventEmitter {
       // image: this.config.local ? 'lpnode:latest' : 'localhost:5000/lpnode:latest',
       image,
       // image: 'localhost:5000/lpnode:latest',
-      ports: [
-        `${port1}:8935`,
-        `${port2}:7935`,
-        `${port3}:1935`
-      ],
+      ports,
       // TODO fix the serviceAddr issue
       command: this.getNodeOptions(gname, nodes, i),
       depends_on: this.getDependencies(type, i),

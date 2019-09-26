@@ -7,11 +7,13 @@ const { parseConfigFromCommandLine } = require('./helpers.js')
 // const { prettyPrintDeploymentInfo } = require('../helpers')
 const Swarm = require('../swarm')
 const Api = require('../api')
+const axe = axios.create({timeout: 2000})
 
 async function checkAndPrint(typ, name, url) {
+  // console.log(`==> ${typ} ==> ${name} ===> ${url}`)
   let status = chalk.green('OK')
   try {
-    const res = await axios.get(url)
+    const res = await axe.get(url)
     // console.log(res)
     if (res.status !== 200) {
       chalk.yellowBright(res.statusText)
@@ -34,10 +36,24 @@ function countTranscodersForO(config, oName) {
   return count
 }
 
+
+let isInsideCloud = false
+
+async function getIp(swarm, parsedCompose, serviceName) {
+  if (isInsideCloud) {
+    // find out machine name
+    const vm = parsedCompose.config.context._serviceConstraints[serviceName]
+    return await swarm.getInternalIP(vm)
+  }
+  const { ip } = await Swarm.getPublicIPOfService(parsedCompose, serviceName)
+  return ip
+}
+
 async function run(parsedCompose) {
   // await prettyPrintDeploymentInfo(parsedCompose)
   const api = new Api(parsedCompose)
   const swarm = new Swarm(parsedCompose.configName, parsedCompose.config)
+  isInsideCloud = await swarm.isInsideCloud()
   const oPorts = await api.getPortsArray(['orchestrators'])
   const bPorts = await api.getPortsArray(['broadcasters'])
   const tPorts = await api.getPortsArray(['transcoders'])
@@ -47,12 +63,12 @@ async function run(parsedCompose) {
   // console.log(oPorts)
   // console.log(parsedCompose.config)
   for (let po of oPorts) {
-    const { ip } = await Swarm.getPublicIPOfService(parsedCompose, po.name)
+    // const { ip } = await Swarm.getPublicIPOfService(parsedCompose, po.name)
+    const ip = await getIp(swarm, parsedCompose, po.name)
     const url = `http://${ip}:${po['7935']}/status`
     let status = chalk.green('OK')
     try {
-      const res = await axios.get(url)
-      // console.log(res)
+      const res = await axe.get(url)
       if (res.status !== 200) {
         chalk.yellowBright(res.statusText)
       } else {
@@ -70,14 +86,15 @@ async function run(parsedCompose) {
   }
   const bStatusUrls = []
   for (let po of bPorts) {
-    const { ip } = await Swarm.getPublicIPOfService(parsedCompose, po.name)
+    // const { ip } = await Swarm.getPublicIPOfService(parsedCompose, po.name)
+    const ip = await getIp(swarm, parsedCompose, po.name)
     const url = `http://${ip}:${po['7935']}/status`
     bStatusUrls.push(ip + ':' + po['7935'])
     await checkAndPrint('broadcaster', po.name, url)
   }
   // check Bs for transcoding options
   try {
-    const statuses = await Promise.all(bStatusUrls.map(host => axios.get(`http://${host}/getBroadcastConfig`)))
+    const statuses = await Promise.all(bStatusUrls.map(host => axe.get(`http://${host}/getBroadcastConfig`)))
     const options = statuses.map(st => st.data.TranscodingOptions)
     
     for (let [j, opt] of options.entries()) {
@@ -102,7 +119,8 @@ async function run(parsedCompose) {
   }
 
   for (let po of sPorts) {
-    const { ip } = await Swarm.getPublicIPOfService(parsedCompose, po.name)
+    // const { ip } = await Swarm.getPublicIPOfService(parsedCompose, po.name)
+    const ip = await getIp(swarm, parsedCompose, po.name)
     const url = `http://${ip}:${po['7934']}/stats`
     await checkAndPrint('streamer', po.name, url)
   }

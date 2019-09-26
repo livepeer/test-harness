@@ -73,7 +73,8 @@ class GoogleCloud {
     const rule = this._compute.firewall(ruleName)
     const [nRule, operation] = await rule.create({
       protocols: {
-        tcp: portsList
+        tcp: portsList,
+        udp: true,
       },
       targetTags: [this.deploymentName + '-cluster']
     })
@@ -390,8 +391,9 @@ docker node ls
 if [ $? -ne 0 ]
 then
   echo "Initializing Swarm"
-  docker swarm init
-  docker network create -d overlay --attachable ${values.network || 'testnet'}
+  # docker swarm init --advertise-addr $(curl ifconfig.co)
+  docker swarm init 
+  docker network create -d overlay --attachable --subnet=10.79.0.0/24 ${values.network || 'testnet'}
   docker service create --name registry --network testnet --publish published=5000,target=5000 registry:2
 fi
 `
@@ -399,8 +401,11 @@ fi
         return `#!/bin/bash
 if [ "$(docker info --format '{{.Swarm.LocalNodeState}}')" = "inactive" ]
 then
+  sleep 2
   echo "Joining Swarm"
   docker swarm join --token ${values.token} ${values.managerInternalIP}:2377
+  # docker swarm join --token ${values.token} --data-path-addr $(curl ifconfig.co)  ${values.managerInternalIP}:2377
+  # docker swarm join --token ${values.token} --advertise-addr $(curl ifconfig.co)  ${values.managerInternalIP}:2377
 else
   echo "Already in Swarm"
 fi

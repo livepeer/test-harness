@@ -788,7 +788,8 @@ class Api {
       },
       uri: url,
       form: params,
-      method: 'POST'
+      method: 'POST',
+      timeout: 4000,
     }, cb)
   }
 
@@ -796,7 +797,8 @@ class Api {
     console.log('POST: ', url)
     request({
       uri: url,
-      method: 'POST'
+      method: 'POST',
+      timeout: 4000,
     }, cb)
   }
 
@@ -804,7 +806,8 @@ class Api {
     console.log('GET: ', url)
     request({
       uri: url,
-      method: 'GET'
+      method: 'GET',
+      timeout: 2500,
     }, cb)
   }
 }

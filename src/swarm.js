@@ -88,6 +88,10 @@ class Swarm {
     }
   }
 
+  async isInsideCloud() {
+    return await this._cloud.isInsideCloud()
+  }
+
   async createMachinesUsual(machinesCount) {
     console.log(`Creating ${machinesCount} machines`)
     const config = this._config
@@ -103,9 +107,12 @@ class Swarm {
       // })
       const tags = config.machines.tags
       const zone = config.machines.zone
+      const makeManagerExternal = !!(!isInsideCloud || config.allExternalIPs)
+      console.log(`~~~~~~~~~ makeManagerExternal: ${makeManagerExternal} isInsideCloud: ${isInsideCloud} allExternalIPs: ${config.allExternalIPs}`)
       // first create manager machine
-      const managerCreateTask = await this._cloud.createMachine(this._managerName, zone, config.machines.managerMachineType, tags, true, GoogleCloud.SWARM_ROLE_MANAGER)
-      // const managerCreateTask = await this._cloud.createMachine(this._managerName, zone, config.machines.managerMachineType, tags, !isInsideCloud, GoogleCloud.SWARM_ROLE_MANAGER)
+      // const managerCreateTask = await this._cloud.createMachine(this._managerName, zone, config.machines.managerMachineType, tags, true, GoogleCloud.SWARM_ROLE_MANAGER)
+      const managerCreateTask = await this._cloud.createMachine(this._managerName, zone, config.machines.managerMachineType, tags,
+        !isInsideCloud || config.allExternalIPs, GoogleCloud.SWARM_ROLE_MANAGER)
       const managerInternalIP = await this._cloud.getInternalIP(this._managerName)
       const token = await this._getSwarmTokenWithRetries()
       console.log(`Using swarm token ${chalk.green(token)} and internal ip ${chalk.green(managerInternalIP)}`)
@@ -123,11 +130,13 @@ class Swarm {
         }
         const zone = context.machine2zone[mName]
         // const makeExternal = !isInsideCloud && (['broadcaster', 'streamer'].includes(this.getServiceAtMachine(mName)) || config.allExternalIPs)
+        const makeExternal = !!config.allExternalIPs
         // const makeExternal = !isInsideCloud && ['broadcaster'].includes(this.getServiceAtMachine(mName)) && config.giveExternalIPToBroadcasters
-        const makeExternal = ['broadcaster'].includes(this.getServiceAtMachine(mName)) && config.giveExternalIPToBroadcasters
+        // const makeExternal = ['broadcaster'].includes(this.getServiceAtMachine(mName)) && config.giveExternalIPToBroadcasters
+        // const makeExternal = true
         // const makeExternal = !isInsideCloud
-        console.log('===== service')
-        console.log(service)
+        // console.log('===== service')
+        // console.log(service)
         machinesCreationTasks.push(this._cloud.createMachine(mName, zone, this.getMachineType(mName),
           tags, makeExternal, GoogleCloud.SWARM_ROLE_WORKER, { token, managerInternalIP }, undefined, undefined, service.dockerGpus))
       }
@@ -160,7 +169,7 @@ class Swarm {
         await Promise.all(machinesCreationTasks)
         console.log(`Done creating GPU machines.`)
       }
-      if (!isInsideCloud) {
+      if (!isInsideCloud || true) {
         // TODO get ports to open from config (every time different)
         const portsUsed = Object.keys(config.context.portsUsed).map(port => parseInt(port))
         if (portsUsed.length) {
@@ -625,6 +634,10 @@ SHELL_SCREENRC`
 
   async getPubIP(machineName) {
     return await this._cloud.getExternalIP(machineName)
+  }
+
+  async getInternalIP(machineName) {
+    return await this._cloud.getInternalIP(machineName)
   }
 
   /*

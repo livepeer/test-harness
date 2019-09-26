@@ -41,8 +41,11 @@ async function run(program, parsedCompose) {
   }
   if (!machines.includes(vmName)) {
     let nvm = configName + '-' + vmName
+    const workerName = configName + '-' + 'worker-' + vmName
     if (machines.includes(nvm)) {
       vmName = nvm
+    } else if (machines.includes(workerName)) {
+      vmName = workerName
     } else if (context._serviceConstraints[vmName]) {
       vmName = context._serviceConstraints[vmName]
     } else {
