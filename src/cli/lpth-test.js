@@ -19,6 +19,7 @@ program
   .option('-l --latency', 'measure latency')
   .option('-d --duration <s>', 'duration to run stream. should not be used together with `-r`')
   .option('-a --stats', 'just show stats from streamers')
+  .option('-c --clear', 'clear chaos tasks')
   .option('-3 --threemin', 'use three minutes video')
   .description('Test deployment by streaming video into it and calculating success rate')
 
@@ -63,8 +64,9 @@ function printAllStats(streamers, allStats) {
   return combinedStats
 }
 
-async function cliProgressMonitorSart(streamers) {
+async function cliProgressMonitorSart(streamers, cm) {
   let allStats
+  let chaosStats
   while (true) {
     // console.log('cliProgressMonitorSart streamers: ', streamers)
     allStats = await StreamerTester.StatsForMany(streamers)
@@ -81,19 +83,32 @@ async function cliProgressMonitorSart(streamers) {
   }
 
   allStats = await StreamerTester.StatsForMany(streamers)
+  if (cm) {
+    chaosStats = await cm.stats()
+  }
   const printCurrentStats = () => {
     const combined = printAllStats(streamers, allStats)
+    if (chaosStats) {
+      console.log(chaosStats)
+    }
     process.exit(combined.success_rate === 100 ? 0 : 200)
   }
   process.on('SIGTERM', printCurrentStats)
   process.on('SIGINT', printCurrentStats)
   let combinedStats = StreamerTester.CombineStats(allStats)
-  const bar = new _cliProgress.Bar({}, _cliProgress.Presets.shades_classic)
-  bar.start(combinedStats.total_segments_to_send, 0)
+  const bar = new _cliProgress.Bar({
+    format: 'progress [{bar}] {percentage}% | ETA: {eta_formatted} | {value}/{total} | Success rate: {success}%'
+  }, _cliProgress.Presets.shades_classic)
+  bar.start(combinedStats.total_segments_to_send, 0, { success: 0 })
   while (true) {
     allStats = await StreamerTester.StatsForMany(streamers)
+    if (cm) {
+      chaosStats = await cm.stats()
+    }
     let combinedStats = StreamerTester.CombineStats(allStats)
-    bar.update(combinedStats.sent_segments)
+    // console.log('==== combinedStats:', combinedStats)
+    const success = combinedStats.success_rate
+    bar.update(combinedStats.sent_segments, { success })
     if (combinedStats.finished) {
       console.log('finished')
       break
@@ -133,13 +148,13 @@ async function run() {
     console.log(chalk.red('No broadcaster services in config, can\'t do testing'))
   }
   // console.log('broadcasters services:', broadcasterServices)
-  const streamsNumber = program.streams|0 || streamersServices.length
-  const repeat = program.repeat|0 || 1
+  const streamsNumber = program.streams | 0 || streamersServices.length
+  const repeat = program.repeat | 0 || 1
   // console.log('repeat:', repeat, 'sim', simulteneous, 'program', program)
   // process.exit(11)
   const streamsPerStreamer = new Map() // streamerIndex:numberOfStreams
   streamersServices.forEach((_s, i) => {
-    streamsPerStreamer.set(i, (streamsNumber/streamersServices.length|0)+((i+1) <= (streamsNumber%streamersServices.length))|0)
+    streamsPerStreamer.set(i, (streamsNumber / streamersServices.length | 0) + ((i + 1) <= (streamsNumber % streamersServices.length)) | 0)
   })
   console.log('streamsPerStreamer:', streamsPerStreamer)
 
@@ -158,16 +173,21 @@ async function run() {
   // console.log(sPorts)
   const streamers = streamersServices.map((sn, i) => {
     // const host = parsedCompose.isLocal ? 'localhost' : services[sn].hostname
-    const cfg = {version: versions[sm.get(i)], transcodingOptions: broadcastersConfigs[sm.get(i)].TranscodingOptions}
+    const cfg = { version: versions[sm.get(i)], transcodingOptions: broadcastersConfigs[sm.get(i)].TranscodingOptions }
     return new StreamerTester(sn, cfg, managerIP, sPorts[i][constants.ports.STREAMER_PORT], broadcastersProfilesNums[sm.get(i)])
   })
+  const cm = new ChaosManager(managerIP, [])
 
   const allStats = await StreamerTester.StatsForMany(streamers)
   const hasActiveStreams = allStats.some(st => st.rtmp_active_streams)
+  if (program.clear) {
+    console.log(`Clearing chaos tasks`)
+    await cm.clear()
+    return
+  }
   if (program.stop) {
     if (hasActiveStreams) {
       if (parsedCompose.config.chaos) {
-        const cm = new ChaosManager(managerIP, [])
         await cm.clear()
       }
       // do stop
@@ -187,18 +207,22 @@ async function run() {
     // console.log(allStats)
     const combinedStats = StreamerTester.CombineStats(allStats)
     console.log(StreamerTester.FormatStatsForConsole(combinedStats))
+    if (parsedCompose.config.chaos) {
+      const stats = await cm.stats()
+      console.log(stats)
+    }
     return
   }
   if (!hasActiveStreams) {
     // start chaos
     if (parsedCompose.config.chaos) {
-      const chaosTasks = parsedCompose.config.chaosTasks||[]
+      const chaosTasks = parsedCompose.config.chaosTasks || []
       if (chaosTasks.length) {
         const cm = new ChaosManager(managerIP, parsedCompose.config.chaosTasks)
         await cm.clear()
         await cm.schedule()
-        await cm.start()
-
+        const duration = program.duration || ((program.repeat || 1) * 600) + 's'
+        await cm.start(duration)
       } else {
         consol.log('No chaos tasks defined, not running chaos.')
       }
@@ -213,7 +237,7 @@ async function run() {
   } else {
     console.log(chalk.cyan('There is already running streams, showing them instead of running new ones'))
   }
-  await cliProgressMonitorSart(streamers)
+  await cliProgressMonitorSart(streamers, parsedCompose.config.chaos ? cm : undefined)
 }
 
 run().catch(console.error)
