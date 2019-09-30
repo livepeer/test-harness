@@ -433,7 +433,7 @@ Plese note now GCP logging is truned off by default and should be turned on expl
         oi = ++oi % numOrchs
       }
     }
-    console.log('assignTranscoders2Orchs: ', tres)
+    // console.log('assignTranscoders2Orchs: ', tres)
     return tres
   }
 

@@ -12,7 +12,7 @@ const { timesLimit, each, eachLimit } = require('async')
 const log = require('debug')('livepeer:test-harness:network')
 const Pool = require('threads').Pool
 const { getNames, spread, spreadObj, needToCreateGeth, needToCreateGethFaucet, needToCreateGethTxFiller } = require('./utils/helpers')
-const { PROJECT_ID, NODE_TYPES } = require('./constants')
+const { PROJECT_ID, NODE_TYPES, PRICING } = require('./constants')
 const YAML = require('yaml')
 const mConfigs = require('./configs')
 
@@ -90,15 +90,37 @@ class NetworkCreator extends EventEmitter {
       const [_serviceConstraints, machine2serviceType, machine2zone] = this.getServiceConstraints(workers, config)
       this._serviceConstraints = _serviceConstraints
 
-      console.log('_serviceConstraints: ', this._serviceConstraints)
-      console.log('machine2serviceType: ', machine2serviceType)
+      // console.log('_serviceConstraints: ', this._serviceConstraints)
+      // console.log('machine2serviceType: ', machine2serviceType)
       config.machines.machine2serviceType = machine2serviceType
       this._context._serviceConstraints = this._serviceConstraints
       this._context._machine2serviceType = machine2serviceType
       this._context.machine2zone = machine2zone
-      console.log(`machine2zone:`, this._context.machine2zone)
+      // console.log(`machine2zone:`, this._context.machine2zone)
+      console.log(`This will cost ${this.getHourlyCost()}$/hour`)
       // process.exit(11)
     }
+  }
+
+  getHourlyCost() {
+    const costs = PRICING.google
+    let totalCost = 0
+    const managerCost = costs[this.config.machines.managerMachineType]
+    if (!managerCost) {
+      console.log(`No cost defined for machine type ${this.config.machines.managerMachineType}`)
+      process.exit(98)
+    }
+    totalCost += managerCost
+    for (let machinesName in this.config.machines.machine2serviceType) {
+      const mType = this.config.machines[this.config.machines.machine2serviceType[machinesName]+'MachineType']
+      const cost = costs[mType]
+      if (!cost) {
+        console.log(`No cost defined for machine type ${mType}`)
+        process.exit(99)
+      }
+      totalCost += cost
+    }
+    return totalCost
   }
 
 
