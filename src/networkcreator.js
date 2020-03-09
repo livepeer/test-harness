@@ -1017,7 +1017,7 @@ class NetworkCreator extends EventEmitter {
 
   generateGethService (volumes) {
     let gethService = {
-      image: 'livepeer/geth-with-livepeer-protocol:pm',
+      image: 'livepeer/geth-with-livepeer-protocol:streamflow',
       ports: [
         '8545:8545',
         '8546:8546',

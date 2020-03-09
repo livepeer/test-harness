@@ -14,10 +14,10 @@ name = "testharness"
 
 [nodes.transcoders]
   instances = 1
-  flags = "--v 4 -transcoder -initializeRound"
+  flags = "--v 6 -transcoder -initializeRound"
 [nodes.orchestrators]
   instances = 1
-  flags = "--v 4"
+  flags = "--v 6"
 [nodes.broadcasters]
   instances = 5
-  flags = "--v 4"
+  flags = "--v 6"
