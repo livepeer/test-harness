@@ -50,9 +50,11 @@ async function prettyPrintDeploymentInfo(parsedCompose) {
   if (parsedCompose.hasGeth) {
     const ethRpc = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, 'geth')
     const ethFaucet = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, 'gethFaucet')
+    const txFiller = parsedCompose.isLocal ? 'localhost' : await Swarm.getPublicIPOfService(parsedCompose, 'gethTxFiller')
     console.log(`===== ${chalk.green('Blockchain')}:`)
     console.log(`Geth JSON-RPC:  ${c(`http://${ethRpc}:8545`)}`)
     console.log(`ETH Faucet:  ${c(`http://${ethFaucet}:3333`)}`)
+    console.log(`Tx Filler: ${c(`http://${txFiller}`)}`)
   }
 }
 
